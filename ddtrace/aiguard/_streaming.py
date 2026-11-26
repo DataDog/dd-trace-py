@@ -1,41 +1,38 @@
-"""AI Guard streaming response buffer and replay.
+"""AI Guard buffer-then-evaluate of the event source of a streamed response.
 
-Provides two ``wrapt.ObjectProxy`` wrappers — ``BufferedAIGuardStream`` (sync)
-and ``BufferedAIGuardAsyncStream`` (async) — that intercept the iteration
-protocol of a contrib ``TracedStream`` / ``TracedAsyncStream``.
+The provider contribs hand AI Guard the event iterator of each new SDK stream (their
+stream.created events). That iterator sits below every SDK consumer: the caller's iteration, the
+SDK message accumulators with their snapshots and final messages, the text helpers and the tool
+runners. Replacing it with BufferedEvents or AsyncBufferedEvents means those consumers only ever
+see events that AI Guard allowed.
 
-SECURITY INVARIANT: no chunk is ever handed to the caller until
-``evaluate(reconstruct(chunks))`` has returned without raising.  On block,
-``evaluate`` raises ``AIGuardAbortError`` and the accumulated buffer is never
-replayed.  This is buffer-then-evaluate, NOT live forwarding — do not
-"optimise" it into a pass-through (that reintroduces the token-leak this
-module exists to prevent).
+SECURITY INVARIANT: no event is handed to the SDK until evaluate(reconstruct(events)) has
+returned without raising, and only the events evaluated together are replayed. On block, evaluate
+raises AIGuardAbortError and nothing is replayed. This is buffer-then-evaluate, NOT live
+forwarding: do not "optimise" it into a pass-through.
 """
 
 import asyncio
 from collections.abc import AsyncIterator
 from collections.abc import Iterator
-import inspect
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Union
 
-import wrapt
-
+from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._context import is_aiguard_context_active
-from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
-from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = ddlogger.get_logger(__name__)
 
-# ``reconstruct`` rebuilds a provider-shaped response from buffered chunks;
-# ``evaluate`` runs the AI Guard verdict and raises ``AIGuardAbortError`` on block.
+# reconstruct rebuilds a provider-shaped response from buffered events;
+# evaluate runs the AI Guard verdict and raises AIGuardAbortError on block.
 ReconstructFn = Callable[[list[Any]], Any]
 EvaluateFn = Callable[[Any], Any]
-# Checked when the stream is first consumed, so a flag turned off by then leaves it unbuffered.
+# Checked when the stream is first read, so a flag turned off by then leaves it unbuffered.
 EnabledFn = Callable[[], bool]
 
 
@@ -43,51 +40,12 @@ def _stream_analysis_enabled() -> bool:
     return bool(aiguard_config._ai_guard_analyze_stream_responses_enabled)
 
 
-def _is_traced_stream(result: Any) -> bool:
-    """Return True if *result* is a TracedStream or TracedAsyncStream from LLMObs.
-
-    Both are identified by their ``_self_handler`` being a ``BaseStreamHandler``;
-    :func:`_is_async_traced_stream` narrows that to the async subclass.
-    """
-    return isinstance(getattr(result, "_self_handler", None), BaseStreamHandler)
-
-
-def _is_async_traced_stream(result: Any) -> bool:
-    """Return True if *result*'s handler is an AsyncStreamHandler (TracedAsyncStream)."""
-    return isinstance(getattr(result, "_self_handler", None), AsyncStreamHandler)
-
-
-def _is_plain_stream(result: Any) -> bool:
-    """Return True for a raw (async) generator stream (e.g. OpenAI <1.6, which never
-    produces a TracedStream); such streams must still be buffered.
-    """
-    return inspect.isgenerator(result) or inspect.isasyncgen(result)
-
-
-def _is_async_plain_stream(result: Any) -> bool:
-    """Return True if *result* is a raw async generator stream (async ``_drained`` path)."""
-    return inspect.isasyncgen(result)
-
-
-def _text_delta_from_chunk(chunk: Any) -> Optional[str]:
-    """Return the text string from a text_delta chunk, or None for all other chunk types."""
-    if getattr(chunk, "type", "") == "content_block_delta":
-        delta = getattr(chunk, "delta", None)
-        if delta and getattr(delta, "type", "") == "text_delta":
-            text: str = getattr(delta, "text", "")
-            return text
-    return None
-
-
 def _reconstruct_and_evaluate(reconstruct: ReconstructFn, evaluate: EvaluateFn, chunks: list[Any]) -> None:
-    """Reconstruct a provider response from buffered *chunks* and run the AI Guard verdict.
+    """Reconstruct a provider response from buffered chunks and run the AI Guard verdict.
 
-    Reconstruction must fail OPEN -- a converter bug must not break
-    the user's legitimate stream. Only ``evaluate`` (a block decision) is allowed
-    to raise; reconstruction errors are swallowed and the buffer is replayed
-    unevaluated. ``evaluate`` itself (``_anthropic_messages_create_after``) already
-    swallows non-block exceptions and only re-raises AIGuardAbortError. Shared by
-    the sync and async ``_drained`` paths so this invariant lives in one place.
+    Reconstruction fails open: a converter bug must not break a legitimate stream, so its errors
+    are swallowed and the buffer is replayed unevaluated. Only evaluate may raise a block; the
+    listeners already swallow every other evaluation error.
     """
     try:
         response = reconstruct(chunks)
@@ -97,244 +55,208 @@ def _reconstruct_and_evaluate(reconstruct: ReconstructFn, evaluate: EvaluateFn, 
         evaluate(response)  # raises AIGuardAbortError on block
 
 
-class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt ships no stubs
-    """Sync buffer-then-evaluate proxy for a contrib TracedStream.
+class InterruptedStreamError(RuntimeError):
+    """A later read of a stream whose drain was interrupted before AI Guard evaluated it."""
 
-    On first use (``__iter__``, ``__next__``, ``__enter__``, ``text_stream``,
-    or any convenience method), the proxy drains the underlying TracedStream
-    completely, calls ``evaluate`` on the reconstructed response, then replays
-    the buffered chunks.
 
-    If enabled() is false or a framework collision context is active the proxy is
-    transparent: ``_drained()`` returns ``None`` and every method delegates
-    directly to the wrapped stream.
-    """
+def _remember_block(block: AIGuardAbortError) -> AIGuardAbortError:
+    """Keep a block for later reads without its frames or the frames of the exceptions it chains."""
+    block.__traceback__ = None
+    seen: set[int] = set()
+    chained = [block.__cause__, block.__context__]
+    while chained:
+        exc = chained.pop()
+        if exc is None or id(exc) in seen:
+            continue
+        seen.add(id(exc))
+        exc.__traceback__ = None
+        chained += [exc.__cause__, exc.__context__]
+    return block
 
+
+def _drain_failure(error: BaseException) -> BaseException:
+    """The failure that every later read of a stream with an interrupted drain raises."""
+    # A cancellation or an interrupt belongs to the reader it stopped, not to the next one.
+    return error if isinstance(error, Exception) else InterruptedStreamError("the stream was interrupted")
+
+
+def _raise_failure(failure: Optional[BaseException]) -> None:
+    """Raise a remembered failure again; the traceback is reset so repeated reads do not grow it."""
+    if failure is not None:
+        raise failure.with_traceback(None)
+
+
+class _BufferedEventsBase:
     def __init__(
         self,
-        wrapped: Any,
+        events: Any,
         *,
         reconstruct: ReconstructFn,
         evaluate: EvaluateFn,
         enabled: EnabledFn = _stream_analysis_enabled,
     ) -> None:
-        super().__init__(wrapped)
-        self._self_reconstruct = reconstruct
-        self._self_evaluate = evaluate
-        self._self_enabled = enabled
-        self._self_chunks: Optional[list[Any]] = None
-        self._self_passthrough: bool = False
-        self._self_index: int = 0
+        self._events = events
+        self._reconstruct = reconstruct
+        self._evaluate = evaluate
+        self._enabled = enabled
+        self._passthrough: Optional[bool] = None
+        # Drained so far; only a complete drain is evaluated, and an interrupted one is terminal.
+        self._buffer: list[Any] = []
+        self._drain_complete = False
+        # The buffer, once the evaluation allowed it.
+        self._chunks: Optional[list[Any]] = None
+        # A block, a provider error or an interrupted drain: every later read raises it again.
+        self._failure: Optional[BaseException] = None
+        self._index = 0
 
-    def _drained(self) -> Optional[list[Any]]:
-        if self._self_passthrough:
-            return None
-        if self._self_chunks is None:
-            if not self._self_enabled() or is_aiguard_context_active():
-                self._self_passthrough = True
-                return None
-            chunks = list(self.__wrapped__)  # drives contrib tracing + finalize_stream
-            _reconstruct_and_evaluate(self._self_reconstruct, self._self_evaluate, chunks)
-            self._self_chunks = chunks
-        return self._self_chunks
+    def _is_passthrough(self) -> bool:
+        # Decided once, on the first read: a stream that started buffering is always evaluated.
+        if self._passthrough is None:
+            self._passthrough = not self._enabled() or is_aiguard_context_active()
+        return self._passthrough
 
-    def __iter__(self) -> Iterator[Any]:
-        chunks = self._drained()
-        if chunks is None:
-            yield from self.__wrapped__
-            return
-        while self._self_index < len(chunks):
-            chunk = chunks[self._self_index]
-            self._self_index += 1
-            yield chunk
-
-    def __next__(self) -> Any:
-        chunks = self._drained()
-        if chunks is None:
-            return self.__wrapped__.__next__()
-        if self._self_index >= len(chunks):
-            raise StopIteration
-        chunk = chunks[self._self_index]
-        self._self_index += 1
+    def _next_chunk(self) -> Any:
+        assert self._chunks is not None  # nosec B101
+        if self._index >= len(self._chunks):
+            return _END
+        chunk = self._chunks[self._index]
+        self._index += 1
         return chunk
 
-    # ------------------------------------------------------------------
-    # Context-manager protocol
-    #
-    # TracedStream.__enter__() (ddtrace/contrib/internal/stream_handler.py) has two branches:
-    #   - non-manager (raw Stream): returns ``self`` (the TracedStream).
-    #   - manager (MessageStreamManager): returns a NEW TracedStream
-    #     wrapping the inner MessageStream.
-    # Without these overrides, ObjectProxy proxies __enter__ to
-    # TracedStream.__enter__() and the caller's "with ... as s:" assigns s
-    # to a TracedStream — bypassing this proxy entirely in both cases.
-    # ------------------------------------------------------------------
 
-    def __enter__(self) -> "BufferedAIGuardStream":
-        result = self.__wrapped__.__enter__()
-        if result is self.__wrapped__:
-            return self
-        # manager path: TracedStream returned a new inner TracedStream; wrap
-        # it so the caller still iterates the buffer, not the live stream.
-        return BufferedAIGuardStream(
-            result,
-            reconstruct=self._self_reconstruct,
-            evaluate=self._self_evaluate,
-            enabled=self._self_enabled,
-        )
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
-        return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
-
-    # ------------------------------------------------------------------
-    # Anthropic convenience attributes
-    #
-    # The contrib's on_stream_created callback sets ``text_stream`` on the
-    # inner TracedStream as a generator that reads directly from that
-    # TracedStream's iteration.  ObjectProxy attribute lookup proxies the
-    # attribute through, so ``text_stream`` would bypass the buffer entirely.
-    # These overrides ensure no token reaches the caller before _drained()
-    # has returned ALLOW.
-    # ------------------------------------------------------------------
-
-    @property
-    def text_stream(self) -> Iterator[str]:
-        """Yield text deltas only after the full buffer has been evaluated.
-
-        SECURITY INVARIANT: do NOT proxy to self.__wrapped__.text_stream —
-        that generator reads directly from the underlying TracedStream and
-        bypasses this buffer.
-        """
-        chunks = self._drained()
-        if chunks is None:
-            yield from self.__wrapped__.text_stream
-            return
-        for chunk in chunks:
-            text = _text_delta_from_chunk(chunk)
-            if text is not None:
-                yield text
-
-    def get_final_message(self) -> Any:
-        self._drained()
-        return self.__wrapped__.get_final_message()
-
-    def get_final_text(self) -> Any:
-        self._drained()
-        return self.__wrapped__.get_final_text()
-
-    def until_done(self) -> Any:
-        self._drained()
-        return self.__wrapped__.until_done()
+_END = object()
 
 
-class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt ships no stubs
-    """Async mirror of BufferedAIGuardStream for TracedAsyncStream."""
+class BufferedEvents(_BufferedEventsBase):
+    """Sync SDK event iterator that replays the events only after AI Guard allowed them."""
+
+    def __iter__(self) -> Iterator[Any]:
+        return self
+
+    def __next__(self) -> Any:
+        _raise_failure(self._failure)
+        if self._chunks is None:
+            if self._is_passthrough():
+                return next(self._events)
+            self._drain_and_evaluate()
+        chunk = self._next_chunk()
+        if chunk is _END:
+            raise StopIteration
+        return chunk
+
+    def _drain_and_evaluate(self) -> None:
+        if not self._drain_complete:
+            try:
+                for event in self._events:
+                    self._buffer.append(event)
+            except BaseException as e:
+                # A drain that does not complete is terminal: none of its events reach the SDK.
+                self._failure = _drain_failure(e)
+                raise
+            self._drain_complete = True
+        try:
+            _reconstruct_and_evaluate(self._reconstruct, self._evaluate, self._buffer)
+        except AIGuardAbortError as e:
+            self._failure = _remember_block(e)
+        # Raised outside the handler, so the remembered block does not chain the evaluation frames.
+        _raise_failure(self._failure)
+        self._chunks = self._buffer
+
+
+class AsyncBufferedEvents(_BufferedEventsBase):
+    """Async SDK event iterator that replays the events only after AI Guard allowed them."""
 
     def __init__(
         self,
-        wrapped: Any,
+        events: Any,
         *,
         reconstruct: ReconstructFn,
         evaluate: EvaluateFn,
         enabled: EnabledFn = _stream_analysis_enabled,
     ) -> None:
-        super().__init__(wrapped)
-        self._self_reconstruct = reconstruct
-        self._self_evaluate = evaluate
-        self._self_enabled = enabled
-        self._self_chunks: Optional[list[Any]] = None
-        # Drained but not yet allowed: a blocked or cancelled evaluation is retried on this buffer.
-        self._self_buffer: Optional[list[Any]] = None
-        self._self_lock: Optional[asyncio.Lock] = None
-        self._self_passthrough: bool = False
-        self._self_index: int = 0
+        super().__init__(events, reconstruct=reconstruct, evaluate=evaluate, enabled=enabled)
+        self._lock: Optional[asyncio.Lock] = None
+        # One evaluation shared by every reader, so a cancelled reader does not make the next one start another.
+        self._evaluation: Optional[asyncio.Future[None]] = None
 
-    async def _drained(self) -> Optional[list[Any]]:
-        if self._self_passthrough:
-            return None
-        if self._self_chunks is None:
-            if not self._self_enabled() or is_aiguard_context_active():
-                self._self_passthrough = True
-                return None
+    def __aiter__(self) -> AsyncIterator[Any]:
+        return self
+
+    async def __anext__(self) -> Any:
+        _raise_failure(self._failure)
+        if self._chunks is None:
+            if self._is_passthrough():
+                return await self._events.__anext__()
             try:
                 asyncio.get_running_loop()
             except RuntimeError:
                 # Not on asyncio (e.g. trio): evaluate inline.
                 await self._drain_and_evaluate(off_loop=False)
             else:
-                if self._self_lock is None:
-                    self._self_lock = asyncio.Lock()
-                # Concurrent callers wait for the same verdict instead of reading the exhausted stream.
-                async with self._self_lock:
+                if self._lock is None:
+                    self._lock = asyncio.Lock()
+                # Concurrent readers wait for the same verdict instead of reading the exhausted stream.
+                async with self._lock:
                     await self._drain_and_evaluate(off_loop=True)
-        return self._self_chunks
-
-    async def _drain_and_evaluate(self, off_loop: bool) -> None:
-        if self._self_chunks is not None:
-            return
-        if self._self_buffer is None:
-            self._self_buffer = [chunk async for chunk in self.__wrapped__]
-        if off_loop:
-            # The evaluation is a blocking HTTP call: run it off the event loop (contextvars are copied).
-            await asyncio.to_thread(
-                _reconstruct_and_evaluate, self._self_reconstruct, self._self_evaluate, self._self_buffer
-            )
-        else:
-            _reconstruct_and_evaluate(self._self_reconstruct, self._self_evaluate, self._self_buffer)
-        self._self_chunks = self._self_buffer
-
-    def __aiter__(self) -> "BufferedAIGuardAsyncStream":
-        return self
-
-    async def __anext__(self) -> Any:
-        chunks = await self._drained()
-        if chunks is None:
-            return await self.__wrapped__.__anext__()
-        if self._self_index >= len(chunks):
+        chunk = self._next_chunk()
+        if chunk is _END:
             raise StopAsyncIteration
-        chunk = chunks[self._self_index]
-        self._self_index += 1
         return chunk
 
-    async def __aenter__(self) -> "BufferedAIGuardAsyncStream":
-        result = await self.__wrapped__.__aenter__()
-        if result is self.__wrapped__:
-            return self
-        return BufferedAIGuardAsyncStream(
-            result,
-            reconstruct=self._self_reconstruct,
-            evaluate=self._self_evaluate,
-            enabled=self._self_enabled,
-        )
+    async def _drain_and_evaluate(self, off_loop: bool) -> None:
+        if self._chunks is not None:
+            return
+        # A reader that waited on the lock gets the failure of the read it waited for.
+        _raise_failure(self._failure)
+        if not self._drain_complete:
+            try:
+                async for event in self._events:
+                    self._buffer.append(event)
+            except BaseException as e:
+                # A drain that does not complete is terminal: none of its events reach the SDK.
+                self._failure = _drain_failure(e)
+                raise
+            self._drain_complete = True
+        if not off_loop:
+            self._evaluate_buffer()
+        else:
+            if self._evaluation is None:
+                # The evaluation is a blocking HTTP call: run it off the event loop (contextvars are copied).
+                self._evaluation = asyncio.ensure_future(asyncio.to_thread(self._evaluate_buffer))
+                self._evaluation.add_done_callback(self._release_evaluation)
+            # Shielded: cancelling this reader leaves the evaluation running, and the next reader gets its verdict.
+            await asyncio.shield(self._evaluation)
+        _raise_failure(self._failure)
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
-        return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+    def _release_evaluation(self, evaluation: "asyncio.Future[None]") -> None:
+        """Drop a finished evaluation, also when no reader awaits it.
 
-    @property
-    def text_stream(self) -> AsyncIterator[str]:
-        """Return an async generator that yields text deltas after the buffer is evaluated."""
+        Its verdict is recorded, or without one the next read evaluates again.
+        """
+        if self._evaluation is evaluation:
+            self._evaluation = None
+        if not evaluation.cancelled():
+            evaluation.exception()  # retrieved, so a failure nobody awaits is not logged
 
-        async def _gen() -> AsyncIterator[str]:
-            chunks = await self._drained()
-            if chunks is None:
-                async for text in self.__wrapped__.text_stream:
-                    yield text
-                return
-            for chunk in chunks:
-                text = _text_delta_from_chunk(chunk)
-                if text is not None:
-                    yield text
+    def _evaluate_buffer(self) -> None:
+        """Evaluate the drained buffer and record its verdict, inline or in a worker thread."""
+        try:
+            _reconstruct_and_evaluate(self._reconstruct, self._evaluate, self._buffer)
+        except AIGuardAbortError as e:
+            # Recorded, not raised, so a verdict nobody awaits is not logged as an unretrieved task exception.
+            self._failure = _remember_block(e)
+        else:
+            self._chunks = self._buffer
 
-        return _gen()
 
-    async def get_final_message(self) -> Any:
-        await self._drained()
-        return await self.__wrapped__.get_final_message()
-
-    async def get_final_text(self) -> Any:
-        await self._drained()
-        return await self.__wrapped__.get_final_text()
-
-    async def until_done(self) -> Any:
-        await self._drained()
-        return await self.__wrapped__.until_done()
+def buffered_events(
+    events: Any,
+    is_async: bool,
+    *,
+    reconstruct: ReconstructFn,
+    evaluate: EvaluateFn,
+    enabled: EnabledFn = _stream_analysis_enabled,
+) -> Union[BufferedEvents, AsyncBufferedEvents]:
+    """Wrap the event iterator of an SDK stream in the buffer that matches it."""
+    cls = AsyncBufferedEvents if is_async else BufferedEvents
+    return cls(events, reconstruct=reconstruct, evaluate=evaluate, enabled=enabled)

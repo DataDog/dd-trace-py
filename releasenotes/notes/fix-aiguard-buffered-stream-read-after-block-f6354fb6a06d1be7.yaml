@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where streamed responses from Anthropic, OpenAI and the LiteLLM proxy are not
+    always fully analyzed when ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` is enabled.

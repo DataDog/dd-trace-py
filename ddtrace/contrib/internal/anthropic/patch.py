@@ -118,11 +118,6 @@ def patch() -> None:
     # see its events before any SDK consumer does.
     wrap("anthropic", "_streaming.Stream.__init__", traced_stream_init(ANTHROPIC_STREAM_CREATED, is_async=False))
     wrap("anthropic", "_streaming.AsyncStream.__init__", traced_stream_init(ANTHROPIC_STREAM_CREATED, is_async=True))
-    # AI Guard mirrors this wrap-target list in
-    # ddtrace/appsec/_ai_guard/_listener.py::_install_anthropic_wrappers to
-    # install its outermost streaming buffer. If you add/rename a target or
-    # change the >= (0, 37) beta gate below, update that list too or the new
-    # surface goes unbuffered for stream-response evaluation.
     wrap("anthropic", "resources.messages.Messages.create", traced_chat_model_generate)
     wrap("anthropic", "resources.messages.Messages.stream", traced_chat_model_generate)
     wrap("anthropic", "resources.messages.AsyncMessages.create", traced_async_chat_model_generate)
@@ -139,8 +134,7 @@ def patch() -> None:
         )
         wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", traced_chat_model_generate)
 
-    # Notify AI Guard (and any other plugin) that wrapping is complete so they
-    # can install their own outermost wrappers on the same targets.
+    # Notify AI Guard (and any other plugin) that wrapping is complete.
     core.dispatch("anthropic.patch", tuple())
     integration_hooks.on_patch("anthropic")
 
