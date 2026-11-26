@@ -9,3 +9,6 @@
 # no separate unfreeze PR is needed. The check reads base rules as well as
 # merge-result rules, so updating a hash in the same PR cannot lift a
 # freeze: only removing the entry can.
+
+# Package split, wave 1: moving to ddtrace-internal (DataDog/datadog-apm-python#77).
+ddtrace/internal/utils/time.py=18a3934cea512100873cd56e2d517126333720f74548b488b9ed866907e6c41a
