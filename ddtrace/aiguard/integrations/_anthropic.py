@@ -353,6 +353,8 @@ def _format_content_blocks(
     tool_results: list[Message] = []
     parts: list[ContentPart] = []
     tool_calls: list[ToolCall] = []
+    # Client tool calls stay pending until the next user turn, so they end this turn, after any server result.
+    pending_calls: list[ToolCall] = []
 
     def close_turn() -> None:
         # Only an assistant turn carries tool calls.
@@ -383,7 +385,7 @@ def _format_content_blocks(
             tool_call = _tool_call_from_block(block)
             if block_type == "mcp_tool_use" and mcp_servers is not None:
                 _reference_connector_server(tool_call, block, mcp_servers)
-            tool_calls.append(tool_call)
+            (pending_calls if block_type == "tool_use" else tool_calls).append(tool_call)
         elif block_type == "tool_result":
             tool_results.extend(_format_tool_result_block(block))
         elif block_type in _SERVER_TOOL_RESULT_TYPES:
@@ -412,6 +414,11 @@ def _format_content_blocks(
     if role != "assistant":
         # Tool results answer the previous assistant turn, so the text of this turn comes after them.
         return tool_results + messages
+    if pending_calls:
+        if messages and messages[-1].get("role") == "assistant":
+            messages[-1]["tool_calls"] = list(messages[-1].get("tool_calls") or []) + pending_calls
+        else:
+            messages.append(Message(role="assistant", tool_calls=pending_calls))
     messages.extend(tool_results)
     return messages
 
@@ -591,14 +598,28 @@ def materialize_request(kwargs: dict[str, Any]) -> None:
     """
     try:
         _materialize_request(kwargs)
+    except _CallerIterationError as exc:
+        # The SDK would raise it too while reading that iterable, before sending the request.
+        raise exc.__cause__ from None  # type: ignore[misc]
     except Exception:
         logger.debug("AI Guard anthropic: failed to materialize the request iterables", exc_info=True)
+
+
+class _CallerIterationError(Exception):
+    """Raised from an error of a caller iterable, so materialize_request lets that error through."""
+
+
+def _listed(value: Iterable[Any]) -> list[Any]:
+    try:
+        return list(value)
+    except Exception as exc:
+        raise _CallerIterationError() from exc
 
 
 def _materialize_request(kwargs: dict[str, Any]) -> None:
     for key in ("messages", "system", "tools", "mcp_servers"):
         if _is_unlisted_iterable(kwargs.get(key)):
-            kwargs[key] = list(kwargs[key])
+            kwargs[key] = _listed(kwargs[key])
     messages = kwargs.get("messages")
     if not isinstance(messages, (list, tuple)):
         return
@@ -620,7 +641,7 @@ def _materialize_request(kwargs: dict[str, Any]) -> None:
                         copied = kwargs["messages"] = list(messages)
                     blocks = list(content)
                     copied[index] = {**message, "content": blocks}
-                blocks[block_index] = {**block, "content": list(block["content"])}
+                blocks[block_index] = {**block, "content": _listed(block["content"])}
 
 
 def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
@@ -631,8 +652,10 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
     if not aiguard_config._ai_guard_mcp_enabled:
         return None
     try:
-        materialize_request(kwargs)
         declared = kwargs.get("mcp_servers")
+        if declared is not None and _is_unlisted_iterable(declared):
+            # Already a list when the before-hook ran; only the servers are needed here, not a new history pass.
+            declared = kwargs["mcp_servers"] = list(declared)
         servers: dict[str, MCPServer] = {}
         if not isinstance(declared, (list, tuple)):
             return servers

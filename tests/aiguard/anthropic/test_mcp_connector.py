@@ -551,3 +551,27 @@ def test_sdk_buffered_stream_with_iterable_system(mock_execute_request, anthropi
     assert transport.requests[0]["system"] == [{"type": "text", "text": "Be brief."}]
     for attributes in payloads(mock_execute_request):
         assert attributes["messages"][0] == {"role": "system", "content": "Be brief."}
+
+
+def test_pending_client_call_ends_the_turn_after_a_connector_result():
+    """A client call is pending until the next user turn, so it ends the turn even before a connector result."""
+    client_call = {"type": "tool_use", "id": "toolu_1", "name": "get_time", "input": {}}
+    messages = _convert_anthropic_response({"role": "assistant", "content": [CALL, client_call, RESULT]})
+    assert [(m["role"], m.get("tool_call_id") or [c["id"] for c in m["tool_calls"]]) for m in messages] == [
+        ("assistant", ["mcptoolu_1"]),
+        ("tool", "mcptoolu_1"),
+        ("assistant", ["toolu_1"]),
+    ]
+
+
+@pytest.mark.parametrize("key", ["system", "mcp_servers"])
+def test_caller_iterator_error_reaches_the_caller(key):
+    """An error raised while reading a caller iterable reaches the caller, as without AI Guard."""
+
+    def failing():
+        yield {"type": "text", "text": "x"} if key == "system" else CONNECTOR
+        raise ValueError("caller iterator failed")
+
+    kwargs = {"messages": USER, key: failing()}
+    with pytest.raises(ValueError, match="caller iterator failed"):
+        _anthropic_messages_create_before(new_ai_guard_client(), kwargs)
