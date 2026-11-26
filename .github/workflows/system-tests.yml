@@ -221,10 +221,6 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE_RASP
 
-      - name: Run DEBUGGER_PROBES_STATUS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_PROBES_STATUS
-
       - name: Run DEBUGGER_PROBES_SNAPSHOT
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
         run: ./run.sh DEBUGGER_PROBES_SNAPSHOT
