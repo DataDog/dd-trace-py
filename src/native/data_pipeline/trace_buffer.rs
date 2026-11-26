@@ -32,7 +32,7 @@ use pyo3::prelude::*;
 use super::TraceExporterBuilderPy;
 use crate::py_string::{PyBackedString, PyTraceData};
 use crate::shared_runtime::SharedRuntimePy;
-use crate::span::wire::build_wire_span;
+use crate::span::wire::{build_wire_span, get_packb};
 use crate::span::SpanData;
 
 /// The wire span the buffer stores. Every string in it is a Python object the span keeps alive, so
@@ -248,6 +248,9 @@ impl TraceBufferPy {
         synchronous_export: bool,
         synchronous_export_timeout_ns: Option<u64>,
     ) -> PyResult<Self> {
+        // Import the meta_struct packer now rather than from the first `write`. If it is unavailable,
+        // `write` drops each meta_struct entry with one warning instead.
+        let _ = get_packb(builder.py());
         let runtime = shared_runtime.as_arc()?.clone();
         let inner = builder
             .builder
