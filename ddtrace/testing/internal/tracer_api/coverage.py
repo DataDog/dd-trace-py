@@ -109,15 +109,13 @@ class CoverageData:
             return None
         return t.cast(tuple[int, bytes], native.pack(*keys))
 
-    def include(self, other: "CoverageData") -> None:
-        """Add the lines of other, whose window enclosed this one's, to this record. Native collection only."""
-        native, enclosing = self._native, other._native
-        if native is not None and enclosing is not None and enclosing is not native:
-            # Only the enclosing window's own lines. The suite fixtures it linked when it opened may
-            # have been replaced since, by a setup for another parameter; this record links the
-            # current ones itself.
-            del enclosing.fixtures[:]
-            native.fixtures.append(enclosing)
+    def include(self, other: t.Any) -> None:
+        """Add the own lines of other, a record or native window whose window enclosed this one's, to this
+        record. Native collection only.
+        """
+        native = self._native
+        if native is not None:
+            native.include(other._native if isinstance(other, CoverageData) else other)
 
     def _get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
         # Canonicalize the workspace: instrumentation records covered paths under
@@ -141,6 +139,30 @@ class CoverageData:
             path_str = _relative_coverage_path(absolute_path, relative_to_str)
             if path_str is not None:
                 yield path_str, covered_lines.to_bytes()
+
+
+def native_coverage_window_type() -> t.Optional[t.Any]:
+    """The type of a native coverage window, or None when native line collection is not enabled.
+
+    Calling the type makes a window for one test or test execution; a with statement runs the code
+    of the current thread and task in it. Its record is packed with pack(), or read with
+    native_record_bitmaps(). The first call starts following child processes.
+    """
+    if not native_lines.enabled():
+        return None
+    if not _following_children:
+        _follow_child_processes()
+    return native_lines.context_type()
+
+
+def native_records_packable(relative_to: Path) -> bool:
+    """Whether the pack() of a native window names files relative to relative_to."""
+    return _resolved_workspace(relative_to) == native_lines.report_root()
+
+
+def native_record_bitmaps(window: t.Any, relative_to: Path) -> list[tuple[str, bytes]]:
+    """The bitmaps of a native window's record, by path relative to relative_to."""
+    return _native_bitmaps(window, _resolved_workspace(relative_to))
 
 
 def _native_bitmaps(native: t.Any, workspace: str) -> list[tuple[str, bytes]]:
@@ -209,30 +231,27 @@ def collect_child_coverage() -> None:
 
 
 class _NativeCollection:
-    """Runs one test in its own native coverage context.
+    """Runs one test in its own native coverage context, and gives its record as a CoverageData.
 
     Native collection needs only its own context: the generic collector stack serves the Python
-    hooks, which native collection does not register. A class rather than a generator, because
-    it runs for every test.
+    hooks, which native collection does not register. Callers that run every test natively use
+    native_coverage_window_type() instead, which skips this wrapper.
     """
 
-    __slots__ = ("_data", "_context", "_previous")
+    __slots__ = ("_data", "_context")
 
     def __init__(self) -> None:
         self._data = CoverageData()
         self._context = native_lines.new_context()
-        self._previous: t.Any = None
 
     def __enter__(self) -> CoverageData:
         # Entering re-arms the lines disabled since the previous push.
-        self._previous = self._context.enter()
+        self._context.__enter__()
         return self._data
 
     def __exit__(self, exc_type: t.Any, exc_value: t.Any, tb: t.Any) -> None:
-        # Children that exited inside the window are the test's.
-        native_lines.collect_children()
-        self._context.exit(self._previous)
-        self._previous = None
+        # Children that exited inside the window are the test's: the native exit merges their records.
+        self._context.__exit__(exc_type, exc_value, tb)
         # The payload is built after the test finishes, from the native bitmaps.
         self._data._native = self._context
 
