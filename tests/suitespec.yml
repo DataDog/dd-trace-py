@@ -63,12 +63,10 @@ components:
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
     - ddtrace/internal/ipc.py
-    - ddtrace/internal/logger.py
-    - ddtrace/_logger.py
+    - ddtrace/internal/logger/*
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
-    - ddtrace/internal/logger.py
     - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
@@ -129,7 +127,7 @@ components:
   telemetry:
     - ddtrace/internal/telemetry/*
   tracing:
-    - ddtrace/_logger.py
+    - ddtrace/internal/logger/setup.py
     - ddtrace/_monkey.py
     - ddtrace/_trace/*
     - ddtrace/trace/*
