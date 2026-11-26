@@ -1,11 +1,14 @@
 import time
+from unittest import mock
 
 from confluent_kafka import KafkaException
 from confluent_kafka import TopicPartition
 import pytest
 
+from ddtrace.internal import core
 from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.kafka import _headers_byte_size
+from ddtrace.internal.datastreams.kafka import dsm_kafka_message_produce
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
@@ -502,3 +505,60 @@ def test_data_streams_kafka_enabled():
     finally:
         consumer.close()
         producer.flush()
+
+
+class _DeliveryError:
+    def code(self):
+        return 1
+
+
+@pytest.mark.parametrize(
+    "args,kwargs,is_serializing,expected_payload_size,expected_wrapped",
+    [
+        (("t",), {}, False, 0, {"callback": None}),
+        (("t",), {}, True, 0, {"on_delivery": None}),
+        (("t",), {"value": b"vv", "key": "kkk"}, False, 5, {"callback": None}),
+        (("t", b"vv", "kkk"), {}, False, 5, {"callback": None}),
+        (("t", b"vv"), {"key": "kkk"}, True, 5, {"on_delivery": None}),
+        (("t",), {"on_delivery": "cb"}, False, 0, {"on_delivery": "cb"}),
+        (("t",), {"on_delivery": "cb"}, True, 0, {"on_delivery": "cb"}),
+        (("t",), {"callback": "cb"}, False, 0, {"callback": "cb"}),
+        (("t",), {"callback": "cb"}, True, 0, {"on_delivery": None}),
+        (("t",), {"on_delivery": "cb", "callback": "other_cb"}, False, 0, {"on_delivery": "cb"}),
+        # Positional callbacks are left as passed: the hook cannot rebind the caller's args.
+        (("t", b"vv", "kkk", 0, "cb"), {}, False, 5, {}),
+        (("t", b"vv", "kkk", 0, "cb"), {}, True, 5, {"on_delivery": None}),
+        (("t", b"vv", "kkk", 0, None, "cb"), {}, False, 5, {}),
+        (("t", b"vv", "kkk", 0, None, "cb"), {}, True, 5, {}),
+    ],
+)
+def test_dsm_kafka_message_produce_argument_lookup(
+    dsm_processor, args, kwargs, is_serializing, expected_payload_size, expected_wrapped
+):
+    """Pins which value, key and delivery callback the produce hook reads, and which callback it wraps."""
+    callbacks = {"cb": mock.Mock(), "other_cb": mock.Mock()}
+    args = tuple(callbacks.get(a, a) if isinstance(a, str) else a for a in args)
+    kwargs = {k: callbacks.get(v, v) if isinstance(v, str) else v for k, v in kwargs.items()}
+    original_args, original_kwargs = args, dict(kwargs)
+    with mock.patch.object(
+        dsm_processor, "on_checkpoint_creation", wraps=dsm_processor.on_checkpoint_creation
+    ) as checkpoint_spy:
+        with core.context_with_data("test.dsm.kafka.produce", kafka_topic="topic", kafka_cluster_id="cluster"):
+            dsm_kafka_message_produce(None, args, kwargs, is_serializing, None)
+
+    (checkpoint_call,) = checkpoint_spy.call_args_list
+    assert checkpoint_call.args[2] == ["direction:out", "kafka_cluster_id:cluster", "topic:topic", "type:kafka"]
+    header_size = len(PROPAGATION_KEY_BASE_64) + DSM_TEST_PATH_HEADER_SIZE
+    assert checkpoint_call.kwargs["payload_size"] == expected_payload_size + header_size
+
+    assert args == original_args
+    changed = {
+        k for k, v in kwargs.items() if k != "headers" and (k not in original_kwargs or original_kwargs[k] is not v)
+    }
+    assert changed == set(expected_wrapped)
+    error, message = _DeliveryError(), object()
+    for name, forwarded in expected_wrapped.items():
+        kwargs[name](error, message)
+    for name, callback in callbacks.items():
+        forwarded_here = name in expected_wrapped.values()
+        assert callback.call_args_list == ([mock.call(error, message)] if forwarded_here else [])

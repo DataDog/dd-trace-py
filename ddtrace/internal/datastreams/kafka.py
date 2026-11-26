@@ -10,15 +10,17 @@ from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 
 
 INT_TYPES = (int,)
 MESSAGE_ARG_POSITION = 1
 KEY_ARG_POSITION = 2
 KEY_KWARG_NAME = "key"
+ON_DELIVERY_ARG_POSITION = 5
+ON_DELIVERY_KWARG_NAME = "on_delivery"
+CALLBACK_ARG_POSITION = 4
+CALLBACK_KWARG_NAME = "callback"
 
 disable_header_injection = False
 
@@ -49,8 +51,15 @@ def dsm_kafka_message_produce(
 
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
-    message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
-    key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
+    # Membership and length checks instead of get_argument_value: positional values would raise and catch.
+    if "value" in kwargs:
+        message = kwargs["value"]
+    else:
+        message = args[MESSAGE_ARG_POSITION] if len(args) > MESSAGE_ARG_POSITION else None
+    if KEY_KWARG_NAME in kwargs:
+        key = kwargs[KEY_KWARG_NAME]
+    else:
+        key = args[KEY_ARG_POSITION] if len(args) > KEY_ARG_POSITION else None
     headers = kwargs.get("headers")
     if headers is None:
         headers = {}
@@ -74,16 +83,21 @@ def dsm_kafka_message_produce(
             elif isinstance(headers, (list, tuple)):
                 kwargs["headers"] = _with_pathway_header(headers, ctx)
 
-    on_delivery_kwarg = "on_delivery"
-    on_delivery_arg = 5
-    on_delivery = None
-    try:
-        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
-    except ArgumentError:
-        if not is_serializing:
-            on_delivery_kwarg = "callback"
-            on_delivery_arg = 4
-            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
+    on_delivery_kwarg = ON_DELIVERY_KWARG_NAME
+    on_delivery_arg = ON_DELIVERY_ARG_POSITION
+    if on_delivery_kwarg in kwargs:
+        on_delivery = kwargs[on_delivery_kwarg]
+    elif len(args) > on_delivery_arg:
+        on_delivery = args[on_delivery_arg]
+    elif is_serializing:
+        on_delivery = None
+    else:
+        on_delivery_kwarg = CALLBACK_KWARG_NAME
+        on_delivery_arg = CALLBACK_ARG_POSITION
+        if on_delivery_kwarg in kwargs:
+            on_delivery = kwargs[on_delivery_kwarg]
+        else:
+            on_delivery = args[on_delivery_arg] if len(args) > on_delivery_arg else None
 
     def wrapped_callback(err, msg):
         global disable_header_injection
@@ -100,10 +114,9 @@ def dsm_kafka_message_produce(
         if on_delivery is not None:
             on_delivery(err, msg)
 
-    try:
-        args, kwargs = set_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, wrapped_callback)
-    except ArgumentError:
-        # we set the callback even if it's not set by the client, to track produce calls correctly.
+    # A positional callback stays unwrapped: the hook cannot rebind the caller's args tuple.
+    # Otherwise set it even if the client did not, to track produce calls correctly.
+    if len(args) <= on_delivery_arg:
         kwargs[on_delivery_kwarg] = wrapped_callback
 
 
