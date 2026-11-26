@@ -46,6 +46,8 @@ class TestOpenaiPatch(PatchTestCase.Base):
         return targets
 
     def assert_module_patched(self, openai):
+        self.assert_wrapped(openai._streaming.Stream.__init__)
+        self.assert_wrapped(openai._streaming.AsyncStream.__init__)
         if OPENAI_VERSION >= (1, 8, 0):
             self.assert_wrapped(openai._base_client.SyncAPIClient._process_response)
             self.assert_wrapped(openai._base_client.AsyncAPIClient._process_response)
@@ -99,6 +101,8 @@ class TestOpenaiPatch(PatchTestCase.Base):
             self.assert_wrapped(getattr(cls, method_name))
 
     def assert_not_module_patched(self, openai):
+        self.assert_not_wrapped(openai._streaming.Stream.__init__)
+        self.assert_not_wrapped(openai._streaming.AsyncStream.__init__)
         if OPENAI_VERSION >= (1, 8, 0):
             self.assert_not_wrapped(openai._base_client.SyncAPIClient._process_response)
             self.assert_not_wrapped(openai._base_client.AsyncAPIClient._process_response)
@@ -152,6 +156,8 @@ class TestOpenaiPatch(PatchTestCase.Base):
             self.assert_not_wrapped(getattr(cls, method_name))
 
     def assert_not_module_double_patched(self, openai):
+        self.assert_not_double_wrapped(openai._streaming.Stream.__init__)
+        self.assert_not_double_wrapped(openai._streaming.AsyncStream.__init__)
         if OPENAI_VERSION >= (1, 8, 0):
             self.assert_not_double_wrapped(openai._base_client.SyncAPIClient._process_response)
             self.assert_not_double_wrapped(openai._base_client.AsyncAPIClient._process_response)

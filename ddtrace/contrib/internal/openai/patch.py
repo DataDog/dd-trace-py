@@ -6,6 +6,8 @@ import openai
 from openai import version
 
 from ddtrace import config
+from ddtrace.contrib.internal._sdk_streams import OPENAI_STREAM_CREATED
+from ddtrace.contrib.internal._sdk_streams import traced_stream_init
 from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.internal.openai._constants import COMPONENT
@@ -114,6 +116,10 @@ def patch():
         wrap(openai, "_base_client.AsyncAPIClient._process_response", traced_convert)
     else:
         wrap(openai, "_base_client.BaseClient._process_response", traced_convert)
+    # Every streamed response is a Stream or AsyncStream: openai.stream.created lets products
+    # see its events before any SDK consumer does.
+    wrap(openai, "_streaming.Stream.__init__", traced_stream_init(OPENAI_STREAM_CREATED, is_async=False))
+    wrap(openai, "_streaming.AsyncStream.__init__", traced_stream_init(OPENAI_STREAM_CREATED, is_async=True))
     wrap(openai, "OpenAI.__init__", traced_client_init)
     wrap(openai, "AsyncOpenAI.__init__", traced_client_init)
     wrap(openai, "AzureOpenAI.__init__", traced_client_init)
@@ -179,6 +185,8 @@ def unpatch():
         unwrap(openai._base_client.AsyncAPIClient, "_process_response")
     else:
         unwrap(openai._base_client.BaseClient, "_process_response")
+    unwrap(openai._streaming.Stream, "__init__")
+    unwrap(openai._streaming.AsyncStream, "__init__")
     unwrap(openai.OpenAI, "__init__")
     unwrap(openai.AsyncOpenAI, "__init__")
     unwrap(openai.AzureOpenAI, "__init__")
