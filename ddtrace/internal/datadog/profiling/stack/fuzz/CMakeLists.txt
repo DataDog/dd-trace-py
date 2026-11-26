@@ -33,7 +33,7 @@ function(add_fuzz_target TARGET_NAME)
     target_include_directories(
         ${TARGET_NAME} SYSTEM
         PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
-                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
+                ../../../../../../src/profiling_ffi/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
 
     # Ensure echion headers take the fuzz hook in vm.h
     target_compile_definitions(${TARGET_NAME} PRIVATE ECHION_FUZZING)

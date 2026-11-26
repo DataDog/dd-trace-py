@@ -64,7 +64,7 @@ CURRENT_OS = platform.system()
 # Cython.Distutils.Extension by default inherits CFLAGS from the Python
 # interpreter, and it usually has -O3 -g. So they're built with debug symbols
 # by default.
-# RustExtension src/native has two build profiles, release and debug, and only
+# The Rust crate src/profiling_ffi has two build profiles, release and debug, and only
 # DD_COMPILE_MODE=Debug will build with debug profile, and rest will build with
 # release profile, which also has debug symbols by default.
 # And when MinSizeRel or Release is used, we strip the debug symbols from the
@@ -111,10 +111,12 @@ DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
-NATIVE_CRATE = HERE / "src" / "native"
+# The tracer's native extension (`_ddtrace_native._native`) comes from the `ddtrace-native` package. What
+# remains here is a profiling-only cdylib that re-exports libdatadog's profiling FFI for dd_wrapper to link.
+PROFILING_FFI_CRATE = HERE / "src" / "profiling_ffi"
 # Standalone cdylib wrapper around libdatadog's published `libdd-profiling-heap-gotter`
-# crate (crates.io). Built out-of-band (opt-in) from the tagged `src/native` build.
-# TODO: Integrate into the `src/native` workspace as a Cargo feature flag (e.g.
+# crate (crates.io). Built out-of-band (opt-in) from the profiling FFI build.
+# TODO: Integrate into the `src/profiling_ffi` crate as a Cargo feature flag (e.g.
 # `[features] heap-gotter = [...]`) rather than maintaining a standalone crate and
 # separate build step. This would let the heap-gotter follow the same compile, link,
 # strip, and packaging path as the other profiling native artifacts.
@@ -130,7 +132,7 @@ VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = Path(
     os.getenv(
         "_DD_NATIVE_CARGO_TARGET_DIR",
-        NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}",
+        PROFILING_FFI_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}",
     )
 ).absolute()
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
@@ -183,7 +185,7 @@ LIBDDWAF_CHECKSUMS = {
     "libddwaf-2.2.1-windows-x64.tar.gz": "f7514387c2a3561a056bfd95c8ae40ff6633ee1f4b572adfc1748f298716fd18",
 }
 
-# DEV: update this accordingly when src/native upgrades libdatadog dependency.
+# DEV: update this accordingly when src/profiling_ffi upgrades libdatadog dependency.
 # libdatadog v50.0.0 requires rust 1.91.1.
 RUST_MINIMUM_VERSION = "1.91.1"
 
@@ -350,6 +352,71 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
+# The profiling FFI library (dd_wrapper's libdatadog) is built wherever the C++ profiler is.
+PROFILING_FFI_ENABLED = CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16)
+PROFILING_FFI_NAME = "ddtrace.internal.datadog.profiling._profiling_ffi"
+
+
+def profiling_ffi_sources() -> list[Path]:
+    """Files whose content determines the profiling FFI library (everything but the cargo target dirs)."""
+    return [
+        _
+        for _ in PROFILING_FFI_CRATE.glob("**/*")
+        if _.is_file() and not _.relative_to(PROFILING_FFI_CRATE).parts[0].startswith("target")
+    ]
+
+
+def install_dedup_headers() -> None:
+    """Install dedup_headers if not already installed."""
+
+    def is_installed(bin_file: str) -> bool:
+        return any(
+            os.path.isfile(os.path.join(path, bin_file)) for path in os.environ.get("PATH", "").split(os.pathsep)
+        )
+
+    if is_installed("dedup_headers"):
+        return
+
+    # Create retry-wrapped cargo install function
+    @retry_download(max_attempts=DOWNLOAD_MAX_RETRIES, initial_delay=2.0)
+    def cargo_install_with_retry():
+        """Run cargo install with retry on network failures."""
+        subprocess.run(
+            [
+                "cargo",
+                "install",
+                "--git",
+                "https://github.com/DataDog/libdatadog",
+                "--bin",
+                "dedup_headers",
+                "tools",
+            ],
+            check=True,
+        )
+
+    cargo_install_with_retry()
+
+
+def dedup_profiling_headers() -> None:
+    """Run dedup_headers on the C headers cbindgen generated for the profiling FFI."""
+    install_dedup_headers()
+
+    # Add cargo binary folder to PATH
+    home = os.path.expanduser("~")
+    cargo_bin = os.path.join(home, ".cargo", "bin")
+    dedup_env = os.environ.copy()
+    dedup_env["PATH"] = cargo_bin + os.pathsep + os.environ["PATH"]
+
+    include_dir = CARGO_TARGET_DIR / "include" / "datadog"
+    if include_dir.exists():
+        subprocess.run(
+            ["dedup_headers", "common.h", "profiling.h"],
+            cwd=str(include_dir),
+            check=True,
+            env=dedup_env,
+        )
+
+
 class ExtensionHashes(build_ext):
     def run(self) -> None:
         try:
@@ -383,6 +450,24 @@ class ExtensionHashes(build_ext):
 
                 for entry in entries:
                     print("#EXTHASH:", entry)
+
+            if PROFILING_FFI_ENABLED:
+                # The profiling FFI library is not a setuptools extension, so report it separately.
+                sources_hash = hashlib.sha256()
+                for source in sorted(profiling_ffi_sources()):
+                    sources_hash.update(source.read_bytes())
+                hash_digest = sources_hash.hexdigest()
+                print(
+                    "#EXTHASH:", (PROFILING_FFI_NAME, hash_digest, str(Path(self.get_ext_fullpath(PROFILING_FFI_NAME))))
+                )
+                # These headers are generated alongside the library and are used to build dd_wrapper. We need to
+                # persist them in the extension hash cache so that we can handle the case where the library is not
+                # rebuilt but dd_wrapper needs to be rebuilt when its sources changed.
+                for f in ["common.h", "profiling.h"]:
+                    print(
+                        "#EXTHASH:",
+                        (PROFILING_FFI_NAME, hash_digest, str(CARGO_TARGET_DIR / "include" / "datadog" / f)),
+                    )
 
             # Emit shared dependency metadata so ext_cache.py can cache and
             # restore install trees without any per-dependency special-casing.
@@ -706,7 +791,7 @@ class CleanLibraries(CleanCommand):
     def remove_rust_targets() -> None:
         """Remove all Rust target dirs (target, target3.9, target3.10, etc.)."""
         # rmtree is a superset of `cargo clean`; target* catches plain target and versioned
-        for target_dir in NATIVE_CRATE.glob("target*"):
+        for target_dir in PROFILING_FFI_CRATE.glob("target*"):
             if target_dir.is_dir():
                 shutil.rmtree(target_dir, True)
 
@@ -840,7 +925,9 @@ class CustomBuildExt(build_ext):
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
+        if PROFILING_FFI_ENABLED:
+            with _time_phase("build_profiling_ffi"):
+                self.build_profiling_ffi()
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
@@ -876,6 +963,95 @@ class CustomBuildExt(build_ext):
         elif not self.parallel:
             self.parallel = _cpu_count
         super().build_extensions()
+
+    def build_profiling_ffi(self) -> None:
+        """Build the profiling FFI cdylib (libdatadog's ``ddog_prof_*``) and its cbindgen headers.
+
+        The library is staged as ``_profiling_ffi<EXT_SUFFIX>`` next to libdd_wrapper, which links it. The headers
+        land in ``CARGO_TARGET_DIR/include/datadog`` and are what dd_wrapper and the profiling extensions compile
+        against.
+        """
+        ffi_name = f"_profiling_ffi{self.suffix}"
+
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            self.profiling_ffi_output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+        else:
+            self.profiling_ffi_output_dir = (
+                Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+            )
+        self.profiling_ffi_output_dir.mkdir(parents=True, exist_ok=True)
+        library = self.profiling_ffi_output_dir / ffi_name
+
+        # Check if we need to run the Rust build by checking if sources are newer than the destination
+        should_build = True
+        if library.exists():
+            newest_source_time = max((f.stat().st_mtime for f in profiling_ffi_sources()), default=0.0)
+
+            include_dir = CARGO_TARGET_DIR / "include" / "datadog"
+            headers_exist = all((include_dir / header).exists() for header in ("common.h", "profiling.h"))
+
+            # Only rebuild if source files are newer than the destination OR if any required header is missing
+            should_build = newest_source_time > library.stat().st_mtime or not headers_exist
+
+        self.built_profiling_ffi = should_build
+        if not should_build:
+            print(f"Skipping profiling FFI build (no changes): {ffi_name}")
+        else:
+            cargo_cmd: list[str] = [
+                "cargo",
+                # `rustc` rather than `build`: it passes the linker arguments below to this crate only, not to its
+                # dependencies (as RUSTFLAGS would).
+                "rustc",
+                "--lib",
+                "--locked",
+                "--manifest-path",
+                str(PROFILING_FFI_CRATE / "Cargo.toml"),
+                # Emit machine-readable artifact records so we can locate the built cdylib no matter where cargo
+                # wrote it (CARGO_TARGET_DIR, or --target/--target-dir passed through DD_CARGO_ARGS).
+                # Diagnostics still render to stderr in human form.
+                "--message-format=json-render-diagnostics",
+            ]
+            if COMPILE_MODE.lower() != "debug":
+                cargo_cmd.append("--release")
+            cargo_cmd.extend(DD_CARGO_ARGS)
+            # Record the staged file name as the library's SONAME (install name on macOS) at link time, so dd_wrapper
+            # records it as its dependency. Linking it in avoids patchelf, which the standalone profiling builds
+            # (build_standalone.sh) don't install.
+            if CURRENT_OS == "Linux":
+                cargo_cmd.extend(["--", "-C", f"link-arg=-Wl,-soname,{ffi_name}"])
+            elif CURRENT_OS == "Darwin":
+                cargo_cmd.extend(["--", "-C", f"link-arg=-Wl,-install_name,{ffi_name}"])
+
+            cargo_env = os.environ.copy()
+            cargo_env["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
+            # cwd matters: cargo reads .cargo/config.toml (PIC, musl and Windows flags, network retries) from the
+            # working directory, not from the manifest's.
+            proc = subprocess.run(
+                cargo_cmd, cwd=PROFILING_FFI_CRATE, env=cargo_env, check=True, stdout=subprocess.PIPE, text=True
+            )
+
+            built: t.Optional[Path] = None
+            for line in proc.stdout.splitlines():
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    msg.get("reason") != "compiler-artifact"
+                    or (msg.get("target") or {}).get("name") != "_profiling_ffi"
+                ):
+                    continue
+                for filename in msg.get("filenames") or []:
+                    if filename.endswith((".so", ".dylib")):
+                        built = Path(filename)
+                        break
+            if built is None or not built.exists():
+                raise RuntimeError("Not able to find the profiling FFI cdylib in cargo build output")
+
+            shutil.copy2(built, library)
+            print(f"Built and copied profiling FFI library: {ffi_name}")
+
+            dedup_profiling_headers()
 
     def build_libdd_wrapper(self):
         """Build libdd_wrapper shared library as a dependency for profiling extensions."""
@@ -914,7 +1090,7 @@ class CustomBuildExt(build_ext):
 
             # Rebuild if source files changed OR if _native.so was rebuilt (our dependency)
             source_files_changed = newest_source_time > wrapper_mtime
-            should_build = source_files_changed or getattr(self, "built_native", False)
+            should_build = source_files_changed or getattr(self, "built_profiling_ffi", False)
 
         if should_build:
             # Build libdd_wrapper using CMake
@@ -1008,7 +1184,7 @@ class CustomBuildExt(build_ext):
         shutil.copy2(built, gotter_library)
         print(f"Built and copied heap-gotter cdylib: {gotter_name}")
 
-        # Set SONAME so the loader records the staged name, matching build_rust.
+        # Set SONAME so the loader records the staged name, matching build_profiling_ffi.
         if CURRENT_OS == "Linux":
             subprocess.run(["patchelf", "--set-soname", gotter_name, gotter_library], check=True)
         elif CURRENT_OS == "Darwin":
@@ -1244,6 +1420,7 @@ class CustomBuildExt(build_ext):
             f"-DLIB_INSTALL_DIR={output_dir}",
             f"-DEXTENSION_NAME={extension_name}",
             f"-DEXTENSION_SUFFIX={self.suffix}",
+            f"-DPROFILING_FFI_LOCATION={self.profiling_ffi_output_dir}",
             f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
             f"-DCMAKE_MODULE_PATH={HERE / 'cmake'}",
         ]
@@ -1400,6 +1577,18 @@ class CustomBuildExt(build_ext):
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
+
+
+class BuildProfilingFfi(CustomBuildExt):
+    """Build only the profiling FFI library and its headers (``setup.py build_profiling_ffi --inplace``).
+
+    The standalone CMake builds of the profiler (build_standalone.sh, run_clang_tidy.sh, the fuzz harness) need
+    them but not the rest of the extensions.
+    """
+
+    def run(self) -> None:
+        self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
+        self.build_profiling_ffi()
 
 
 class DebugMetadata:
@@ -1793,7 +1982,7 @@ setup(
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"]
+            ["libdd_wrapper*.*", "_profiling_ffi*.*"]
             + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
         ),
     },
@@ -1801,6 +1990,7 @@ setup(
     cmdclass={
         "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,
+        "build_profiling_ffi": BuildProfilingFfi,
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },

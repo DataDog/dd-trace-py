@@ -1,0 +1,35 @@
+# Copyright 2025-Present Datadog, Inc. https://www.datadoghq.com/
+# SPDX-License-Identifier: Apache-2.0
+
+# Profiling-only cdylib: re-exports libdatadog's profiling FFI (`ddog_prof_*`) for the C++ profiler
+# (`dd_wrapper`) to link against, and makes cbindgen generate the C headers it compiles with
+# (`target<major>.<minor>/include/datadog/{common,profiling}.h`).
+#
+# This used to be the `profiling` feature of `src/native`. The tracer's native extension now comes
+# from the `ddtrace-native` package, which does not include the profiling FFI.
+#
+# DEV: keep the libdatadog `rev` below equal to the one in `ddtrace-native`'s `native/Cargo.toml`
+# (datadog-apm-python). Both libraries ship libdatadog code into the same process.
+[package]
+name = "ddtrace-profiling-ffi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[profile.release]
+lto = true
+debug = "line-tables-only"
+opt-level = 's'
+codegen-units = 1
+
+[dependencies]
+libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v50.0.0", features = [
+    "cbindgen",
+] }
+
+[lib]
+# Produces `lib_profiling_ffi.so` (`.dylib` on macOS); setup.py stages it as
+# `_profiling_ffi<EXT_SUFFIX>` next to libdd_wrapper.
+name = "_profiling_ffi"
+path = "lib.rs"
+crate-type = ["cdylib"]
