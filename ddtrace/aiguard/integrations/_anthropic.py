@@ -45,8 +45,12 @@ from ddtrace.aiguard.integrations._anthropic_mcp import attach_mcp
 from ddtrace.aiguard.integrations._anthropic_mcp import mark_evaluated
 from ddtrace.aiguard.integrations._anthropic_mcp import request_mcp_tools
 from ddtrace.aiguard.integrations._anthropic_mcp import start_request
+from ddtrace.aiguard.integrations._mcp import mcp_reference
+from ddtrace.aiguard.integrations._mcp import mcp_server
+from ddtrace.aiguard.integrations._mcp import referenced_mcp_servers
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
@@ -156,7 +160,7 @@ def _format_image_block(block: Any) -> Optional[ContentPart]:
 
 
 def _tool_call_from_block(block: Any) -> ToolCall:
-    """Convert a single Anthropic ``tool_use`` / ``server_tool_use`` block.
+    """Convert a single Anthropic ``tool_use`` / ``server_tool_use`` / mcp_tool_use block.
 
     Anthropic delivers ``input`` as a parsed dict; AI Guard's schema is
     JSON-string-typed, so serialise once via ``json.dumps(..., default=str)``
@@ -178,6 +182,26 @@ def _tool_call_from_block(block: Any) -> ToolCall:
         id=_get(block, "id", "") or "",
         function=Function(name=_get(block, "name", "") or "", arguments=arguments),
     )
+
+
+def _reference_connector_server(tool_call: ToolCall, block: Any, mcp_servers: dict[str, MCPServer]) -> None:
+    """Reference the MCP connector server of an mcp_tool_use call by its server_name; fails open without it."""
+    try:
+        name = tool_call["function"]["name"]
+        server_name = _get(block, "server_name")
+        if not name or not isinstance(server_name, str) or not server_name:
+            return
+        server = mcp_servers.get(server_name)
+        if server is None:
+            # A server that this request does not declare is identified by its name alone.
+            server = mcp_server(AI_GUARD.MCP_MANAGED_BY_PROVIDER, AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=server_name)
+            if server is None:
+                return
+            mcp_servers[server_name] = server
+        # The connector exposes MCP tools to the model under their original name.
+        tool_call["mcp"] = mcp_reference(server, name, name)
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to reference the MCP connector server", exc_info=True)
 
 
 def _parts_from_content_blocks(blocks: Sequence[Any]) -> list[ContentPart]:
@@ -330,13 +354,14 @@ def _format_document_block(block: Any) -> list[ContentPart]:
     return parts
 
 
-def _format_content_blocks(blocks: Sequence[Any]) -> _ParsedBlocks:
+def _format_content_blocks(blocks: Sequence[Any], mcp_servers: Optional[dict[str, MCPServer]] = None) -> _ParsedBlocks:
     """Walk a list of Anthropic content blocks once and bucket them by role.
 
     The split around server-tool boundaries lets the caller preserve the
     tool_call -> tool_result -> synthesis flow AI Guard expects when an
     assistant message interleaves a ``server_tool_use``, its result, and
-    synthesis text.
+    synthesis text. MCP connector calls and results run on Anthropic's side too, so they
+    split the same way; with mcp_servers (DD_AI_GUARD_MCP_ENABLED) each call references its server.
     """
     pre_tool_parts: list[ContentPart] = []
     post_tool_parts: list[ContentPart] = []
@@ -359,12 +384,17 @@ def _format_content_blocks(blocks: Sequence[Any]) -> _ParsedBlocks:
         elif block_type == "document":
             target = post_tool_parts if seen_server_tool else pre_tool_parts
             target.extend(_format_document_block(block))
-        elif block_type in ("tool_use", "server_tool_use"):
-            tool_calls.append(_tool_call_from_block(block))
-            if block_type == "server_tool_use":
+        elif block_type in ("tool_use", "server_tool_use", "mcp_tool_use"):
+            tool_call = _tool_call_from_block(block)
+            if block_type == "mcp_tool_use" and mcp_servers is not None:
+                _reference_connector_server(tool_call, block, mcp_servers)
+            tool_calls.append(tool_call)
+            if block_type != "tool_use":
                 seen_server_tool = True
         elif block_type == "tool_result":
             tool_results.extend(_format_tool_result_block(block))
+        elif block_type == "mcp_tool_result":
+            server_tool_results.extend(_format_tool_result_block(block))
         elif block_type == "thinking":
             # Extended-thinking blocks carry model reasoning text that AI Guard
             # should scan; the ``signature`` field is a verification token and
@@ -438,7 +468,9 @@ def _emit_assistant_with_server_tool(
     return result
 
 
-def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
+def _convert_anthropic_messages(
+    system: Any, messages: Any, mcp_servers: Optional[dict[str, MCPServer]] = None
+) -> list[Message]:
     """Convert Anthropic ``messages`` + ``system`` to an AI Guard message list.
 
     Role mapping (Anthropic -> AI Guard):
@@ -451,7 +483,8 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
     - assistant message with ``server_tool_use`` + server result blocks ->
       assistant ``tool_calls`` message, then ``role="tool"`` result(s), then
       an optional synthesis assistant message (see
-      :func:`_emit_assistant_with_server_tool`).
+      :func:`_emit_assistant_with_server_tool`). MCP connector mcp_tool_use and
+      mcp_tool_result blocks follow the same split.
     - user message with ``tool_result`` blocks -> separate ``role="tool"``
       messages keyed by ``tool_use_id``; the user wrapper is suppressed when
       it would carry no text of its own.
@@ -496,7 +529,7 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
                 result.append(Message(role=role, content=fallback))
                 continue
 
-            parsed = _format_content_blocks(content)
+            parsed = _format_content_blocks(content, mcp_servers)
 
             # Server tool pattern: split into tool_call -> server result(s)
             # -> optional synthesis. tool_results from user-side blocks (rare
@@ -535,7 +568,7 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
     return result
 
 
-def _convert_anthropic_response(resp: Any) -> list[Message]:
+def _convert_anthropic_response(resp: Any, mcp_servers: Optional[dict[str, MCPServer]] = None) -> list[Message]:
     """Convert a non-streaming Anthropic ``Message`` response to AI Guard messages.
 
     Mirrors :func:`_convert_anthropic_messages` for the response path: a
@@ -551,7 +584,7 @@ def _convert_anthropic_response(resp: Any) -> list[Message]:
         if not isinstance(content, list):
             return []
 
-        parsed = _format_content_blocks(content)
+        parsed = _format_content_blocks(content, mcp_servers)
 
         if parsed.tool_calls and parsed.server_tool_results:
             return _emit_assistant_with_server_tool(parsed)
@@ -580,7 +613,9 @@ def _convert_anthropic_response(resp: Any) -> list[Message]:
 # ---------------------------------------------------------------------------
 
 
-def _safe_convert_messages(system: Any, messages: Any) -> Optional[list[Message]]:
+def _safe_convert_messages(
+    system: Any, messages: Any, mcp_servers: Optional[dict[str, MCPServer]] = None
+) -> Optional[list[Message]]:
     """Run :func:`_convert_anthropic_messages` with a fail-open catch.
 
     Converter failures must remain visible (telemetry, emitted from inside
@@ -589,32 +624,82 @@ def _safe_convert_messages(system: Any, messages: Any) -> Optional[list[Message]
     the Anthropic SDK call proceeds normally.
     """
     try:
-        return _convert_anthropic_messages(system, messages)
+        return _convert_anthropic_messages(system, messages, mcp_servers)
     except Exception:
         # _report_converter_error already emitted telemetry in the converter.
         logger.debug("AI Guard anthropic: failing open after converter error", exc_info=True)
         return None
 
 
-def _safe_convert_response(resp: Any) -> Optional[list[Message]]:
+def _safe_convert_response(resp: Any, mcp_servers: Optional[dict[str, MCPServer]] = None) -> Optional[list[Message]]:
     try:
-        return _convert_anthropic_response(resp)
+        return _convert_anthropic_response(resp, mcp_servers)
     except Exception:
         logger.debug("AI Guard anthropic: failing open after response converter error", exc_info=True)
         return None
 
 
+def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
+    """Map each server name of the request mcp_servers (MCP connector) to its entry; None when the flag is off.
+
+    Only name and url are read, never authorization_token.
+    """
+    if not aiguard_config._ai_guard_mcp_enabled:
+        return None
+    try:
+        declared = kwargs.get("mcp_servers")
+        if isinstance(declared, Iterable) and not isinstance(declared, (list, tuple, str, bytes, Mapping)):
+            # Materialized for the SDK too, like messages, system and tools.
+            declared = kwargs["mcp_servers"] = list(declared)
+        servers: dict[str, MCPServer] = {}
+        if not isinstance(declared, (list, tuple)):
+            return servers
+        for entry in declared:
+            name, url = _get(entry, "name"), _get(entry, "url")
+            if not isinstance(name, str) or not name or name in servers:
+                continue
+            server = mcp_server(
+                AI_GUARD.MCP_MANAGED_BY_PROVIDER,
+                AI_GUARD.MCP_TRANSPORT_UNKNOWN,
+                name=name,
+                url=url if isinstance(url, str) else None,
+            )
+            if server is not None:
+                servers[name] = server
+        return servers
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to read the MCP connector servers", exc_info=True)
+        return None
+
+
+def _connector_call_ids(resp: Any) -> set[str]:
+    """IDs of the mcp_tool_use calls of a response: the provider already ran them."""
+    try:
+        content = _get(resp, "content")
+        ids = (_get(block, "id") for block in content if _get(block, "type") == "mcp_tool_use")
+        return {call_id for call_id in ids if isinstance(call_id, str)}
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to read the MCP connector calls of a response", exc_info=True)
+        return set()
+
+
 def _attach_mcp_servers(
-    messages: list[Message], kwargs: dict[str, Any]
+    messages: list[Message], kwargs: dict[str, Any], connector_servers: Optional[dict[str, MCPServer]] = None
 ) -> tuple[Optional[list[MCPServer]], dict[str, Any]]:
-    """Reference the client-managed MCP tools of this request in messages; fails open without MCP metadata."""
+    """Reference the client-managed MCP tools of this request in messages and return the mcp_servers payload.
+
+    The payload adds the connector servers that messages reference; fails open without MCP metadata.
+    """
     try:
         tools = kwargs.get("tools")
         if isinstance(tools, Iterable) and not isinstance(tools, (list, tuple, str, bytes, Mapping)):
             # Materialized for the SDK too, like messages and system, so both hooks resolve the same tools.
             tools = kwargs["tools"] = list(tools)
         mcp_tools = request_mcp_tools(tools)
-        return attach_mcp(messages, mcp_tools), mcp_tools
+        servers = attach_mcp(messages, mcp_tools)
+        if connector_servers:
+            servers = referenced_mcp_servers(messages, (servers or []) + list(connector_servers.values()))
+        return servers, mcp_tools
     except Exception:
         logger.debug("AI Guard anthropic: failed to attach MCP metadata", exc_info=True)
         return None, {}
@@ -660,7 +745,8 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
             pass
         else:
             kwargs["system"] = system
-    ai_guard_messages = _safe_convert_messages(system, messages)
+    connector_servers = _connector_mcp_servers(kwargs)
+    ai_guard_messages = _safe_convert_messages(system, messages, connector_servers)
     if not ai_guard_messages:
         logger.debug("AI Guard anthropic before-hook skipped: no convertible messages")
         return None
@@ -677,7 +763,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         return None
 
     logger.debug("AI Guard anthropic before-hook evaluating %d message(s)", len(ai_guard_messages))
-    mcp_servers, mcp_tools = _attach_mcp_servers(ai_guard_messages, kwargs)
+    mcp_servers, mcp_tools = _attach_mcp_servers(ai_guard_messages, kwargs, connector_servers)
     if mcp_tools:
         # A new request with MCP tools starts a new turn: no earlier response spares its calls.
         start_request()
@@ -706,21 +792,22 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
         logger.debug("AI Guard anthropic after-hook skipped: framework context active (e.g. LangChain)")
         return None
 
+    connector_servers = _connector_mcp_servers(kwargs)
     # Convert response first: if the model produced nothing convertible
     # (e.g. an empty content list), skip request-side conversion entirely.
-    response_messages = _safe_convert_response(resp)
+    response_messages = _safe_convert_response(resp, connector_servers)
     if not response_messages:
         logger.debug("AI Guard anthropic after-hook skipped: no convertible response messages")
         return None
 
-    request_messages = _safe_convert_messages(kwargs.get("system"), kwargs.get("messages", []))
+    request_messages = _safe_convert_messages(kwargs.get("system"), kwargs.get("messages", []), connector_servers)
     if request_messages is None:
         # Converter blew up on the request side; do not feed AI Guard a
         # response-only payload that misses the prompt context.
         logger.debug("AI Guard anthropic after-hook skipped: request converter failed")
         return None
     all_messages = request_messages + response_messages
-    mcp_servers, mcp_tools = _attach_mcp_servers(all_messages, kwargs)
+    mcp_servers, mcp_tools = _attach_mcp_servers(all_messages, kwargs, connector_servers)
 
     evaluated: list[Message] = []
     try:
@@ -735,5 +822,5 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
     finally:
         # Requests without MCP tools leave the marks alone; with them, a block or skip clears them.
         if mcp_tools:
-            mark_evaluated(evaluated, mcp_tools)
+            mark_evaluated(evaluated, mcp_tools, _connector_call_ids(resp))
     return None

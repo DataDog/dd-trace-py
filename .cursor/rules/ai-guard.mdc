@@ -99,10 +99,10 @@ missing credentials. Direct `AIGuardClient` construction takes both credentials 
 see `_api_client.py` for the signatures.
 
 MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (server IDs, `mcp_servers` entries,
-the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners and
-the openai-agents MCP server listeners, gated by `DD_AI_GUARD_MCP_ENABLED`. The LiteLLM proxy guardrail
-uses the OpenAI Responses converters for the hosted MCP items of Responses answers, without the approval
-decision cache. Keep these invariants when changing it:
+the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners,
+the openai-agents MCP server listeners and the Anthropic listeners, gated by `DD_AI_GUARD_MCP_ENABLED`.
+The LiteLLM proxy guardrail uses the OpenAI Responses converters for the hosted MCP items of Responses
+answers, without the approval decision cache. Keep these invariants when changing it:
 - Requests carry a request-level `mcp_servers` list; each MCP tool call carries only
   `mcp.server_id`, which must match an entry in the same request. Ordinary tools carry no `mcp`.
 - The server ID is `mcp_` + the first 16 hex characters of SHA-256 of the first applicable key
@@ -127,6 +127,18 @@ server connection. It is protected: no integration calls it yet, and it is not p
 - It applies the blocking rule of `evaluate()`. Middlewares do not run for it. It shares only
   `_copy_request_tags()` with `evaluate()`, for the client IP and the anomaly-detection tags.
 - It sends the target as it gets it. The integration builds the target from its sanitized `mcp_servers` entry.
+
+Provider-managed MCP for Anthropic (the MCP connector: `mcp_servers` of `beta.messages.create`) is
+converted in `_anthropic.py`:
+- `mcp_tool_use` and `mcp_tool_result` follow the server-tool split (assistant tool call, tool result,
+  synthesis text) in responses and history, whatever the flag. With the flag, each call references
+  `mcp_server("provider", "unknown", name=server_name, url=...)`, built from the `name` and `url` of the
+  request `mcp_servers` entry with that name (never `authorization_token`), or from the name alone when
+  the request does not declare it. Tools map to themselves; only referenced servers are sent.
+- Anthropic has already run the call when the response arrives: a block withholds the response only.
+- The contrib stream rebuild drops `server_name` and renames `mcp_tool_result` to `tool_result`;
+  `reconstruct_anthropic` restores both from the `content_block_start` chunks and leaves the contrib
+  shape that LLM Obs reads unchanged.
 
 Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic_mcp.py`, installed on
 `anthropic.patch`:
