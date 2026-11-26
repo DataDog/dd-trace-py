@@ -879,8 +879,8 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
     import tempfile
     import threading
 
-    from ddtrace.internal._threads import PeriodicThread
     from ddtrace.internal.http import HTTPConnection
+    from ddtrace.internal.native._threads import PeriodicThread
 
     sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
     sock_path = os.path.join(sock_dir, "blackhole.sock")
