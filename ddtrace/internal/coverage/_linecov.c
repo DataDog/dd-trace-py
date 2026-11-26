@@ -38,7 +38,8 @@
  * file, mapped in both processes, carries the token of the context this process runs for, which
  * the child reads at start-up, and a count of the records written, so this process reads the
  * record directory only after a child wrote to it. A record joins the context while it is still
- * active, and the unowned lines once its window has closed.
+ * active, and the unowned lines once its window has closed. A multiprocessing child forked from
+ * this process calls forget() and then records as such a child does.
  *
  * The callbacks never raise into the monitored code: an internal error is counted and the line
  * stays armed. All state is guarded by the GIL. Free-threaded builds are not supported.
@@ -3578,6 +3579,28 @@ mod_union(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
     return result;
 }
 
+/* forget(): record from now on as a child process that starts here. Closes every window without
+   re-arming and empties the process-wide sets, so union() holds only the lines run after the call.
+   Meant for a forked process: a line disabled at the fork is in every context active then, which
+   the parent reports, and runs here without an event. Block probes stop for good. */
+static PyObject*
+mod_forget(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+    g_block_probes = 0;
+#if DD_HAVE_BLOCK_PROBES
+    if (g_n_block_codes > 0)
+        settle_codes(NULL);
+#endif
+    while (g_n_active > 0)
+        context_deactivate(g_active[g_n_active - 1], 0);
+    for (int32_t f = 0; f < g_n_files; f++) {
+        bitset_free(&g_files[f].init_lines);
+        bitset_free(&g_files[f].suite_lines);
+        bitset_free(&g_files[f].unowned_lines);
+    }
+    Py_RETURN_NONE;
+}
+
 static PyObject* g_exec_callback = NULL;
 static int g_exec_hook_added = 0;
 
@@ -3754,6 +3777,7 @@ static PyMethodDef module_methods[] = {
     { "add_record", mod_add_record, METH_NOARGS, "Count a record this child wrote." },
     { "merge", (PyCFunction)(void (*)(void))mod_merge, METH_FASTCALL, "Merge a child's lines." },
     { "union", mod_union, METH_NOARGS, "Every line run, by report path." },
+    { "forget", mod_forget, METH_NOARGS, "Record from now on as a child process that starts here." },
     { "add_exec_hook", mod_add_exec_hook, METH_O, "Call a function with every code object exec() runs." },
     { "set_exec_callback", mod_set_exec_callback, METH_O, "Set the function the exec wrapper calls." },
     { "wrap_exec", mod_wrap_exec, METH_O, "A builtins.exec that calls the exec callback first." },
