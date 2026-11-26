@@ -4,6 +4,13 @@ from typing import Any
 
 
 def _calculate_byte_size(data: Any) -> int:
+    # Fast paths for exact str/bytes, the common header, key and payload types.
+    data_type = type(data)
+    if data_type is bytes:
+        return len(data)
+    if data_type is str and data.isascii():
+        return len(data)
+
     if isinstance(data, str):
         # We encode here to handle non-ascii characters
         # If there are non-unicode characters, we replace

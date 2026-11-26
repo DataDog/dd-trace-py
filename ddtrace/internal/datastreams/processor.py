@@ -35,6 +35,7 @@ from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from .encoding import MAX_VAR_LEN_64
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .schemas.schema_builder import SchemaBuilder
@@ -176,16 +177,14 @@ class DataStreamsProcessor(PeriodicService):
             return
 
         now_ns = int(now_sec * 1e9)
+        aggr_key = (",".join(edge_tags), hash_value, parent_hash)
 
         with self._lock:
             # Align the span into the corresponding stats bucket
-            bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
-            aggr_key = (",".join(edge_tags), hash_value, parent_hash)
-            stats = self._buckets[bucket_time_ns].pathway_stats[aggr_key]
+            stats = self._buckets[now_ns - (now_ns % self._bucket_size_ns)].pathway_stats[aggr_key]
             stats.full_pathway_latency.add(full_pathway_latency_sec)
             stats.edge_latency.add(edge_latency_sec)
             stats.payload_size.add(payload_size)
-            self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
     def track_kafka_produce(self, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
@@ -383,15 +382,13 @@ class DataStreamsProcessor(PeriodicService):
 
         if not now_sec:
             now_sec = time.time()
-        if hasattr(self._current_context, "value"):
-            ctx = self._current_context.value
-        else:
+        ctx = getattr(self._current_context, "value", None)
+        if ctx is None:
             ctx = self.new_pathway()
-            self._current_context.value = ctx
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
-            payload_size += len(ctx.encode_b64()) + len(PROPAGATION_KEY_BASE_64)
+            payload_size += _pathway_b64_len(ctx) + len(PROPAGATION_KEY_BASE_64)
         ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
@@ -414,11 +411,29 @@ class DataStreamsProcessor(PeriodicService):
 @lru_cache(maxsize=256)
 def _compute_pathway_hash(
     service: str, env: str, base_hash_bytes: bytes, tags: tuple[str, ...], parent_hash: int
-) -> int:
-    """Pathway hash of a checkpoint. Memoized: a steady-state pathway repeats the same inputs for every message."""
+) -> tuple[int, str]:
+    """Pathway hash of a checkpoint and its span tag value.
+
+    Memoized: a steady-state pathway repeats the same inputs for every message.
+    """
     b = service.encode("utf-8") + env.encode("utf-8") + base_hash_bytes + b"".join(t.encode("utf-8") for t in tags)
     node_hash = fnv1_64(b)
-    return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+    hash_value = fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+    return hash_value, str(hash_value)
+
+
+def _var_int_64_len(v: int) -> int:
+    """Length of encode_var_int_64(v), which emits at most MAX_VAR_LEN_64 + 1 bytes."""
+    zigzag = (v >> 63) ^ (v << 1)
+    return min(max(1, (zigzag.bit_length() + 6) // 7), MAX_VAR_LEN_64 + 1)
+
+
+def _pathway_b64_len(ctx: DataStreamsCtx) -> int:
+    """Length of ctx.encode_b64() (8 hash bytes and two varints, base64-encoded), computed without encoding."""
+    encoded_len = (
+        8 + _var_int_64_len(int(ctx.pathway_start_sec * 1e3)) + _var_int_64_len(int(ctx.current_edge_start_sec * 1e3))
+    )
+    return 4 * ((encoded_len + 2) // 3)
 
 
 class DataStreamsCtx:
@@ -453,7 +468,7 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        return _compute_pathway_hash(self.service, self.env, process_tags.base_hash_bytes, tuple(tags), parent_hash)
+        return _compute_pathway_hash(self.service, self.env, process_tags.base_hash_bytes, tuple(tags), parent_hash)[0]
 
     def set_checkpoint(
         self,
@@ -499,9 +514,11 @@ class DataStreamsCtx:
             self.pathway_start_sec = pathway_start_sec_override
 
         parent_hash = self.hash
-        hash_value = self._compute_hash(tags, parent_hash)
+        hash_value, hash_tag = _compute_pathway_hash(
+            self.service, self.env, process_tags.base_hash_bytes, tuple(tags), parent_hash
+        )
         if span:
-            span._set_attribute("pathway.hash", str(hash_value))
+            span._set_attribute("pathway.hash", hash_tag)
         edge_latency_sec = max(now_sec - self.current_edge_start_sec, 0.0)
         pathway_latency_sec = max(now_sec - self.pathway_start_sec, 0.0)
         self.hash = hash_value

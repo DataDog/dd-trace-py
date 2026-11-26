@@ -14,10 +14,12 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
+from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.datastreams.processor import _compute_pathway_hash
+from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.fnv import fnv1_64
 
 
@@ -533,3 +535,87 @@ def test_dsm_pathway_codec_decode_no_context():
     assert ctx.hash == processor.new_pathway().hash
     assert ctx.pathway_start_sec == mocked_time
     assert ctx.current_edge_start_sec == mocked_time
+
+
+@pytest.mark.parametrize(
+    "start_sec",
+    [0.0, 0.0005, 0.063, 0.064, -0.064, -0.065, 1.0, 1642544540.123, -1642544540.0, 2.0**62 / 1e3, 1e17, -1e17],
+)
+@pytest.mark.parametrize("hash_value", [0, 12345, 2**64 - 1])
+def test_set_checkpoint_counts_pathway_header_size(start_sec, hash_value):
+    """Produce checkpoints add the size of the pathway header as encoded before the checkpoint."""
+    p = DataStreamsProcessor("http://localhost:8126")
+    try:
+        p._current_context.value = DataStreamsCtx(p, hash_value, start_sec, start_sec)
+        header = DataStreamsCtx(p, hash_value, start_sec, start_sec).encode_b64()
+        with mock.patch.object(p, "on_checkpoint_creation") as checkpoint_spy:
+            p.set_checkpoint(["direction:out", "topic:t", "type:kafka"], now_sec=mocked_time, payload_size=10)
+            p.set_checkpoint(["direction:in", "topic:t", "type:kafka"], now_sec=mocked_time, payload_size=10)
+        out_call, in_call = checkpoint_spy.call_args_list
+        assert out_call.kwargs["payload_size"] == 10 + len(PROPAGATION_KEY_BASE_64) + len(header)
+        assert in_call.kwargs["payload_size"] == 10
+    finally:
+        p.stop()
+        p.join()
+
+
+def test_set_checkpoint_starts_pathway_without_current_context():
+    p = DataStreamsProcessor("http://localhost:8126")
+    try:
+        with mock.patch.object(p, "on_checkpoint_creation") as checkpoint_spy:
+            ctx = p.set_checkpoint(["direction:in", "topic:t", "type:kafka"], now_sec=mocked_time)
+        assert p._current_context.value is ctx
+        assert checkpoint_spy.call_args.args[1] == 0
+    finally:
+        p.stop()
+        p.join()
+
+
+def test_set_checkpoint_tags_span_with_pathway_hash():
+    ctx = processor.new_pathway()
+    for _ in range(2):
+        span = mock.Mock()
+        ctx.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"], span=span)
+        span._set_attribute.assert_called_once_with("pathway.hash", str(ctx.hash))
+
+
+def test_set_checkpoint_aggregates_stats():
+    p = DataStreamsProcessor("http://localhost:8126")
+    try:
+        now = 1642544540.5
+        tags = ["type:kafka", "topic:t", "direction:in"]
+        for payload_size in (5, 7):
+            DataStreamsCtx(p, 7, now - 2, now - 1).set_checkpoint(tags, now_sec=now, payload_size=payload_size)
+        with p._lock:
+            serialized = p._serialize_buckets()
+    finally:
+        p.stop()
+        p.join()
+
+    ctx = DataStreamsCtx(p, 7, now, now)
+    expected_hash = _reference_pathway_hash(ctx.service, ctx.env, process_tags.base_hash_bytes, sorted(tags), 7)
+
+    def sketch(*values):
+        s = DDSketch()
+        for v in values:
+            s.add(v)
+        return s.to_proto()
+
+    now_ns = int(now * 1e9)
+    assert serialized == [
+        {
+            "Start": now_ns - (now_ns % p._bucket_size_ns),
+            "Duration": p._bucket_size_ns,
+            "Stats": [
+                {
+                    "EdgeTags": sorted(tags),
+                    "Hash": expected_hash,
+                    "ParentHash": 7,
+                    "PathwayLatency": sketch(2.0, 2.0),
+                    "EdgeLatency": sketch(1.0, 1.0),
+                    "PayloadSize": sketch(5, 7),
+                }
+            ],
+            "Backlogs": [],
+        }
+    ]

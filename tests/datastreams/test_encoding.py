@@ -5,6 +5,7 @@ from unittest import mock
 from ddtrace.internal.datastreams.encoding import decode_var_int_64
 from ddtrace.internal.datastreams.encoding import encode_var_int_64
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+from ddtrace.internal.datastreams.processor import _var_int_64_len
 from ddtrace.internal.native import decode_pathway_b64 as native_decode_pathway_b64
 from ddtrace.internal.native import encode_pathway_b64 as native_encode_pathway_b64
 
@@ -153,3 +154,13 @@ def test_decode_pathway_b64_matches_reference_on_random_inputs():
                 assert actual == expected, value
     # Most valid encodings must take the native path, not the Python fallback.
     assert native_hits > 4000
+
+
+def test_var_int_64_len_matches_encoding():
+    values = [0, 1, -1]
+    for bits in range(1, 72):
+        values.extend((2**bits - 1, 2**bits, 2**bits + 1, -(2**bits) + 1, -(2**bits), -(2**bits) - 1))
+    rng = random.Random(1234)
+    values.extend(rng.randrange(-(2**64), 2**64) for _ in range(1000))
+    for v in values:
+        assert _var_int_64_len(v) == len(encode_var_int_64(v)), v
