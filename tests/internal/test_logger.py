@@ -374,6 +374,40 @@ def _product_log_output(*args, exc_message="boom", **kwargs):
     return stream.getvalue()
 
 
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"_DD_INTERNAL_LOG_LEVEL": "DEBUG", "_DD_INTERNAL_COVERAGE_LOG_LEVEL": "ERROR"},
+        {"_DD_INTERNAL_COVERAGE_LOG_LEVEL": "ERROR", "_DD_INTERNAL_LOG_LEVEL": "DEBUG"},
+    ],
+    ids=["parent-first", "child-first"],
+)
+def test_logger_log_level_parent_and_child_in_any_order(monkeypatch, settings):
+    for name, level in settings.items():
+        monkeypatch.setenv(name, level)
+
+    with (
+        mock.patch.object(ddtrace.internal.logger, "LOG_LEVEL_TRIE", ddtrace.internal.logger.LoggerPrefix.build_trie()),
+        mock.patch.dict(logging.root.manager.loggerDict),
+    ):
+        assert get_logger("ddtrace.internal.module").level == logging.DEBUG
+        assert get_logger("ddtrace.internal.coverage.code").level == logging.ERROR
+
+
+def test_logger_log_level_falls_back_to_nearest_configured_ancestor(monkeypatch):
+    monkeypatch.setenv("_DD_INTERNAL_LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("_DD_INTERNAL_COVERAGE_DETAIL_LOG_LEVEL", "ERROR")
+
+    trie = ddtrace.internal.logger.LoggerPrefix.build_trie()
+
+    assert trie.lookup("ddtrace.internal.coverage.detail.x") == logging.ERROR
+    assert trie.lookup("ddtrace.internal.coverage.detail") == logging.ERROR
+    # Neither the intermediate node nor an unconfigured sibling has its own level: the ancestor's applies
+    assert trie.lookup("ddtrace.internal.coverage") == logging.DEBUG
+    assert trie.lookup("ddtrace.internal.coverage.other") == logging.DEBUG
+    assert trie.lookup("ddtrace.other") is None
+
+
 def test_product_log_formats_exc_info():
     # format_exception takes (type, value, tb) on every supported Python; the single-argument form is 3.10+ only
     output = _product_log_output("failed", exc_info=True, extra={"product": "example"})

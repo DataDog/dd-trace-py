@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where a log level set for a whole product through ``_DD_<PRODUCT>_LOG_LEVEL`` was ignored when a more specific ``_DD_<PRODUCT>_<COMPONENT>_LOG_LEVEL`` setting was also defined, depending on the order of the environment variables.
