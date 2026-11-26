@@ -423,5 +423,5 @@ def test_native_threads_work_relocated_without_ddtrace():
 def test_native_periodic_thread_type_is_named_after_its_module():
     from ddtrace.internal.native import _threads
 
-    assert _threads.PeriodicThread.__module__ == "ddtrace.internal.native._threads"
+    assert _threads.PeriodicThread.__module__ == _threads.__name__
     assert _threads.PeriodicThread.__qualname__ == "PeriodicThread"

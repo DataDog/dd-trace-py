@@ -215,7 +215,7 @@ Subcommands:
   slo-ownership             Check microbenchmark SLO ownership (no orphaned SLOs)
   suitespec-duplicates      Check for duplicate/dead suitespec suites
   profiling-native-check    Check profiling native coverage
-  native-import-check       Fail if src/native imports a ddtrace Python module
+  native-import-check       Fail if src/profiling_ffi imports a ddtrace Python module
   error-log-check           Check constant log messages
   type-comments-check       Fail if new PEP 484 type comments were added
   supported-config-check    Check supported-configurations.json is in sync and complete

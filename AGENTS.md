@@ -99,8 +99,8 @@ in `ddtrace/trace/`, and startup in `ddtrace/bootstrap/`. Contrib patch modules 
 `ddtrace/contrib/internal/`; LLMObs extraction classes live in `ddtrace/llmobs/_integrations/`.
 
 Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
-`ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, Rust in
-`src/native/`, and profiler code in `ddtrace/profiling/`, `ddtrace/internal/profiling/`, and
+`ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, the profiling FFI crate in
+`src/profiling_ffi/` (the tracer's Rust extension ships in `ddtrace-native`), and profiler code in `ddtrace/profiling/`, `ddtrace/internal/profiling/`, and
 `ddtrace/internal/datadog/profiling/`.
 
 Use a skill when available; otherwise read its `SKILL.md` and follow its commands.

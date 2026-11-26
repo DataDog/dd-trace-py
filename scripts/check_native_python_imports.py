@@ -1,9 +1,10 @@
-"""Fail if Rust code under src/native imports a ddtrace Python module.
+"""Fail if Rust code under src/profiling_ffi imports a ddtrace Python module.
 
-The extension is built as a standalone package that must not depend on ddtrace. Python registers
-the callables native needs instead (e.g. Context._register_tracestate_helpers), or native imports a
-sibling module of its own package by a name derived at init (e.g. `_msgpack` in span/wire.rs), never
-a literal ddtrace path.
+The tracer's native extension is built as the standalone ddtrace-native package (its crate lives in
+datadog-apm-python); what remains here is the profiling FFI cdylib. Both must not depend on ddtrace.
+Python registers the callables native needs instead (e.g. Context._register_tracestate_helpers), or
+native imports a sibling module of its own package by a name derived at init (e.g. `_msgpack` in
+span/wire.rs), never a literal ddtrace path.
 
 This flags `py.import("ddtrace...")`, `PyModule::import(py, "ddtrace...")` and `.import(intern!(py,
 "ddtrace..."))`. Comments are ignored, and so are plain string literals such as the pyclass
@@ -18,7 +19,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-NATIVE_DIR = ROOT / "src" / "native"
+NATIVE_DIR = ROOT / "src" / "profiling_ffi"
 
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 IMPORT_DDTRACE = re.compile(r'\bimport(?:_bound)?\s*\([^)]*?"ddtrace\b')
@@ -45,7 +46,7 @@ def main() -> int:
         print(violation, file=sys.stderr)
     if violations:
         print(
-            "src/native must not import ddtrace modules: have Python register the callable with native, "
+            "src/profiling_ffi must not import ddtrace modules: have Python register the callable with native, "
             "or import a sibling module of the extension's own package instead.",
             file=sys.stderr,
         )

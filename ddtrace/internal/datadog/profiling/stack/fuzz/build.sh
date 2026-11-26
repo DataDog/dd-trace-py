@@ -44,18 +44,18 @@ if ! command -v cargo &> /dev/null; then
     . "$HOME/.cargo/env"
 fi
 
-pip3 install setuptools_rust cython cmake --break-system-packages 2>/dev/null || \
-    pip3 install setuptools_rust cython cmake
-(cd "${REPO_ROOT}" && python3 setup.py build_rust --inplace)
+pip3 install cython cmake --break-system-packages 2>/dev/null || \
+    pip3 install cython cmake
+(cd "${REPO_ROOT}" && python3 setup.py build_profiling_ffi --inplace)
 
 # Derive key paths (same variables as build_standalone.sh)
 EXTENSION_SUFFIX="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")"
 PYTHON_LIBDIR="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")"
-NATIVE_EXTENSION_LOCATION="$(cd "${PROFILING_DIR}/../../native" && pwd)"
+NATIVE_EXTENSION_LOCATION="$(cd "${PROFILING_DIR}" && pwd)"
 LIB_INSTALL_DIR="${BUILD_DIR}/lib"
 
 echo "EXTENSION_SUFFIX: ${EXTENSION_SUFFIX}"
-echo "NATIVE_EXTENSION_LOCATION: ${NATIVE_EXTENSION_LOCATION}"
+echo "PROFILING_FFI_LOCATION: ${NATIVE_EXTENSION_LOCATION}"
 echo "LIB_INSTALL_DIR: ${LIB_INSTALL_DIR}"
 
 mkdir -p "${LIB_INSTALL_DIR}"
@@ -66,7 +66,7 @@ DD_WRAPPER_DIR="${PROFILING_DIR}/dd_wrapper"
 DD_WRAPPER_BUILD="${BUILD_DIR}/dd_wrapper"
 
 cmake -S "${DD_WRAPPER_DIR}" -B "${DD_WRAPPER_BUILD}" \
-      -DNATIVE_EXTENSION_LOCATION="${NATIVE_EXTENSION_LOCATION}" \
+      -DPROFILING_FFI_LOCATION="${NATIVE_EXTENSION_LOCATION}" \
       -DEXTENSION_SUFFIX="${EXTENSION_SUFFIX}" \
       -DLIB_INSTALL_DIR="${LIB_INSTALL_DIR}" \
       -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
@@ -84,7 +84,7 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
       -DDD_WRAPPER_DIR="${LIB_INSTALL_DIR}" \
       -DLIB_INSTALL_DIR="${LIB_INSTALL_DIR}" \
       -DEXTENSION_SUFFIX="${EXTENSION_SUFFIX}" \
-      -DNATIVE_EXTENSION_LOCATION="${NATIVE_EXTENSION_LOCATION}" \
+      -DPROFILING_FFI_LOCATION="${NATIVE_EXTENSION_LOCATION}" \
       -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
       -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_C_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \

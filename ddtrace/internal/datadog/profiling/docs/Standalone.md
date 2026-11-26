@@ -48,7 +48,7 @@ However, you may want to delete things if you switch branches.
   Add `_test` to build and run the tests through CTest.
 
 The script needs bash 4 or later and `bc`.
-It first builds the Rust extension with `setup.py build_rust --inplace`, so run it from the repository root.
+It first builds the profiling FFI library with `setup.py build_profiling_ffi --inplace`, so run it from the repository root.
 Here are the most useful commands.
 
 

@@ -39,7 +39,7 @@ ROOT: Path = Path(__file__).resolve().parents[1]
 SCAN_DIRS: list[str] = [
     "ddtrace/internal/datadog/profiling",
     "ddtrace/profiling",
-    "src/native",
+    "src/profiling_ffi",
     "src/native_heap_gotter",
 ]
 
