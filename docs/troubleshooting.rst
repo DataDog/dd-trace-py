@@ -100,7 +100,7 @@ Build failures when installing ddtrace locally
 ==============================================
 
 When installing ddtrace from source locally (e.g. ``pip install -e .``), you may encounter build failures,
-CMake errors, or stale native extension issues. Build requires Rust, cmake, Cython, and setuptools-rust—see
+CMake errors, or stale native extension issues. Build requires Rust, cmake, and Cython—see
 :doc:`build_system` for installation. Run a full clean to remove cached artifacts before reinstalling:
 
 **Preferred: scripts/clean** (creates a venv with build deps via uv, no global install needed):

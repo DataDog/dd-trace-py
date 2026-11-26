@@ -75,7 +75,6 @@ ext_cache() {
   uv run --no-project \
     --with "setuptools" \
     --with "cython" \
-    --with "setuptools-rust<2" \
     --with "cmake>=3.24.2,<3.28" \
     --with "patchelf>=0.17.0.0" \
     python scripts/ext_cache.py --build-lib --no-shared-deps "$1"
