@@ -798,3 +798,66 @@ def test_isolated_asyncio_test_case_runs_in_the_test_context(tmp_path) -> None:
     test = next((v for k, v in files.items() if k.endswith("test_async_case.py")), [])
     assert {2, 3, 7, 8, 12, 13} <= set(helper), files
     assert {8, 11, 14} <= set(test), files
+
+
+def test_threads_a_test_starts_run_for_the_test(tmp_path) -> None:
+    """A thread a test starts runs for the test. From Python 3.14 a thread runs its target in a
+    context that its start() creates, empty by default. A context the caller passes to the thread is
+    left untouched.
+    """
+    (tmp_path / "thread_helper.py").write_text(
+        "import contextvars\n"
+        "\n"
+        "\n"
+        "def in_thread(results):\n"
+        "    value = 4\n"
+        "    results.append(value)\n"
+        "\n"
+        "\n"
+        "def context_names(names):\n"
+        "    names.extend(var.name for var in contextvars.copy_context())\n"
+    )
+    (tmp_path / "test_threads.py").write_text(
+        textwrap.dedent(
+            """\
+            import contextvars
+            import json
+            import sys
+            import threading
+
+            import pytest
+
+            import thread_helper
+
+
+            def test_plain_thread():
+                results = []
+                thread = threading.Thread(target=thread_helper.in_thread, args=(results,))
+                thread.start()
+                thread.join()
+                assert results == [4]
+
+
+            @pytest.mark.skipif(sys.version_info < (3, 14), reason="threads take a context from 3.14")
+            def test_thread_with_its_own_context():
+                names = []
+                thread = threading.Thread(
+                    target=thread_helper.context_names, args=(names,), context=contextvars.Context()
+                )
+                thread.start()
+                thread.join()
+                with open("names.json", "w") as f:
+                    json.dump(names, f)
+            """
+        )
+    )
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_threads.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    records = json.loads(output.strip().splitlines()[-1])
+    helper = next((v for k, v in records[0]["files"].items() if k.endswith("thread_helper.py")), [])
+    assert {5, 6} <= set(helper), records
+    if sys.version_info >= (3, 14):
+        assert json.loads((tmp_path / "names.json").read_text()) == []
