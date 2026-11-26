@@ -9,3 +9,14 @@
 # no separate unfreeze PR is needed. The check reads base rules as well as
 # merge-result rules, so updating a hash in the same PR cannot lift a
 # freeze: only removing the entry can.
+
+# Package split, wave 1: moving to ddtrace-internal (DataDog/datadog-apm-python#77).
+ddtrace/internal/utils/cache.py=33ce5ab0705316457d8b75dc7570f7a0457e0aa9fa1afb67e2895cc2fea98170
+ddtrace/internal/utils/paths.py=5c45881809464d6ac424ccb2d3de5b7740d284e02f992c6bfd5c65801482c761
+ddtrace/internal/utils/obfuscation.py=63865aa2f9639dd32ff77f0225356b0ec7dd5a374c4412f489c55e0ce84f1efc
+ddtrace/internal/utils/inspection.py=c23b3c2dce206b14d3d4de0d8786ce8eeaf30e75c6d763e69ceb3beb8ad45395
+ddtrace/internal/utils/__init__.py=1ffe8afd3b5bc6435b707b61a1e46c594c0b1281a54f01a84f0d979d6fcd34c1
+ddtrace/internal/compat.py=96128d1b80b75fe10dc995719afb24d0714b7dbc44580633d1c4f82a72595f2c
+ddtrace/internal/assembly.py=d2d10bda9935ce335ee019d9ef0912d64cfa0588716b45b23758429364f9ffe5
+ddtrace/internal/bytecode_injection/__init__.py=ed95022249dba09eaeb69a02e5521a5e307b2e712ccf27e7b849b76c6654282b
+ddtrace/internal/bytecode_injection/core.py=d50295440cd83068557ef73387ebe996a2743adb4c3988b3bebb2b1c9cacafc4
