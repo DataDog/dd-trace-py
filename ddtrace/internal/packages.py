@@ -827,7 +827,9 @@ def _third_party_packages() -> set:
     from importlib.resources import read_binary
 
     return (
-        set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
+        # The data file ships next to this module, so resolve it from the module's own package, which is
+        # ddtrace.internal here and the ddtrace-internal package once the module moves there.
+        set(decompress(read_binary(__name__.rpartition(".")[0], "third-party.tar.gz")).decode("utf-8").splitlines())
         | tp_config.includes
     ) - tp_config.excludes
 
