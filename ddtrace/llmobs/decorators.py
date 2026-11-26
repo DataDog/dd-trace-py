@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
 from ddtrace.llmobs._span import _LLMObsSpan
+from ddtrace.llmobs._utils import get_llmobs_output_documents
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -282,7 +283,7 @@ def _wrap_llmobs_func(
 
     def _annotate_output(span: Any, resp: Any) -> None:
         if automatic_io_annotation and resp is not None and get_llmobs_span_kind(span) != "retrieval":
-            if get_llmobs_output_value(span) is None:
+            if get_llmobs_output_value(span) is None and get_llmobs_output_documents(span) is None:
                 LLMObs.annotate(span=span, output_data=resp)
 
     if iscoroutinefunction(func) or isasyncgenfunction(func):

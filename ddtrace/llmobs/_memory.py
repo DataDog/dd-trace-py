@@ -7,7 +7,6 @@ from typing import Optional
 
 
 MEMORY_READ_OPERATIONS = frozenset({"search_memory", "get_memory"})
-MEMORY_MAINTENANCE_OPERATIONS = frozenset({"consolidate_memory", "compact_memory"})
 
 MEMORY_SCHEMA_VERSION = "1"
 MAX_MEMORY_RECORD_IDS = 50
@@ -62,11 +61,7 @@ def resolve_memory_span_kind(operation: str, has_parent: bool) -> str:
     # Root spans must use "workflow" to satisfy backend isValidRoot checks.
     if not has_parent:
         return "workflow"
-    if operation in MEMORY_READ_OPERATIONS:
-        return "retrieval"
-    if operation in MEMORY_MAINTENANCE_OPERATIONS:
-        return "task"
-    return "tool"
+    return "memory"
 
 
 def build_memory_annotation(
@@ -279,7 +274,7 @@ def build_memory_annotation(
     if operation in MEMORY_READ_OPERATIONS:
         if query is not None:
             normalized_input_data = str(query)
-        if records_seq is not None:
+        if records_seq is not None and doc_records:
             normalized_output_data = doc_records
     else:
         if query is not None:

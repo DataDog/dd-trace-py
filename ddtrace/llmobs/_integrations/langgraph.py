@@ -16,6 +16,7 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._memory import MEMORY_READ_OPERATIONS
 from ddtrace.llmobs._memory import _as_float
 from ddtrace.llmobs._memory import build_memory_annotation
 from ddtrace.llmobs._memory import hash_identifier
@@ -258,7 +259,7 @@ class LangGraphIntegration(BaseLLMIntegration):
                 memory_input["write_outcome"] = "delete"
 
         mem_meta, mem_tags, mem_metrics, mem_input, mem_output = build_memory_annotation(memory_input)
-        if span_kind == "retrieval":
+        if span_kind == "memory" and mem_op in MEMORY_READ_OPERATIONS:
             _annotate_llmobs_span_data(
                 span,
                 kind=span_kind,

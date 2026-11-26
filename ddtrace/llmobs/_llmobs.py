@@ -218,6 +218,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import Agent
 from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType as PromptJSONType
@@ -498,6 +499,46 @@ def _build_llmobs_span(
         llmobs_span.output = [Message(content=doc.get("text", ""), role="") for doc in output_documents]
 
     return llmobs_span, input_type, output_type
+
+
+_DOCUMENT_KEYS = frozenset({"text", "name", "id", "score"})
+
+
+def _is_document_dict(obj: object) -> bool:
+    if not isinstance(obj, dict) or not obj or not set(obj).issubset(_DOCUMENT_KEYS):
+        return False
+    if not isinstance(obj.get("text"), str):
+        return False
+    for key in ("name", "id"):
+        val = obj.get(key)
+        if val is not None and not isinstance(val, str):
+            return False
+    score = obj.get("score")
+    if score is not None and (not isinstance(score, (int, float)) or isinstance(score, bool)):
+        return False
+    return True
+
+
+def _format_memory_document(doc: dict[str, Any]) -> Document:
+    formatted = Document(text=doc["text"])
+    if doc.get("name"):
+        formatted["name"] = doc["name"]
+    if doc.get("id"):
+        formatted["id"] = doc["id"]
+    score = doc.get("score")
+    if score is not None:
+        formatted["score"] = score
+    return formatted
+
+
+def _extract_memory_documents(output_data: Any) -> Optional[list[Document]]:
+    if isinstance(output_data, Documents):
+        return output_data.documents
+    if _is_document_dict(output_data):
+        return [_format_memory_document(output_data)]
+    if isinstance(output_data, list) and output_data and all(_is_document_dict(item) for item in output_data):
+        return [_format_memory_document(item) for item in output_data]
+    return None
 
 
 def _reconstruct_documents(meta_io: _MetaIO, messages: list[Message]) -> None:
@@ -3361,6 +3402,9 @@ class LLMObs(Service):
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
+                           - memory spans: a document dictionary or list of document dictionaries (with ``text`` and
+                                           optional ``name``, ``id``, ``score``) stored in ``output.documents``,
+                                           or any other JSON serializable type stored in ``output.value``.
                            - other: any JSON serializable type.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
@@ -3528,6 +3572,8 @@ class LLMObs(Service):
                     annotation_error_message, error = cls._tag_retrieval_io(
                         span, input_text=input_data, output_documents=output_data
                     )
+                elif span_kind == "memory":
+                    cls._tag_memory_io(span, input_value=input_data, output_data=output_data)
                 elif span_kind == "experiment":
                     cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
@@ -3658,6 +3704,27 @@ class LLMObs(Service):
         except TypeError:
             return "Failed to parse output documents.", "invalid_retrieval_io"
         return None, None
+
+    @classmethod
+    def _tag_memory_io(cls, span: Span, input_value: Any = None, output_data: Any = None) -> None:
+        if input_value is not None:
+            _annotate_llmobs_span_data(span, input_value=safe_json(input_value))
+        if output_data is None:
+            return
+        docs = _extract_memory_documents(output_data)
+        if docs is not None:
+            if docs:
+                llmobs_data = _get_llmobs_data_metastruct(span)
+                meta_output = llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT)
+                if isinstance(meta_output, dict) and meta_output.pop(LLMOBS_STRUCT.VALUE, None) is not None:
+                    span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
+                _annotate_llmobs_span_data(span, output_documents=docs)
+            return
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        meta_output = llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT)
+        if isinstance(meta_output, dict) and meta_output.pop(LLMOBS_STRUCT.DOCUMENTS, None) is not None:
+            span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
+        _annotate_llmobs_span_data(span, output_value=safe_json(output_data))
 
     @classmethod
     def _tag_text_io(cls, span: Span, input_value: Any = None, output_value: Any = None) -> None:
@@ -3864,7 +3931,7 @@ class LLMObs(Service):
         :param str span_id: Filter to a specific span by ID.
         :param str query: Filter spans using EVP query syntax.
         :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
-                               ``tool``, ``task``, ``embedding``, ``retrieval``.
+                               ``tool``, ``task``, ``embedding``, ``retrieval``, ``memory``.
         :param str span_name: Filter by span name.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: Filter by agent service name. Defaults to ``DD_LLMOBS_ML_APP``,

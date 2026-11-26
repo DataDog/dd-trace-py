@@ -19,12 +19,16 @@ from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import MemoryAnnotation
 from ddtrace.llmobs import MemoryRecord
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._constants import GEN_AI_OPERATION_NAME_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 from ddtrace.llmobs._integrations.langgraph import _extract_store_item_record
 from ddtrace.llmobs._integrations.langgraph import _parse_store_namespace
 from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
+from ddtrace.llmobs._llmobs import LLMObsSpan
 from ddtrace.llmobs._memory import MAX_MEMORY_RECORD_IDS
 from ddtrace.llmobs._memory import build_memory_annotation
 from ddtrace.llmobs._memory import estimate_tokens
@@ -41,6 +45,7 @@ from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs.decorators import memory
+from ddtrace.llmobs.utils import Documents
 
 
 class TestMemoryHelpers:
@@ -64,24 +69,21 @@ class TestMemoryHelpers:
         assert estimate_tokens("abcde") == 2
 
     def test_resolve_memory_span_kind_root_and_child(self):
-        write_and_lifecycle_ops = (
+        all_ops = (
+            "search_memory",
+            "get_memory",
             "create_memory",
             "update_memory",
             "upsert_memory",
             "delete_memory",
             "create_memory_store",
             "delete_memory_store",
+            "consolidate_memory",
+            "compact_memory",
         )
-        all_ops = ("search_memory", "get_memory", "consolidate_memory", "compact_memory") + write_and_lifecycle_ops
         for op in all_ops:
             assert resolve_memory_span_kind(op, has_parent=False) == "workflow"
-
-        assert resolve_memory_span_kind("search_memory", has_parent=True) == "retrieval"
-        assert resolve_memory_span_kind("get_memory", has_parent=True) == "retrieval"
-        assert resolve_memory_span_kind("consolidate_memory", has_parent=True) == "task"
-        assert resolve_memory_span_kind("compact_memory", has_parent=True) == "task"
-        for op in write_and_lifecycle_ops:
-            assert resolve_memory_span_kind(op, has_parent=True) == "tool"
+            assert resolve_memory_span_kind(op, has_parent=True) == "memory"
 
     def test_record_ids_and_content_hashes_capped_at_50(self):
         records = [{"id": f"rec-{i}", "text": f"unique memory item {i}"} for i in range(65)]
@@ -228,26 +230,28 @@ class TestLLMObsMemoryContextManager:
         assert get_llmobs_span_kind(span) == "workflow"
 
     def test_child_span_kinds_by_operation(self, llmobs):
+        all_ops = (
+            "search_memory",
+            "get_memory",
+            "create_memory",
+            "update_memory",
+            "upsert_memory",
+            "delete_memory",
+            "create_memory_store",
+            "delete_memory_store",
+            "consolidate_memory",
+            "compact_memory",
+        )
+        spans = []
         with llmobs.agent("planner"):
-            with llmobs.memory(operation="search_memory") as search_span:
-                pass
-            with llmobs.memory(operation="get_memory") as get_span:
-                pass
-            with llmobs.memory(operation="create_memory") as create_span:
-                pass
-            with llmobs.memory(operation="delete_memory_store") as delete_store_span:
-                pass
-            with llmobs.memory(operation="consolidate_memory") as consolidate_span:
-                pass
-            with llmobs.memory(operation="compact_memory") as compact_span:
-                pass
+            for op in all_ops:
+                with llmobs.memory(operation=op) as span:
+                    spans.append(span)
 
-        assert get_llmobs_span_kind(search_span) == "retrieval"
-        assert get_llmobs_span_kind(get_span) == "retrieval"
-        assert get_llmobs_span_kind(create_span) == "tool"
-        assert get_llmobs_span_kind(delete_store_span) == "tool"
-        assert get_llmobs_span_kind(consolidate_span) == "task"
-        assert get_llmobs_span_kind(compact_span) == "task"
+        for span in spans:
+            assert get_llmobs_span_kind(span) == "memory"
+            assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "memory"
+            assert span.get_tag(GEN_AI_OPERATION_NAME_TAG_KEY) == "memory"
 
     def test_errored_memory_span_preserves_prestamped_metadata_and_tags(self, llmobs):
         with pytest.raises(RuntimeError, match="store down"):
@@ -263,7 +267,7 @@ class TestLLMObsMemoryContextManager:
                     raise RuntimeError("store down")
 
         assert span.error == 1
-        assert get_llmobs_span_kind(span) == "tool"
+        assert get_llmobs_span_kind(span) == "memory"
         mem_meta = get_llmobs_metadata(span)["memory"]
         assert mem_meta["operation"] == "upsert_memory"
         assert mem_meta["store_id"] == "redis-mem"
@@ -310,7 +314,7 @@ class TestLLMObsAnnotateMemory:
                     },
                 )
 
-        assert get_llmobs_span_kind(span) == "retrieval"
+        assert get_llmobs_span_kind(span) == "memory"
         meta = get_llmobs_metadata(span)
         assert meta["custom_key"] == "keep_me"
         mem_meta = meta["memory"]
@@ -361,6 +365,7 @@ class TestLLMObsAnnotateMemory:
         assert metrics["memory_injected_tokens"] == 0.0
         assert get_llmobs_input_value(span) == "unknown topic"
         assert get_llmobs_output_documents(span) is None
+        assert get_llmobs_output_value(span) is None
 
     def test_annotate_write_and_compaction_metrics(self, llmobs):
         with llmobs.agent("assistant"):
@@ -376,7 +381,7 @@ class TestLLMObsAnnotateMemory:
                     },
                 )
 
-        assert get_llmobs_span_kind(span) == "task"
+        assert get_llmobs_span_kind(span) == "memory"
         mem_meta = get_llmobs_metadata(span)["memory"]
         assert mem_meta["write_outcome"] == "update"
         assert mem_meta["content_hashes"] == [hash_content("Consolidated summary of 5 turns")]
@@ -395,6 +400,106 @@ class TestLLMObsAnnotateMemory:
             with pytest.raises(LLMObsAnnotateSpanError):
                 llmobs.annotate(span=span, memory="not-a-dict")  # type: ignore[arg-type]
 
+    def test_memory_span_supports_output_documents_and_output_value(self, llmobs):
+        with llmobs.agent("assistant"):
+            with llmobs.memory(operation="search_memory") as docs_list_span:
+                llmobs.annotate(
+                    span=docs_list_span,
+                    input_data={"query": "dietary prefs"},
+                    output_data=[
+                        {"id": "m1", "name": "pref", "text": "vegetarian", "score": 0.9},
+                        {"id": "m2", "text": "no peanuts", "score": 0.0},
+                    ],
+                )
+            with llmobs.memory(operation="get_memory") as single_doc_span:
+                llmobs.annotate(span=single_doc_span, input_data="m1", output_data={"id": "m1", "text": "vegetarian"})
+            with llmobs.memory(operation="get_memory") as docs_wrapper_span:
+                llmobs.annotate(
+                    span=docs_wrapper_span,
+                    input_data="m1",
+                    output_data=Documents([{"id": "m1", "text": "wrapped"}]),
+                )
+            with llmobs.memory(operation="get_memory") as empty_docs_wrapper_span:
+                llmobs.annotate(span=empty_docs_wrapper_span, input_data="missing", output_data=Documents([]))
+            with llmobs.memory(operation="create_memory") as str_write_span:
+                llmobs.annotate(span=str_write_span, input_data="fact", output_data="saved")
+            with llmobs.memory(operation="upsert_memory") as dict_write_span:
+                llmobs.annotate(
+                    span=dict_write_span,
+                    input_data={"key": "k1"},
+                    output_data={"text": "saved fact", "status": "ok"},
+                )
+            with llmobs.memory(operation="delete_memory") as list_write_span:
+                llmobs.annotate(span=list_write_span, input_data={"ids": ["m1"]}, output_data=["m1", "m2"])
+            with llmobs.memory(operation="update_memory") as override_span:
+                llmobs.annotate(span=override_span, output_data="initial")
+                llmobs.annotate(span=override_span, output_data=[{"id": "m1", "text": "doc"}])
+            with llmobs.memory(operation="update_memory") as override_back_span:
+                llmobs.annotate(span=override_back_span, output_data=[{"id": "m1", "text": "doc"}])
+                llmobs.annotate(span=override_back_span, output_data={"updated": True})
+
+        assert get_llmobs_span_kind(docs_list_span) == "memory"
+        assert get_llmobs_input_value(docs_list_span) == '{"query": "dietary prefs"}'
+        assert get_llmobs_output_documents(docs_list_span) == [
+            {"id": "m1", "name": "pref", "text": "vegetarian", "score": 0.9},
+            {"id": "m2", "text": "no peanuts", "score": 0.0},
+        ]
+        assert get_llmobs_output_value(docs_list_span) is None
+
+        assert get_llmobs_output_documents(single_doc_span) == [{"id": "m1", "text": "vegetarian"}]
+        assert get_llmobs_output_value(single_doc_span) is None
+
+        assert get_llmobs_output_documents(docs_wrapper_span) == [{"id": "m1", "text": "wrapped"}]
+        assert get_llmobs_output_value(docs_wrapper_span) is None
+
+        assert get_llmobs_output_documents(empty_docs_wrapper_span) is None
+        assert get_llmobs_output_value(empty_docs_wrapper_span) is None
+
+        assert get_llmobs_output_value(str_write_span) == "saved"
+        assert get_llmobs_output_documents(str_write_span) is None
+
+        assert json.loads(get_llmobs_output_value(dict_write_span) or "") == {"text": "saved fact", "status": "ok"}
+        assert get_llmobs_output_documents(dict_write_span) is None
+
+        assert json.loads(get_llmobs_output_value(list_write_span) or "") == ["m1", "m2"]
+        assert get_llmobs_output_documents(list_write_span) is None
+
+        assert get_llmobs_output_documents(override_span) == [{"id": "m1", "text": "doc"}]
+        assert get_llmobs_output_value(override_span) is None
+
+        assert json.loads(get_llmobs_output_value(override_back_span) or "") == {"updated": True}
+        assert get_llmobs_output_documents(override_back_span) is None
+
+    def test_memory_span_event_and_user_processor_for_reads_and_writes(self, llmobs):
+        seen_kinds: list[Optional[str]] = []
+
+        def processor(span: LLMObsSpan) -> LLMObsSpan:
+            seen_kinds.append(span.get_tag("span.kind"))
+            if span.output:
+                span.output[0]["content"] = "[REDACTED]"
+            return span
+
+        llmobs.register_processor(processor)
+        try:
+            with llmobs.agent("assistant"):
+                with llmobs.memory(operation="search_memory") as read_span:
+                    llmobs.annotate(
+                        span=read_span,
+                        memory={"query": "prefs", "records": [{"id": "m1", "text": "secret doc", "score": 0.8}]},
+                    )
+                with llmobs.memory(operation="create_memory") as write_span:
+                    llmobs.annotate(span=write_span, input_data="fact", output_data={"status": "created"})
+        finally:
+            llmobs.register_processor(None)
+
+        assert seen_kinds == ["memory", "memory", "agent"]
+        read_event = read_span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
+        assert read_event["meta"]["span"]["kind"] == "memory"
+        assert read_event["meta"]["output"] == {"documents": [{"id": "m1", "text": "[REDACTED]", "score": 0.8}]}
+        write_event = write_span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
+        assert write_event["meta"]["span"]["kind"] == "memory"
+        assert write_event["meta"]["output"] == {"value": "[REDACTED]"}
+
 
 class TestMemoryDecorator:
     def test_sync_decorator_child_and_root(self, llmobs, test_spans):
@@ -408,11 +513,12 @@ class TestMemoryDecorator:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         recall_span = [s for s in spans if get_llmobs_span_name(s) == "recall"][0]
-        assert get_llmobs_span_kind(recall_span) == "retrieval"
+        assert get_llmobs_span_kind(recall_span) == "memory"
         assert get_llmobs_tags(recall_span)["decorator"] == "1"
         assert get_llmobs_tags(recall_span)["memory_operation"] == "search_memory"
         assert get_llmobs_metrics(recall_span)["memory_hit"] == 1.0
-        assert get_llmobs_output_documents(recall_span)[0]["text"] == "remembered"
+        assert get_llmobs_output_documents(recall_span) == [{"id": "r1", "text": "remembered", "score": 0.88}]
+        assert get_llmobs_output_value(recall_span) is None
 
         # Standalone root call uses "workflow".
         assert recall("root query") == ["remembered"]
@@ -434,10 +540,12 @@ class TestMemoryDecorator:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         save_span = [s for s in spans if get_llmobs_span_name(s) == "save_fact"][0]
-        assert get_llmobs_span_kind(save_span) == "tool"
+        assert get_llmobs_span_kind(save_span) == "memory"
         assert get_llmobs_metadata(save_span)["memory"]["write_outcome"] == "add"
         assert get_llmobs_tags(save_span)["memory_scope"] == "org"
         assert get_llmobs_tags(save_span)["decorator"] == "1"
+        assert json.loads(get_llmobs_output_value(save_span) or "") == {"saved": True}
+        assert get_llmobs_output_documents(save_span) is None
 
     def test_sync_and_async_generators(self, llmobs, test_spans):
         @memory(operation="search_memory", store_id="stream-store", scope="session")
@@ -450,7 +558,7 @@ class TestMemoryDecorator:
         assert items == ["a:docs", "b:docs"]
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         gen_span = [s for s in spans if get_llmobs_span_name(s) == "sync_gen"][0]
-        assert get_llmobs_span_kind(gen_span) == "retrieval"
+        assert get_llmobs_span_kind(gen_span) == "memory"
         assert get_llmobs_tags(gen_span)["memory_store_id"] == "stream-store"
 
     async def test_async_generator_decorator(self, llmobs, test_spans):
@@ -464,7 +572,7 @@ class TestMemoryDecorator:
         assert items == [1, 2]
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         gen_span = [s for s in spans if get_llmobs_span_name(s) == "async_gen"][0]
-        assert get_llmobs_span_kind(gen_span) == "task"
+        assert get_llmobs_span_kind(gen_span) == "memory"
         assert get_llmobs_tags(gen_span)["memory_operation"] == "consolidate_memory"
 
     def test_bare_memory_decorator(self, llmobs, test_spans):
@@ -476,8 +584,24 @@ class TestMemoryDecorator:
             assert lookup("q") == "hit:q"
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         lookup_span = [s for s in spans if get_llmobs_span_name(s) == "lookup"][0]
-        assert get_llmobs_span_kind(lookup_span) == "retrieval"
+        assert get_llmobs_span_kind(lookup_span) == "memory"
         assert get_llmobs_tags(lookup_span)["memory_operation"] == "search_memory"
+        assert get_llmobs_output_value(lookup_span) == "hit:q"
+        assert get_llmobs_output_documents(lookup_span) is None
+
+    def test_decorator_auto_annotates_document_list_return(self, llmobs, test_spans):
+        @memory(operation="search_memory", store_id="vec-1")
+        def fetch_docs(query: str) -> list[dict[str, Any]]:
+            return [{"id": "d1", "text": f"match for {query}", "score": 0.95}]
+
+        with llmobs.agent("bot"):
+            fetch_docs("coffee")
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        fetch_span = [s for s in spans if get_llmobs_span_name(s) == "fetch_docs"][0]
+        assert get_llmobs_span_kind(fetch_span) == "memory"
+        assert get_llmobs_output_documents(fetch_span) == [{"id": "d1", "text": "match for coffee", "score": 0.95}]
+        assert get_llmobs_output_value(fetch_span) is None
 
     def test_sync_generator_annotate_inputs_error_finishes_span(self, llmobs, tracer, test_spans):
         @memory(operation="search_memory")
@@ -1006,9 +1130,9 @@ class TestLangGraphBaseStoreInstrumentation:
         assert root_mem["provider"] == "langgraph"
         assert "acme-corp" not in json.dumps(get_llmobs_metadata(root_put))
 
-        # Child put -> tool with user principal_hash and no raw PII.
+        # Child put -> memory with user principal_hash and output.value.
         child_put = by_op["upsert_memory"][1]
-        assert get_llmobs_span_kind(child_put) == "tool"
+        assert get_llmobs_span_kind(child_put) == "memory"
         put_mem = get_llmobs_metadata(child_put)["memory"]
         assert put_mem["scope"] == "user"
         assert put_mem["principal_hash"] == hash_identifier("alice@example.com")
@@ -1016,28 +1140,33 @@ class TestLangGraphBaseStoreInstrumentation:
         assert "alice@example.com" not in json.dumps(get_llmobs_metadata(child_put))
         assert "espresso" not in json.dumps(get_llmobs_metadata(child_put))
         assert "espresso" in (get_llmobs_output_value(child_put) or "")
+        assert get_llmobs_output_documents(child_put) is None
 
-        # Child get hit & miss -> retrieval.
+        # Child get hit & miss -> memory with output.documents.
         get_hit, get_miss = by_op["get_memory"]
-        assert get_llmobs_span_kind(get_hit) == "retrieval"
+        assert get_llmobs_span_kind(get_hit) == "memory"
         assert get_llmobs_metrics(get_hit)["memory_hit"] == 1.0
         assert get_llmobs_output_documents(get_hit)[0]["id"] == "pref-1"
-        assert get_llmobs_span_kind(get_miss) == "retrieval"
+        assert get_llmobs_output_value(get_hit) is None
+        assert get_llmobs_span_kind(get_miss) == "memory"
         assert get_llmobs_metrics(get_miss)["memory_hit"] == 0.0
+        assert get_llmobs_output_documents(get_miss) is None
+        assert get_llmobs_output_value(get_miss) is None
         assert get_llmobs_metadata(get_miss)["memory"]["scope"] == "session"
         assert get_llmobs_metadata(get_miss)["memory"]["principal_hash"] == hash_identifier("sess-7")
 
-        # Child search -> retrieval with score & documents.
+        # Child search -> memory with score & documents.
         search_span = by_op["search_memory"][0]
-        assert get_llmobs_span_kind(search_span) == "retrieval"
+        assert get_llmobs_span_kind(search_span) == "memory"
         assert get_llmobs_input_value(search_span) == "favorite drink"
         assert get_llmobs_metrics(search_span)["memory_top_score"] == pytest.approx(0.91)
         assert get_llmobs_output_documents(search_span)[0]["score"] == pytest.approx(0.91)
+        assert get_llmobs_output_value(search_span) is None
         assert get_llmobs_tags(search_span)["memory_provider"] == "langgraph"
 
-        # Child delete -> tool with agent scope.
+        # Child delete -> memory with agent scope.
         del_span = by_op["delete_memory"][0]
-        assert get_llmobs_span_kind(del_span) == "tool"
+        assert get_llmobs_span_kind(del_span) == "memory"
         del_mem = get_llmobs_metadata(del_span)["memory"]
         assert del_mem["scope"] == "agent"
         assert del_mem["principal_hash"] == hash_identifier("agent-7")
@@ -1066,10 +1195,17 @@ class TestLangGraphBaseStoreInstrumentation:
             unlisten()
 
         spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
-        mem_ops = [
-            get_llmobs_metadata(s)["memory"]["operation"] for s in spans if "memory" in (get_llmobs_metadata(s) or {})
+        mem_spans = [s for s in spans if "memory" in (get_llmobs_metadata(s) or {})]
+        assert [get_llmobs_metadata(s)["memory"]["operation"] for s in mem_spans] == [
+            "upsert_memory",
+            "get_memory",
+            "search_memory",
+            "delete_memory",
         ]
-        assert mem_ops == ["upsert_memory", "get_memory", "search_memory", "delete_memory"]
+        assert all(get_llmobs_span_kind(s) == "memory" for s in mem_spans)
+        assert "python" in (get_llmobs_output_value(mem_spans[0]) or "")
+        assert get_llmobs_output_documents(mem_spans[1])[0]["id"] == "k1"
+        assert get_llmobs_output_documents(mem_spans[2])[0]["id"] == "k1"
 
     def test_namespace_hashing_prevents_pii_leakage(self):
         ns, scope, principal, tenant = _parse_store_namespace(("alice@example.com", "memories"))
