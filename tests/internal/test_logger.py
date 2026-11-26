@@ -388,8 +388,12 @@ def test_get_logger_normalizes_package_module_names(name, expected):
 def test_moving_modules_log_under_ddtrace():
     # Stdlib-logging modules that move into packages keep a ddtrace.* logger name. settings.env can't import the
     # logger (circular import), so it spells the name out.
+    from importlib import import_module
+
     from ddtrace.internal import forksafe
-    import ddtrace.internal.settings.env as env_module
+
+    # The settings package's env attribute is the config object, which shadows the submodule.
+    env_module = import_module("ddtrace.internal.settings.env")
 
     assert forksafe.log.name == "ddtrace.internal.forksafe"
     assert env_module.logger.name == "ddtrace.internal.settings.env"
