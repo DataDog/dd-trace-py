@@ -34,6 +34,7 @@ tests/requirements_locks/           @DataDog/apm-python
 .uv/                                @DataDog/apm-python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
+ddtrace/_error_attribution.py       @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-core-python @DataDog/apm-python
 supported-configurations.json       @DataDog/apm-python
 ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
