@@ -15,7 +15,7 @@ from ddtrace.internal import _unpatched
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.locks import RLock as _RLock
 from ddtrace.internal.logger import logger_name
-from ddtrace.internal.native.exceptions import is_panic_exception
+from ddtrace.internal.native_exceptions import is_panic_exception
 
 
 log = logging.getLogger(logger_name(__name__))

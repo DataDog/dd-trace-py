@@ -23,7 +23,7 @@ import ddtrace.internal.native as native
 from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
-from ddtrace.internal.native.exceptions import is_panic_exception
+from ddtrace.internal.native_exceptions import is_panic_exception
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
