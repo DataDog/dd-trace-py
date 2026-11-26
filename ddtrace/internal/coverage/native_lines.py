@@ -403,6 +403,9 @@ _CHILD_OWNER_ENV = "_DD_COVERAGE_CHILD_OWNER"
 _BOOTSTRAP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "child_bootstrap")
 # The state file starts with the counters the collector maps; the children's configuration follows.
 _STATE_HEADER_SIZE = 64
+# Records are read through the posix module: when a window closes, the test may still have the os
+# functions and open patched (pyfakefs, mock). Children are followed on POSIX systems only.
+_posix: t.Any = sys.modules.get("posix")
 
 
 class _ChildProcesses:
@@ -549,21 +552,33 @@ def collect_children() -> None:
         return
     children.records_seen = records
     try:
-        entries = list(os.scandir(children.directory))
+        entries = list(_posix.scandir(children.directory))
     except OSError:
         return
     for entry in entries:
         if not entry.name.endswith(".rec"):
             continue
         try:
-            with open(entry.path, "rb") as f:
-                files = marshal.load(f)  # nosec: written by this process's children
-            os.unlink(entry.path)
+            files = marshal.loads(_read_file(entry.path))  # nosec: written by this process's children
+            _posix.unlink(entry.path)
             token = int(entry.name.split("-", 1)[0])
         except Exception:
             log.debug("Could not read the child coverage record %s", entry.path, exc_info=True)
             continue
         _merge_child_record(token, files)
+
+
+def _read_file(path: str) -> bytes:
+    fd = _posix.open(path, _posix.O_RDONLY)
+    try:
+        chunks: list[bytes] = []
+        while True:
+            chunk = _posix.read(fd, 1 << 20)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+    finally:
+        _posix.close(fd)
 
 
 def _merge_child_record(token: int, files: dict[str, bytes]) -> None:
