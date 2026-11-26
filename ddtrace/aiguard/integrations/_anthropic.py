@@ -578,10 +578,15 @@ def _safe_convert_response(resp: Any, mcp_servers: Optional[dict[str, MCPServer]
         return None
 
 
-def _extra_body_overrides_mcp_servers(kwargs: dict[str, Any]) -> bool:
-    """The SDK merges extra_body over the params, so its servers are the ones sent (the only way on older SDKs)."""
+def _sent_param(kwargs: dict[str, Any], key: str) -> Any:
+    """The value of a request param that the SDK sends: extra_body, which it merges over the params, wins.
+
+    extra_body is also the only way to pass mcp_servers on older SDKs.
+    """
     extra_body = kwargs.get("extra_body")
-    return isinstance(extra_body, Mapping) and "mcp_servers" in extra_body
+    if isinstance(extra_body, Mapping) and key in extra_body:
+        return extra_body[key]
+    return kwargs.get(key)
 
 
 def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
@@ -592,9 +597,7 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
     if not aiguard_config._ai_guard_mcp_enabled:
         return None
     try:
-        declared = kwargs.get("mcp_servers")
-        if _extra_body_overrides_mcp_servers(kwargs):
-            declared = kwargs["extra_body"]["mcp_servers"]
+        declared = _sent_param(kwargs, "mcp_servers")
         servers: dict[str, MCPServer] = {}
         if not isinstance(declared, (list, tuple)):
             return servers
@@ -635,7 +638,7 @@ def _attach_mcp_servers(
     The payload adds the connector servers that messages reference; fails open without MCP metadata.
     """
     try:
-        mcp_tools = request_mcp_tools(kwargs.get("tools"))
+        mcp_tools = request_mcp_tools(_sent_param(kwargs, "tools"))
         servers = attach_mcp(messages, mcp_tools)
         if connector_servers:
             servers = referenced_mcp_servers(messages, (servers or []) + list(connector_servers.values()))
@@ -646,22 +649,23 @@ def _attach_mcp_servers(
 
 
 def _list_iterable_params(kwargs: dict[str, Any]) -> None:
-    """List the iterable request params once, in the kwargs the SDK gets: it, LLM Obs and AI Guard read the same lists.
+    """List the iterable request params once, in the kwargs the SDK gets, so it and AI Guard read the same lists.
 
-    An error raised by a caller iterable reaches the caller, as it would from the SDK.
+    A param that extra_body replaces is left unread; a caller iterable's error reaches the caller.
     """
-    keys = ["messages", "system", "tools"]
-    if _extra_body_overrides_mcp_servers(kwargs):
-        # The top-level param is then never sent: leave it unread. A new dict keeps the caller's extra_body intact.
-        servers = kwargs["extra_body"]["mcp_servers"]
-        listed = _listed(servers)
-        if listed is not servers:
-            kwargs["extra_body"] = {**kwargs["extra_body"], "mcp_servers": listed}
-    else:
-        keys.append("mcp_servers")
-    for key in keys:
-        if key in kwargs:
+    extra_body = kwargs.get("extra_body")
+    overrides = extra_body if isinstance(extra_body, Mapping) else {}
+    listed_overrides: dict[str, Any] = {}
+    for key in ("messages", "system", "tools", "mcp_servers"):
+        if key in overrides:
+            listed = _listed(overrides[key])
+            if listed is not overrides[key]:
+                listed_overrides[key] = listed
+        elif key in kwargs:
             kwargs[key] = _listed(kwargs[key])
+    if listed_overrides:
+        # A new dict keeps the caller's extra_body intact.
+        kwargs["extra_body"] = {**overrides, **listed_overrides}
 
 
 def _listed(value: Any) -> Any:
@@ -683,7 +687,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         return None
 
     _list_iterable_params(kwargs)
-    messages = kwargs.get("messages")
+    messages = _sent_param(kwargs, "messages")
     if messages is None:
         logger.debug("AI Guard anthropic before-hook skipped: kwargs has no 'messages' key")
         return None
@@ -696,7 +700,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         _report_converter_error("AI Guard anthropic: empty 'messages' kwarg; skipping evaluation")
         return None
 
-    system = kwargs.get("system")
+    system = _sent_param(kwargs, "system")
     connector_servers = _connector_mcp_servers(kwargs)
     ai_guard_messages = _safe_convert_messages(system, messages, connector_servers)
     if not ai_guard_messages:
@@ -752,7 +756,9 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
         logger.debug("AI Guard anthropic after-hook skipped: no convertible response messages")
         return None
 
-    request_messages = _safe_convert_messages(kwargs.get("system"), kwargs.get("messages", []), connector_servers)
+    request_messages = _safe_convert_messages(
+        _sent_param(kwargs, "system"), _sent_param(kwargs, "messages") or [], connector_servers
+    )
     if request_messages is None:
         # Converter blew up on the request side; do not feed AI Guard a
         # response-only payload that misses the prompt context.
