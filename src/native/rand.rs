@@ -271,7 +271,9 @@ mod tests {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn test_discard_after_fork_skips_a_borrowed_rng() {
-        rand64bits();
+        // seed() always fills this thread's RNG; rand64bits() would skip it while another test has
+        // secure mode on, and the assertion below would then fail.
+        seed();
         RNG.with(|rng| {
             let _borrow = rng.borrow_mut();
             // Must not panic: a panic in the extern "C" handler aborts the process.
