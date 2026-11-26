@@ -1,6 +1,8 @@
-"""Tests for the native line collector's payload encoding (CPython 3.12+)."""
+"""Tests for the native line collector's payload encoding and test records (CPython 3.12+)."""
 
+import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import textwrap
@@ -12,17 +14,91 @@ if sys.version_info < (3, 12):
     pytest.skip("native line coverage needs sys.monitoring", allow_module_level=True)
 pytest.importorskip("ddtrace.internal.coverage._linecov")
 
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
-def _run_isolated(script: str) -> None:
+
+def _run_isolated(script: str, cwd=None, env=None) -> str:
     # A subprocess: the collector registers a sys.monitoring tool and process-wide state.
     result = subprocess.run(
         [sys.executable, "-c", textwrap.dedent(script)],
-        env={**os.environ, "_DD_COVERAGE_NATIVE_LINES": "true"},
+        env={**os.environ, "_DD_COVERAGE_NATIVE_LINES": "true", **(env or {})},
+        cwd=cwd,
         capture_output=True,
         text=True,
         timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    return result.stdout
+
+
+def test_each_execution_gets_its_own_record(tmp_path) -> None:
+    """A retried test sends one coverage record per execution, each with the lines that execution
+    ran: here the first run fails on one branch and its automatic retry passes on the other.
+    """
+    (tmp_path / "test_flaky.py").write_text(
+        "from pathlib import Path\n"
+        "\n"
+        'MARKER = Path(__file__).with_name("ran_once")\n'
+        "\n"
+        "\n"
+        "def test_flaky():\n"
+        "    if not MARKER.exists():\n"
+        '        MARKER.write_text("")\n'
+        "        first = 1\n"
+        "        assert first == 2\n"
+        "    second = 2\n"
+        "    assert second == 2\n"
+    )
+    output = _run_isolated(
+        f"""
+        import json
+        import sys
+        from unittest.mock import patch
+
+        sys.path.insert(0, {str(_REPO_ROOT)!r})
+
+        import pytest
+
+        from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
+        from tests.testing.mocks import mock_api_client_settings
+        from tests.testing.mocks import setup_standard_mocks
+
+        records = []
+
+        def put_test_coverage(self, test_run, coverage_data):
+            files = {{}}
+            for path, bitmap in coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path):
+                files[path] = sorted(
+                    i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)
+                )
+            records.append({{"span_id": test_run.span_id, "files": files}})
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(auto_retries_enabled=True, coverage_enabled=True),
+            ),
+            setup_standard_mocks(),
+            patch.object(TestOptPlugin, "_put_test_coverage", put_test_coverage),
+        ):
+            pytest.main(["--ddtrace", "-p", "no:cacheprovider", "-p", "no:randomly", "-q", "test_flaky.py"])
+        print(json.dumps(records))
+        """,
+        cwd=tmp_path,
+        env={
+            "DD_API_KEY": "test-key",
+            "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "true",
+            "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "5",
+            "DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": "false",
+            "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "0",
+        },
+    )
+    records = json.loads(output.strip().splitlines()[-1])
+    span_ids = {record["span_id"] for record in records}
+    assert None not in span_ids and len(span_ids) == len(records) == 2, records
+    lines = [next(v for k, v in record["files"].items() if k.endswith("test_flaky.py")) for record in records]
+    # Lines 1, 3 and 6 are the file's initialisers, which every test that runs the file's code gets.
+    assert lines == [[1, 3, 6, 7, 8, 9, 10], [1, 3, 6, 7, 11, 12]], records
 
 
 def test_pack_matches_bitmaps(tmp_path) -> None:
