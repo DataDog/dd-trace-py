@@ -6,6 +6,7 @@ from confluent_kafka import TopicPartition
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
@@ -62,8 +63,6 @@ def _with_pathway_header(headers: Any, ctx: Any) -> list[tuple[Any, Any]]:
 def dsm_kafka_message_produce(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any], is_serializing: bool, span: Any
 ) -> None:
-    from . import data_streams_processor as processor
-
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
     # Membership and length checks instead of get_argument_value: positional values would raise and catch.
@@ -89,7 +88,7 @@ def dsm_kafka_message_produce(
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    if (p := processor()) is not None:
+    if (p := data_streams_processor()) is not None:
         ctx = p.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
         if not disable_header_injection:
             if isinstance(headers, dict):
@@ -118,7 +117,7 @@ def dsm_kafka_message_produce(
         global disable_header_injection
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
-            if (p := processor()) is not None:
+            if (p := data_streams_processor()) is not None:
                 p.track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time(), cluster_id=cluster_id)
         elif err.code() == -1 and not disable_header_injection:
             disable_header_injection = True
@@ -136,8 +135,6 @@ def dsm_kafka_message_produce(
 
 
 def dsm_kafka_message_consume(instance, message, span):
-    from . import data_streams_processor as processor
-
     if message.error() is not None:
         return
 
@@ -146,18 +143,13 @@ def dsm_kafka_message_consume(instance, message, span):
     cluster_id = core.find_item("kafka_cluster_id")
     group = instance._group_id
 
-    payload_size = 0
-    if hasattr(message, "len"):
-        # message.len() is only supported for some versions of confluent_kafka
-        payload_size += message.len()
-    else:
-        payload_size += _calculate_byte_size(message.value())
-
+    # confluent_kafka.Message has no len() method (only __len__), so the value is always measured.
+    payload_size = _calculate_byte_size(message.value())
     payload_size += _calculate_byte_size(message.key())
     headers_size, pathway_headers = _consumed_headers_size_and_pathway(header_list)
     payload_size += headers_size
 
-    p = processor()
+    p = data_streams_processor()
     if p is None:
         return
 
@@ -188,8 +180,6 @@ def dsm_kafka_message_consume(instance, message, span):
 
 
 def dsm_kafka_message_commit(instance, args, kwargs):
-    from . import data_streams_processor as processor
-
     cluster_id = core.find_item("kafka_cluster_id") or ""
     message = get_argument_value(args, kwargs, 0, "message", optional=True)
 
@@ -201,7 +191,7 @@ def dsm_kafka_message_commit(instance, args, kwargs):
     else:
         offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
 
-    p = processor()
+    p = data_streams_processor()
     if p is None:
         return
 

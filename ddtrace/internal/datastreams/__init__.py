@@ -22,14 +22,8 @@ required_module_to_integration = {
 }
 _processor: Optional[DataStreamsProcessor] = None
 
-if config._data_streams_enabled:
-    with require_modules(list(required_module_to_integration.keys())) as missing_modules:
-        path_f = "ddtrace.internal.datastreams.%s"
-        for integrated_library, integration_module in required_module_to_integration.items():
-            if integrated_library not in missing_modules:
-                importlib.import_module(path_f % (integration_module,))
 
-
+# Defined before the integration imports below: the kafka hooks import it at module level.
 def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor]:
     global _processor
     if config._data_streams_enabled and (not _processor or reset):
@@ -38,3 +32,11 @@ def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor
         _processor = processor.DataStreamsProcessor()
 
     return _processor
+
+
+if config._data_streams_enabled:
+    with require_modules(list(required_module_to_integration.keys())) as missing_modules:
+        path_f = "ddtrace.internal.datastreams.%s"
+        for integrated_library, integration_module in required_module_to_integration.items():
+            if integrated_library not in missing_modules:
+                importlib.import_module(path_f % (integration_module,))
