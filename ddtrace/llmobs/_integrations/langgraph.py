@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from collections.abc import Sequence
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -15,11 +16,16 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._memory import _as_float
+from ddtrace.llmobs._memory import build_memory_annotation
+from ddtrace.llmobs._memory import hash_identifier
+from ddtrace.llmobs._memory import resolve_memory_span_kind
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
 
 
@@ -28,6 +34,29 @@ logger = get_logger(__name__)
 
 PREGEL_PUSH = "__pregel_push"  # represents a task queued up by a `Send` command
 PREGEL_TASKS = "__pregel_tasks"  # name of ephemeral channel that pregel `Send` commands write to
+
+_LANGGRAPH_STORE_ID_CTX_KEY = "langgraph.store_id"
+_STORE_OPERATION_MAP: dict[str, str] = {
+    "store.get": "get_memory",
+    "store.aget": "get_memory",
+    "store.search": "search_memory",
+    "store.asearch": "search_memory",
+    "store.put": "upsert_memory",
+    "store.aput": "upsert_memory",
+    "store.delete": "delete_memory",
+    "store.adelete": "delete_memory",
+}
+_NAMESPACE_SCOPE_MAP: dict[str, str] = {
+    "users": "user",
+    "user": "user",
+    "sessions": "session",
+    "session": "session",
+    "orgs": "org",
+    "org": "org",
+    "agents": "agent",
+    "agent": "agent",
+    "global": "global",
+}
 
 ALLOWED_MODEL_SETTINGS_KEYS = [
     "max_tokens",
@@ -54,9 +83,14 @@ class LangGraphIntegration(BaseLLMIntegration):
         """Nothing to do: LangGraph spans carry no provider or model tags."""
 
     def _llmobs_span_kind(self, operation_id: str, span: _LLMObsSpan, **kwargs: Any) -> Optional[str]:
+        op = kwargs.get("operation", "")
         # Graph spans are agents, known at start for agent attribution.
-        if kwargs.get("operation") == "graph":
+        if op == "graph":
             return "agent"
+        mem_op = _STORE_OPERATION_MAP.get(op)
+        if mem_op is not None:
+            has_parent = get_llmobs_parent_id(span) != ROOT_PARENT_ID
+            return resolve_memory_span_kind(mem_op, has_parent=has_parent)
         return super()._llmobs_span_kind(operation_id, span, **kwargs)
 
     def _on_request_span_started(
@@ -66,6 +100,11 @@ class LangGraphIntegration(BaseLLMIntegration):
         operation: str = "",
         request_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
+        if operation in _STORE_OPERATION_MAP:
+            if instance is not None:
+                store_id = getattr(instance, "name", None) or instance.__class__.__name__
+                span._set_ctx_item(_LANGGRAPH_STORE_ID_CTX_KEY, str(store_id))
+            return
         if operation != "graph" or instance is None:
             return
         self._graph_spans_to_graph_instances[span] = instance
@@ -83,9 +122,12 @@ class LangGraphIntegration(BaseLLMIntegration):
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof graph, node
+        operation: str = "",  # oneof graph, node, store.*
     ) -> None:
         if not self.llmobs_enabled:
+            return
+        if operation in _STORE_OPERATION_MAP:
+            self._llmobs_set_store_tags(span, args, kwargs, response, operation)
             return
 
         inputs = get_argument_value(args, kwargs, 0, "input")
@@ -126,6 +168,118 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links=current_span_links + span_links,
             agent_manifest=agent_manifest,
         )
+
+    def _llmobs_set_store_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any],
+        operation: str,
+    ) -> None:
+        mem_op = _STORE_OPERATION_MAP[operation]
+        method_name = operation.split(".", 1)[1]
+        has_parent = get_llmobs_parent_id(span) != ROOT_PARENT_ID
+        span_kind = resolve_memory_span_kind(mem_op, has_parent=has_parent)
+
+        namespace_arg = (
+            args[0]
+            if len(args) > 0
+            else (kwargs.get("namespace") if "namespace" in kwargs else kwargs.get("namespace_prefix"))
+        )
+        namespace_str, scope, principal, tenant_id = _parse_store_namespace(namespace_arg)
+        store_id = span._get_ctx_item(_LANGGRAPH_STORE_ID_CTX_KEY)
+
+        memory_input: dict[str, Any] = {
+            "operation": mem_op,
+            "provider": "langgraph",
+            "detection_source": "explicit",
+        }
+        if store_id:
+            memory_input["store_id"] = str(store_id)
+        if scope:
+            memory_input["scope"] = scope
+        if namespace_str:
+            memory_input["namespace"] = namespace_str
+        if principal:
+            memory_input["principal"] = principal
+        if tenant_id:
+            memory_input["tenant_id"] = tenant_id
+
+        explicit_input: Any = None
+        if mem_op == "get_memory":
+            key = args[1] if len(args) > 1 else kwargs.get("key")
+            if key is not None:
+                memory_input["query"] = str(key)
+            if not span.error:
+                if response is None:
+                    memory_input["records"] = []
+                else:
+                    fallback_key = str(key) if key is not None else None
+                    memory_input["records"] = [_extract_store_item_record(response, fallback_key=fallback_key)]
+        elif mem_op == "search_memory":
+            query = kwargs.get("query")
+            if query is None and len(args) > 1 and isinstance(args[1], str):
+                query = args[1]
+            if query is not None:
+                memory_input["query"] = str(query)
+            if (
+                not span.error
+                and response is not None
+                and isinstance(response, Sequence)
+                and not isinstance(response, (str, bytes, bytearray))
+            ):
+                memory_input["records"] = [_extract_store_item_record(item) for item in response]
+        elif mem_op == "upsert_memory":
+            key = args[1] if len(args) > 1 else kwargs.get("key")
+            value = args[2] if len(args) > 2 else kwargs.get("value")
+            if key is not None and str(key):
+                explicit_input = {"key": str(key)}
+            if not span.error:
+                val_text = (
+                    value
+                    if isinstance(value, str)
+                    else (safe_json(value, ensure_ascii=False) or str(value) if value is not None else "")
+                )
+                record: dict[str, Any] = {"text": val_text}
+                if key is not None and str(key):
+                    record["id"] = str(key)
+                memory_input["records"] = [record]
+                if value is not None:
+                    memory_input["post_write_bytes"] = len(val_text.encode("utf-8"))
+        elif mem_op == "delete_memory":
+            key = args[1] if len(args) > 1 else kwargs.get("key")
+            if key is not None and str(key):
+                explicit_input = {"key": str(key)}
+            if not span.error:
+                if key is not None and str(key):
+                    memory_input["record_ids"] = [str(key)]
+                memory_input["record_count"] = 1 if key is not None else 0
+                memory_input["write_outcome"] = "delete"
+
+        mem_meta, mem_tags, mem_metrics, mem_input, mem_output = build_memory_annotation(memory_input)
+        if span_kind == "retrieval":
+            _annotate_llmobs_span_data(
+                span,
+                kind=span_kind,
+                name=f"langgraph.store.{method_name}",
+                metadata={"memory": mem_meta},
+                tags=mem_tags,
+                metrics=mem_metrics or None,
+                input_value=mem_input,
+                output_documents=mem_output or None,
+            )
+        else:
+            _annotate_llmobs_span_data(
+                span,
+                kind=span_kind,
+                name=f"langgraph.store.{method_name}",
+                metadata={"memory": mem_meta},
+                tags=mem_tags,
+                metrics=mem_metrics or None,
+                input_value=explicit_input if explicit_input is not None else mem_input,
+                output_value=mem_output,
+            )
 
     def _get_agent_manifest(self, agent: Any, args: Any, config: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Gets the agent manifest for a given agent at the end of its execution."""
@@ -556,6 +710,71 @@ def _append_finished_task_to_channel_writes_map(
         tasks_for_trigger.append((pregel_task_node, finished_task_id))
     else:
         tasks_for_trigger.append(finished_task_id)
+
+
+def _parse_store_namespace(
+    namespace_arg: Any,
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    if isinstance(namespace_arg, str):
+        parts = [p for p in namespace_arg.split("/") if p]
+    elif isinstance(namespace_arg, (tuple, list)):
+        parts = [str(p) for p in namespace_arg if p is not None and str(p)]
+    else:
+        return None, None, None, None
+    if not parts:
+        return None, None, None, None
+
+    scope: Optional[str] = None
+    principal: Optional[str] = None
+    tenant_id: Optional[str] = None
+    safe_parts: list[str] = []
+    i = 0
+    while i < len(parts):
+        seg = parts[i]
+        seg_lower = seg.lower()
+        seg_scope = _NAMESPACE_SCOPE_MAP.get(seg_lower)
+        if seg_scope is not None:
+            safe_parts.append(seg_lower)
+            if scope is None:
+                scope = seg_scope
+            if seg_scope in ("user", "session", "agent") and i + 1 < len(parts):
+                ident = parts[i + 1]
+                if principal is None:
+                    principal = ident
+                safe_parts.append(hash_identifier(ident))
+                i += 2
+                continue
+            if seg_scope == "org" and i + 1 < len(parts):
+                ident = parts[i + 1]
+                if tenant_id is None:
+                    tenant_id = ident
+                safe_parts.append(hash_identifier(ident))
+                i += 2
+                continue
+        else:
+            safe_parts.append(hash_identifier(seg))
+        i += 1
+    return "/".join(safe_parts), scope, principal, tenant_id
+
+
+def _extract_store_item_record(item: Any, fallback_key: Optional[str] = None) -> dict[str, Any]:
+    rec_id = _get_attr(item, "key", None)
+    if rec_id is None and fallback_key is not None:
+        rec_id = fallback_key
+    raw_val = _get_attr(item, "value", None)
+    if isinstance(raw_val, str):
+        text = raw_val
+    elif raw_val is not None:
+        text = safe_json(raw_val, ensure_ascii=False) or str(raw_val)
+    else:
+        text = ""
+    record: dict[str, Any] = {"text": text}
+    if rec_id is not None and str(rec_id):
+        record["id"] = str(rec_id)
+    score = _as_float(_get_attr(item, "score", None))
+    if score is not None:
+        record["score"] = score
+    return record
 
 
 def _default_span_link(span: _LLMObsSpan) -> _SpanLink:
