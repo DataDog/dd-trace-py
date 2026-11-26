@@ -118,6 +118,7 @@ class PackageForTesting:
         skip_python_version=None,
         test_e2e=True,
         import_name=None,
+        # A module name, or module:attribute to validate the submodule that defines the attribute.
         import_module_to_validate=None,
         test_propagation=False,
         fixme_propagation_fails=None,
@@ -328,7 +329,7 @@ _PACKAGES = [
         "foobar",
         "Lock acquired for file: foobar",
         "",
-        import_module_to_validate="filelock._api",
+        import_module_to_validate="filelock:BaseFileLock",
     ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
@@ -981,6 +982,7 @@ def template_venv():
                 "cattrs",
                 "pytest",
                 "charset_normalizer",
+                "urllib3",
                 this_dd_trace_py_path,
             ]
             subprocess.check_call([PIP_EXECUTABLE, "install", *deps_to_install])
