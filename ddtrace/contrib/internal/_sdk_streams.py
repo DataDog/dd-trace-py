@@ -4,7 +4,6 @@ Older SDKs set _iterator in __init__; newer ones make it on first use (a cached 
 """
 
 from functools import cached_property
-import inspect
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -59,13 +58,27 @@ class _LazyEvents:
 
 
 def _event_source(instance: Any) -> Any:
-    """Return the event iterator of a new stream, lazy when the SDK makes it on first use."""
+    """Return the event iterator of a new stream, for the listeners to wrap, or None.
+
+    The SDK makes this iterator in one of two ways:
+
+    1. Older SDKs set it in __init__ (self._iterator = self.__stream__()). It is in the instance
+       dict, so it is returned as is.
+    2. Newer SDKs (anthropic>=2) make it on first use, with a cached_property that copies the stream.
+       Reading it here, in the middle of __init__, would copy the stream before a subclass finishes
+       its own __init__: BedrockStream sets its AWS decoder after super().__init__(), and its events
+       would be decoded with the wrong decoder. So a lazy iterator is returned instead: it calls the
+       cached_property function on the first read, when every constructor has run.
+
+    Any other layout returns None, and the stream is left as the SDK made it.
+    """
     if "_iterator" in vars(instance):
         return instance._iterator
-    descriptor = inspect.getattr_static(type(instance), "_iterator", None)
+    # On the class, a cached_property returns itself and computes nothing.
+    descriptor = getattr(type(instance), "_iterator", None)
     if not isinstance(descriptor, cached_property):
         return None
-    # A weak reference: the stream keeps the replaced iterator, which must not keep the stream alive.
+    # A weak reference: the stream keeps the iterator that replaces it, which must not keep the stream alive.
     stream = weakref.ref(instance)
 
     def source() -> Any:
