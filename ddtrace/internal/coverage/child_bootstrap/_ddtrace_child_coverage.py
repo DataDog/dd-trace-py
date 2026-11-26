@@ -13,14 +13,19 @@ forkserver children leave through os._exit(), which skips atexit, and Pool.termi
 workers with SIGTERM. SIGTERM can also end a spawn child before its run starts, while it
 unpickles its process, which imports the modules the target needs: the child then writes its
 record for the context named at its start (start()), as its Process object is not unpickled yet.
+The handler that writes the record is set when the unpickling starts, after the child's start-up
+hooks (sitecustomize, usercustomize): a hook that handles SIGTERM only while the signal has its
+default action still does, and the record's handler passes the signal on to it. Code that the
+unpickling or the run imports or runs finds the record's handler in place instead.
 
 It imports no ddtrace module, so a child pays only for the collector, and any failure leaves the
 child unrecorded and otherwise unchanged. Not recorded: interpreters started with -E, -I or -S,
 which skip sitecustomize; another Python version or build than the test process's; children
 that exit through os._exit() or a signal, which skip the record, except a multiprocessing child
-that SIGTERM ends, unless its run replaced the SIGTERM handler without calling the one before, or
-it is a forkserver child whose run had not started; children still running when the test session
-ends; a file outside the workspace that is a link to a file in it.
+that SIGTERM ends once its run started and a spawn child that SIGTERM ends while it unpickles its
+process, unless its run replaced the SIGTERM handler without calling the one before; children
+still running when the test session ends; a file outside the workspace that is a link to a file
+in it.
 """
 
 from __future__ import annotations
@@ -47,7 +52,7 @@ _SITE_PACKAGES = frozenset(("site-packages", "dist-packages"))
 # The token of the context this process records for. A multiprocessing child takes the one its
 # Process object names (run_process()).
 _owner = 0
-# What a spawn child writes its record with when SIGTERM ends it before its run starts.
+# What a spawn child writes its record with when SIGTERM ends it while it unpickles its process.
 _startup_record: _ProcessRecord | None = None
 
 
@@ -333,9 +338,29 @@ def _cover_processes(linecov: Any, directory: str) -> None:
     BaseProcess._bootstrap = _bootstrap  # type: ignore[attr-defined]
 
 
+def _cover_unpickling(linecov: Any, directory: str) -> None:
+    """Wrap multiprocessing.spawn._main, which unpickles the process a spawn child runs, so that a
+    SIGTERM from then on writes the record: Process.terminate() or Pool.terminate() soon after the
+    start can end the child there, before its run.
+    """
+    # The child's command imports it next anyway.
+    from multiprocessing import spawn
+
+    main = spawn._main
+
+    def _main(*args: Any, **kwargs: Any) -> Any:
+        global _startup_record
+
+        _startup_record = _ProcessRecord(linecov, directory, _owner)
+        _startup_record.handle_sigterm()
+        return main(*args, **kwargs)
+
+    spawn._main = _main
+
+
 def start() -> None:
     """Record this process's lines for the context named in its environment or the state file."""
-    global _owner, _startup_record
+    global _owner
 
     directory = os.environ.get(_DIR_ENV)
     if not directory or not hasattr(sys, "monitoring"):
@@ -386,9 +411,7 @@ def start() -> None:
     if start_method:
         _cover_processes(linecov, directory)
     if start_method == "spawn":
-        # Process.terminate() or Pool.terminate() soon after the start can end the child before its run.
-        _startup_record = _ProcessRecord(linecov, directory, _owner)
-        _startup_record.handle_sigterm()
+        _cover_unpickling(linecov, directory)
 
     import atexit
 
