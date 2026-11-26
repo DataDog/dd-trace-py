@@ -21,9 +21,9 @@ from ddtrace.internal.settings._otel_remapper import has_ignored_exporter
 from ddtrace.internal.settings._otel_remapper import is_unset_exporter_list
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._otel_remapper import select_exporter
-from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
-from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.settings.env import get_aliases
+from ddtrace.internal.settings.env import is_sensitive
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
@@ -65,7 +65,7 @@ def get_config(
     # Expand with registered aliases of the canonical name (envs[0]) so all
     # config sources (LOCAL_CONFIG, env, FLEET_CONFIG) honor legacy renames.
     canonical = envs[0]
-    aliases = CONFIGURATION_ALIASES.get(canonical, [])
+    aliases = get_aliases(canonical)
     if aliases:
         envs += [a for a in aliases if a not in envs]
 
@@ -73,7 +73,7 @@ def get_config(
     telemetry_name = envs[0]
     # Configurations marked ``sensitive: true`` in the registry are excluded from
     # configuration telemetry, regardless of which source supplies the value.
-    if telemetry_name in SENSITIVE_CONFIGURATIONS:
+    if is_sensitive(telemetry_name):
         report_telemetry = False
     if report_telemetry:
         telemetry_writer.add_configuration(telemetry_name, default, "default")
@@ -160,7 +160,7 @@ def report_configuration(config: DDConfig) -> None:
 
         # Configurations marked ``sensitive: true`` in the registry are excluded
         # from configuration telemetry.
-        if env_name in SENSITIVE_CONFIGURATIONS:
+        if is_sensitive(env_name):
             continue
 
         # Get the item value recursively
