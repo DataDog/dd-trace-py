@@ -12,6 +12,7 @@ import typing as t
 
 import pytest
 
+from ddtrace.testing.internal.tracer_api.coverage import collect_child_coverage
 from ddtrace.testing.internal.tracer_api.coverage import get_native_coverage_context
 from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_enabled
 from ddtrace.testing.internal.tracer_api.coverage import new_fixture_coverage_context
@@ -80,6 +81,9 @@ def link_suite_fixtures_in_closure(item: t.Any) -> None:
 
 
 def _exit_setup_context(fixturedef: t.Any, context: t.Any, previous: t.Any) -> None:
+    if context is not None:
+        # Children that exited inside the setup's window are the setup's.
+        collect_child_coverage()
     set_native_coverage_context(previous)
     if context is not None:
         context.pop()

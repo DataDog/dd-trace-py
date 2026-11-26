@@ -49,9 +49,11 @@ class InstrumentedCoverage(CoverageMode):
     def uninstall(self) -> None:
         """Nothing to undo (the shared uninstall handles hooks and exec)."""
 
-    def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
+    def instrument_module(self, code: CodeType, module: t.Optional[ModuleType]) -> CodeType:
         if native_lines.enabled():
             return self._instrument_module_natively(code)
+        if module is None:
+            return code
         if is_obfuscated_code(code):
             log.warning(
                 "Cannot instrument %r for coverage: code object appears to be obfuscated (e.g. by PyArmor)",
@@ -87,12 +89,14 @@ class InstrumentedCoverage(CoverageMode):
             )
         return code
 
-    def after_module_context(self, code: CodeType, module: ModuleType) -> None:
+    def after_module_context(self, code: CodeType, module: t.Optional[ModuleType]) -> None:
         # Python 3.13+ doesn't fire LINE events for empty modules. Call the hook
         # directly so coverage is recorded into the just-entered import context.
         # Native line collection opens no import context and reports executed lines only.
         # co_code builds a new bytes object, so it is read last.
-        if _PY_GE_313 and not native_lines.enabled() and code.co_code == _EMPTY_MODULE_BYTES:
+        if module is None or native_lines.enabled():
+            return
+        if _PY_GE_313 and code.co_code == _EMPTY_MODULE_BYTES:
             package = module.__package__ or ""
             import_info = (package, ("",)) if package else None
             self._collector.hook((0, resolved_path(code.co_filename), import_info))

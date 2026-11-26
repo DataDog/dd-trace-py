@@ -33,6 +33,13 @@
  * ran on the same line, as when a coroutine resumes at an await: the await line can then be
  * credited again, to the context the coroutine runs in.
  *
+ * Child processes: a Python child that a context starts records the lines it runs and hands them
+ * to this process in a record file at exit (see child_bootstrap/_ddtrace_child_coverage.py). A state
+ * file, mapped in both processes, carries the token of the context this process runs for, which
+ * the child reads at start-up, and a count of the records written, so this process reads the
+ * record directory only after a child wrote to it. A record joins the context while it is still
+ * active, and the unowned lines once its window has closed.
+ *
  * The callbacks never raise into the monitored code: an internal error is counted and the line
  * stays armed. All state is guarded by the GIL. Free-threaded builds are not supported.
  */
@@ -41,6 +48,16 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+
+#ifndef _WIN32
+#include <fcntl.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#define DD_HAVE_SHARED_STATE 1
+#else
+#define DD_HAVE_SHARED_STATE 0
+#endif
 
 #if PY_VERSION_HEX < 0x030C0000
 #error "_linecov requires CPython 3.12 or later"
@@ -285,7 +302,8 @@ typedef struct Context
     PyObject* fixtures; /* list of the fixture contexts this one depends on, or NULL */
     int kind;
     int active;
-    int index; /* position in g_active while active */
+    int index;      /* position in g_active while active */
+    uint64_t token; /* names the context to child processes; unique in the process */
 } Context;
 
 static PyTypeObject ContextType;
@@ -293,9 +311,20 @@ static PyTypeObject ContextType;
 static Context** g_active = NULL;
 static int g_n_active = 0;
 static int g_cap_active = 0;
+static uint64_t g_next_token = 1; /* 0 names no context */
+
+/* The state file shared with child processes, mapped while child processes are followed. */
+typedef struct
+{
+    uint64_t owner;   /* token of the context this process runs for, 0 for none */
+    uint64_t records; /* child records written so far */
+} SharedState;
+
+static SharedState* g_state = NULL;
 
 /* Configuration, set by init(). */
 static int g_initialized = 0;
+static int g_child = 0; /* set up by a child process bootstrap, which keeps the collector */
 static int g_tool_id = -1;
 static uint8_t g_tool_bit = 0;
 static int g_line_event_index = -1;
@@ -937,7 +966,22 @@ Context_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
     if (c == NULL)
         return NULL;
     c->kind = fixture ? CONTEXT_FIXTURE : CONTEXT_TEST;
+    c->token = g_next_token++;
     return (PyObject*)c;
+}
+
+/* Tells child processes started from now on which context they run for. */
+static inline void
+publish_owner(PyObject* running)
+{
+#if DD_HAVE_SHARED_STATE
+    if (g_state == NULL)
+        return;
+    uint64_t token = running != NULL && Py_IS_TYPE(running, &ContextType) ? ((Context*)running)->token : 0;
+    __atomic_store_n(&g_state->owner, token, __ATOMIC_RELAXED);
+#else
+    (void)running;
+#endif
 }
 
 static void
@@ -1039,6 +1083,7 @@ Context_enter(Context* c, PyObject* Py_UNUSED(ignored))
         return NULL;
     }
     Py_DECREF(token);
+    publish_owner((PyObject*)c);
     return previous;
 }
 
@@ -1051,6 +1096,7 @@ Context_exit(Context* c, PyObject* previous)
     if (token == NULL)
         return NULL;
     Py_DECREF(token);
+    publish_owner(previous);
     Py_RETURN_NONE;
 }
 
@@ -1360,6 +1406,12 @@ Context_get_fixtures(Context* c, void* Py_UNUSED(closure))
     return Py_NewRef(c->fixtures);
 }
 
+static PyObject*
+Context_get_token(Context* c, void* Py_UNUSED(closure))
+{
+    return PyLong_FromUnsignedLongLong(c->token);
+}
+
 static PyMethodDef Context_methods[] = {
     { "push", (PyCFunction)Context_push, METH_NOARGS, "Activate, re-arming disabled lines." },
     { "pop", (PyCFunction)Context_pop, METH_NOARGS, "Deactivate." },
@@ -1375,6 +1427,7 @@ static PyGetSetDef Context_getset[] = {
     { "active", (getter)Context_get_active, NULL, NULL, NULL },
     { "is_fixture", (getter)Context_get_is_fixture, NULL, NULL, NULL },
     { "fixtures", (getter)Context_get_fixtures, NULL, "Fixture contexts this one depends on.", NULL },
+    { "token", (getter)Context_get_token, NULL, "Names the context to child processes.", NULL },
     { NULL, NULL, NULL, NULL, NULL },
 };
 
@@ -1410,14 +1463,16 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
                               "min_instrumented",
                               "superinstructions",
                               "instruction_probes",
+                              "child",
                               NULL };
     int tool_id, line_event_index, instrumented_line, enter_executor, instrumented_instruction;
     int internal_rearm = 1, instruction_event_index = -1, min_instrumented = 256, instruction_probes = 0;
+    int child = 0;
     PyObject *disable, *set_local_events, *ctxvar, *superinstructions = NULL;
     Py_buffer deopt;
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwds,
-                                     "iiOOOy*iii|piiOp",
+                                     "iiOOOy*iii|piiOpp",
                                      kwlist,
                                      &tool_id,
                                      &line_event_index,
@@ -1432,8 +1487,14 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
                                      &instruction_event_index,
                                      &min_instrumented,
                                      &superinstructions,
-                                     &instruction_probes))
+                                     &instruction_probes,
+                                     &child))
         return NULL;
+    if (g_child) {
+        PyBuffer_Release(&deopt);
+        PyErr_SetString(PyExc_RuntimeError, "a child process bootstrap already uses the collector");
+        return NULL;
+    }
     if (deopt.len != 256) {
         PyBuffer_Release(&deopt);
         PyErr_SetString(PyExc_ValueError, "deopt must be 256 bytes");
@@ -1499,6 +1560,7 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
     g_instruction_probes = DD_HAVE_INSTRUCTION_PROBES && g_internal_rearm && instruction_probes &&
                            instruction_event_index >= 0 && instrumented_instruction > 0 && min_instrumented < 256;
     g_initialized = 1;
+    g_child = child;
     return PyBool_FromLong(g_internal_rearm);
 }
 
@@ -1874,8 +1936,288 @@ mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
                          g_instruction_probes);
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * Child processes.
+ */
+
+/* set_running(context): run in context, a Context or None, and publish it to child processes. */
+static PyObject*
+mod_set_running(PyObject* Py_UNUSED(self), PyObject* context)
+{
+    if (g_ctxvar == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "_linecov.init() was not called");
+        return NULL;
+    }
+    PyObject* token = PyContextVar_Set(g_ctxvar, context);
+    if (token == NULL)
+        return NULL;
+    Py_DECREF(token);
+    publish_owner(context);
+    Py_RETURN_NONE;
+}
+
+static void
+unmap_state(void)
+{
+#if DD_HAVE_SHARED_STATE
+    if (g_state != NULL)
+        munmap(g_state, sizeof(SharedState));
+#endif
+    g_state = NULL;
+}
+
+/* share_state(path): map the state file shared with child processes. It holds at least a SharedState. */
+static PyObject*
+mod_share_state(PyObject* Py_UNUSED(self), PyObject* arg)
+{
+#if DD_HAVE_SHARED_STATE
+    PyObject* path = NULL;
+    if (!PyUnicode_FSConverter(arg, &path))
+        return NULL;
+    int fd = open(PyBytes_AS_STRING(path), O_RDWR | O_CLOEXEC);
+    Py_DECREF(path);
+    if (fd < 0)
+        return PyErr_SetFromErrno(PyExc_OSError);
+    struct stat st;
+    if (fstat(fd, &st) < 0 || st.st_size < (off_t)sizeof(SharedState)) {
+        close(fd);
+        PyErr_SetString(PyExc_ValueError, "the state file is too short");
+        return NULL;
+    }
+    void* mapped = mmap(NULL, sizeof(SharedState), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+    if (mapped == MAP_FAILED)
+        return PyErr_SetFromErrno(PyExc_OSError);
+    unmap_state();
+    g_state = (SharedState*)mapped;
+    Py_RETURN_NONE;
+#else
+    (void)arg;
+    PyErr_SetString(PyExc_NotImplementedError, "child processes are not followed on this platform");
+    return NULL;
+#endif
+}
+
+static PyObject*
+mod_unshare_state(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+    unmap_state();
+    Py_RETURN_NONE;
+}
+
+/* owner() -> the token of the context published to child processes, 0 for none. */
+static PyObject*
+mod_owner(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+#if DD_HAVE_SHARED_STATE
+    if (g_state != NULL)
+        return PyLong_FromUnsignedLongLong(__atomic_load_n(&g_state->owner, __ATOMIC_RELAXED));
+#endif
+    return PyLong_FromLong(0);
+}
+
+/* records() -> the number of child records written so far. */
+static PyObject*
+mod_records(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+#if DD_HAVE_SHARED_STATE
+    if (g_state != NULL)
+        return PyLong_FromUnsignedLongLong(__atomic_load_n(&g_state->records, __ATOMIC_ACQUIRE));
+#endif
+    return PyLong_FromLong(0);
+}
+
+/* add_record(): count a record a child wrote, once its file is in place. */
+static PyObject*
+mod_add_record(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+#if DD_HAVE_SHARED_STATE
+    if (g_state != NULL)
+        __atomic_fetch_add(&g_state->records, 1, __ATOMIC_RELEASE);
+#endif
+    Py_RETURN_NONE;
+}
+
+/* ORs a bitmap into a bitset. */
+static int
+bitset_or_bytes(Bitset* b, const uint8_t* bits, Py_ssize_t n)
+{
+    while (n > 0 && bits[n - 1] == 0)
+        n--;
+    if (n == 0)
+        return 0;
+    if (n > UINT32_MAX || bitset_reserve(b, (uint32_t)n) < 0)
+        return -1;
+    for (Py_ssize_t i = 0; i < n; i++)
+        b->bits[i] |= bits[i];
+    if ((uint32_t)n > b->used)
+        b->used = (uint32_t)n;
+    return 0;
+}
+
+static int
+context_or_bytes(Context* c, int32_t file_id, const uint8_t* bits, Py_ssize_t n)
+{
+    if (file_id >= c->cap_files && context_reserve_files(c, file_id) < 0)
+        return -1;
+    Bitset* b = &c->files[file_id];
+    int first = b->nbytes == 0;
+    if (bitset_or_bytes(b, bits, n) < 0)
+        return -1;
+    if (first && b->nbytes != 0 && context_touch(c, file_id) < 0) {
+        bitset_free(b);
+        return -1;
+    }
+    return 0;
+}
+
+/* merge(token, file_id, bitmap) -> whether the lines went to a context: a child's lines join the
+   active context with this token, or the file's unowned lines once that context's window has closed. */
+static PyObject*
+mod_merge(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs != 3) {
+        PyErr_SetString(PyExc_TypeError, "merge(token, file_id, bitmap)");
+        return NULL;
+    }
+    unsigned long long token = PyLong_AsUnsignedLongLong(args[0]);
+    if (token == (unsigned long long)-1 && PyErr_Occurred())
+        return NULL;
+    int32_t file_id;
+    if (parse_file_id(args[1], &file_id) < 0)
+        return NULL;
+    Py_buffer view;
+    if (PyObject_GetBuffer(args[2], &view, PyBUF_SIMPLE) < 0)
+        return NULL;
+    Context* owner = NULL;
+    for (int k = 0; token != 0 && k < g_n_active; k++) {
+        if (g_active[k]->token == token) {
+            owner = g_active[k];
+            break;
+        }
+    }
+    int rc = owner != NULL ? context_or_bytes(owner, file_id, (const uint8_t*)view.buf, view.len)
+                           : bitset_or_bytes(&g_files[file_id].unowned_lines, (const uint8_t*)view.buf, view.len);
+    PyBuffer_Release(&view);
+    if (rc < 0)
+        return PyErr_NoMemory();
+    return PyBool_FromLong(owner != NULL);
+}
+
+/* union() -> {report_path: bitmap}: every line the process ran, for files in the workspace. */
+static PyObject*
+mod_union(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+    PyObject* result = PyDict_New();
+    if (result == NULL)
+        return NULL;
+    for (int32_t f = 0; f < g_n_files; f++) {
+        FileInfo* fi = &g_files[f];
+        if (fi->report_path == Py_None)
+            continue;
+        const Bitset* parts[3] = { &fi->init_lines, &fi->suite_lines, &fi->unowned_lines };
+        uint32_t n = 0;
+        for (int k = 0; k < 3; k++)
+            if (parts[k]->used > n)
+                n = parts[k]->used;
+        if (n == 0)
+            continue;
+        PyObject* bitmap = PyBytes_FromStringAndSize(NULL, n);
+        if (bitmap == NULL) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        uint8_t* out = (uint8_t*)PyBytes_AS_STRING(bitmap);
+        memset(out, 0, n);
+        for (int k = 0; k < 3; k++)
+            for (uint32_t i = 0; i < parts[k]->used; i++)
+                out[i] |= parts[k]->bits[i];
+        int rc = PyDict_SetItem(result, fi->report_path, bitmap);
+        Py_DECREF(bitmap);
+        if (rc < 0) {
+            Py_DECREF(result);
+            return NULL;
+        }
+    }
+    return result;
+}
+
+static PyObject* g_exec_callback = NULL;
+static int g_exec_hook_added = 0;
+
+/* Hands the exec callback every code object that exec() or the interpreter's file runner is about
+   to run: imported modules, runpy, the main script. Never fails the audited operation. */
+static int
+exec_audit_hook(const char* event, PyObject* args, void* Py_UNUSED(data))
+{
+    if (event[0] != 'e' || strcmp(event, "exec") != 0 || g_exec_callback == NULL)
+        return 0;
+    if (!PyTuple_Check(args) || PyTuple_GET_SIZE(args) < 1 || !PyCode_Check(PyTuple_GET_ITEM(args, 0)))
+        return 0;
+    PyObject* r = PyObject_CallOneArg(g_exec_callback, PyTuple_GET_ITEM(args, 0));
+    if (r == NULL)
+        PyErr_Clear();
+    else
+        Py_DECREF(r);
+    return 0;
+}
+
+/* add_exec_hook(callback): call callback(code) before every code object exec() runs, from now on.
+   Audit hooks cannot be removed, so it is meant for child processes only. */
+static PyObject*
+mod_add_exec_hook(PyObject* Py_UNUSED(self), PyObject* callback)
+{
+    if (!PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "add_exec_hook(callback)");
+        return NULL;
+    }
+    if (!g_exec_hook_added) {
+        if (PySys_AddAuditHook(exec_audit_hook, NULL) < 0)
+            return NULL;
+        g_exec_hook_added = 1;
+    }
+    Py_INCREF(callback);
+    Py_XSETREF(g_exec_callback, callback);
+    Py_RETURN_NONE;
+}
+
+#if DD_HAVE_SHARED_STATE
+/* realpath(path) -> str, or None when the C library cannot resolve it, as for a path that does not
+   exist. A child process resolves each directory it imports from, and os.path.realpath costs
+   about a hundred microseconds per path. */
+static PyObject*
+mod_realpath(PyObject* Py_UNUSED(self), PyObject* path)
+{
+    PyObject* encoded = NULL;
+    if (!PyUnicode_FSConverter(path, &encoded))
+        return NULL;
+    char* resolved;
+    Py_BEGIN_ALLOW_THREADS;
+    resolved = realpath(PyBytes_AS_STRING(encoded), NULL);
+    Py_END_ALLOW_THREADS;
+    Py_DECREF(encoded);
+    if (resolved == NULL)
+        Py_RETURN_NONE;
+    PyObject* result = PyUnicode_DecodeFSDefault(resolved);
+    free(resolved);
+    return result;
+}
+#endif
+
 static PyMethodDef module_methods[] = {
     { "init", (PyCFunction)(void (*)(void))mod_init, METH_VARARGS | METH_KEYWORDS, "Configure the collector." },
+    { "set_running", mod_set_running, METH_O, "Run in a context, and publish it to child processes." },
+    { "share_state", mod_share_state, METH_O, "Map the state file shared with child processes." },
+    { "unshare_state", mod_unshare_state, METH_NOARGS, "Unmap the state file." },
+    { "owner", mod_owner, METH_NOARGS, "The token of the context published to child processes." },
+    { "records", mod_records, METH_NOARGS, "The number of child records written." },
+    { "add_record", mod_add_record, METH_NOARGS, "Count a record this child wrote." },
+    { "merge", (PyCFunction)(void (*)(void))mod_merge, METH_FASTCALL, "Merge a child's lines." },
+    { "union", mod_union, METH_NOARGS, "Every line run, by report path." },
+    { "add_exec_hook", mod_add_exec_hook, METH_O, "Call a function with every code object exec() runs." },
+#if DD_HAVE_SHARED_STATE
+    { "realpath", mod_realpath, METH_O, "The C library's realpath(), or None when it fails." },
+#endif
     { "set_internal_rearm", mod_set_internal_rearm, METH_O, "Switch the internal re-arm." },
     { "set_instruction_probes", mod_set_instruction_probes, METH_O, "Switch INSTRUCTION probes." },
     { "probes", mod_probes, METH_O, "The kind of probes a code object uses." },
