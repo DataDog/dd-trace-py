@@ -6,11 +6,11 @@ from unittest import mock
 
 import pytest
 
-import ddtrace._logger
 import ddtrace.internal.logger
 from ddtrace.internal.logger import LoggingBucket
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.logger import logger_name
+import ddtrace.internal.logger.setup
 from tests.utils import BaseTestCase
 
 
@@ -318,6 +318,30 @@ def test_logger_no_dummy_thread_name_after_module_cleanup():
 
 
 @pytest.mark.subprocess()
+def test_logger_import_does_not_load_setup_or_telemetry():
+    # `import ddtrace.internal.logger` runs `ddtrace/__init__.py` first, which sets the logger up. Stub the parent
+    # packages so only the logger module's own imports are measured.
+    import os
+    import sys
+    import types
+
+    import ddtrace  # noqa:F401
+
+    root = os.path.dirname(os.path.dirname(ddtrace.__file__))
+    for name in [m for m in sys.modules if m == "ddtrace" or m.startswith("ddtrace.")]:
+        del sys.modules[name]
+    for name, rel in (("ddtrace", "ddtrace"), ("ddtrace.internal", os.path.join("ddtrace", "internal"))):
+        stub = types.ModuleType(name)
+        stub.__path__ = [os.path.join(root, rel)]
+        sys.modules[name] = stub
+
+    import ddtrace.internal.logger  # noqa:F401
+
+    assert "ddtrace.internal.logger.setup" not in sys.modules
+    assert "ddtrace.internal.telemetry" not in sys.modules
+
+
+@pytest.mark.subprocess()
 def test_logger_adds_handler_as_default():
     import logging
 
@@ -420,7 +444,7 @@ def test_configure_logger_applies_to_package_loggers(monkeypatch, tmp_path):
     monkeypatch.setenv("DD_TRACE_LOG_LEVEL", "info")
     monkeypatch.setenv("DD_TRACE_LOG_FILE", str(log_file))
     monkeypatch.setenv("DD_TRACE_LOG_FILE_LEVEL", "INFO")
-    ddtrace._logger.configure_ddtrace_logger()
+    ddtrace.internal.logger.setup.configure_ddtrace_logger()
 
     with (
         mock.patch.object(ddtrace.internal.logger, "_rate_limit", 0),
