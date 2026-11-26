@@ -83,3 +83,47 @@ class Evaluation(TypedDict):
     # The evaluated conversation, redacted when the AI Guard service asked for it and otherwise
     # the very same list passed to evaluate. It can carry sensitive data: never log it.
     messages: list[Message]
+
+
+ResourceTargetType = Literal["mcp_server"]
+MCPOperation = Literal["connect"]
+
+
+class _MCPServerTargetRequired(TypedDict):
+    operation: MCPOperation
+    transport: MCPTransport
+
+
+class MCPServerTarget(_MCPServerTargetRequired, total=False):
+    """MCP server of a connection check: the identity fields of its mcp_servers entry, without the id and tools."""
+
+    name: str
+    url: str
+    command: str
+    args: list[str]
+
+
+class _ResourceTargetRequired(TypedDict):
+    type: ResourceTargetType
+
+
+class ResourceTarget(_ResourceTargetRequired, total=False):
+    """Target of a policy evaluation. The field that type names holds the details of the target."""
+
+    mcp_server: MCPServerTarget
+
+
+class Policy(TypedDict, total=False):
+    id: str
+    version: str
+
+
+class _PolicyEvaluationRequired(TypedDict):
+    action: Action
+    reason: str
+
+
+class PolicyEvaluation(_PolicyEvaluationRequired, total=False):
+    """Decision of a policy evaluation. The policy is present when the service identifies it."""
+
+    policy: Policy

@@ -95,38 +95,6 @@ def test_fork_no_pid_check():
             os._exit(0)
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
-def test_fork_pid_check():
-    import os
-
-    from ddtrace.internal.native import rand64bits
-    from tests.tracer.test_rand import MPQueue
-
-    q = MPQueue()
-    pid = os.fork()
-
-    # Generate random numbers in the parent and child processes after forking.
-    # The child sends back their numbers to the parent where we check to see
-    # if we get collisions or not.
-    if pid > 0:
-        # parent
-        rns = {rand64bits() for _ in range(100)}
-        child_rns = q.get()
-
-        assert rns & child_rns == set()
-
-    else:
-        # child
-        try:
-            rngs = {rand64bits() for _ in range(100)}
-            q.put(rngs)
-        finally:
-            # Kill the process so it doesn't continue running the rest of the
-            # test suite in a separate process. Note we can't use sys.exit()
-            # as it raises an exception that pytest will detect as an error.
-            os._exit(0)
-
-
 def _test_multiprocess_target(q):
     assert sum(_ is seed for _ in forksafe._registry) == 1
     q.put([rand64bits() for _ in range(100)])

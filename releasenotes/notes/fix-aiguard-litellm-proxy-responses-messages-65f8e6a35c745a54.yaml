@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where the LiteLLM proxy guardrail does not evaluate the non-streamed answers of
+    /v1/responses and /v1/messages requests, and evaluates /v1/messages prompts without their system prompt,
+    tool calls and tool results.

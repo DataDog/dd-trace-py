@@ -71,14 +71,18 @@ setup_env() {
 
 # ext_cache invokes `setup.py ext_hashes`, which imports the build backend. uv build's
 # isolated environment is not reachable from here, so give it an ephemeral one.
-ext_cache() {
+ext_cache_python() {
   uv run --no-project \
     --with "setuptools" \
     --with "cython" \
     --with "setuptools-rust<2" \
     --with "cmake>=3.24.2,<3.28" \
     --with "patchelf>=0.17.0.0" \
-    python scripts/ext_cache.py --build-lib --no-shared-deps "$1"
+    python "$@"
+}
+
+ext_cache() {
+  ext_cache_python scripts/ext_cache.py --build-lib --no-shared-deps "$1"
 }
 
 # A hit here skips the Rust fat-LTO link, which is ~88% of the build and is not cacheable
@@ -137,7 +141,7 @@ repair_wheel() {
   section_start "extract_debug_symbols" "Extracting debug symbols"
   uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" \
     --output-dir "${DEBUG_WHEEL_DIR}" \
-    --ignore-patterns "libddwaf*,libdd_heap_gotter*"
+    --ignore-patterns "libddwaf*,libdd_heap_gotter*" "$@"
   section_end "extract_debug_symbols"
 
   # Heap-gotter cdylib debug symbols are extracted in setup.py (build_heap_gotter);

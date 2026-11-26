@@ -149,6 +149,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     // The size of the "pure Python" stack (before asyncio Frames).
     const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
 
+#if PY_VERSION_HEX >= 0x030e0000
+    // Read before the Task snapshots, to stay close to the thread stack.
+    const std::optional<PyObject*> maybe_running_task = read_asyncio_running_task(echion);
+#endif
+
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
@@ -218,23 +223,54 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     // Without this, a parent task's coroutine chain would be walked once for each child task that
     // references it in its task chain (e.g. 10 children from asyncio.gather = 10 redundant unwinds
     // of the parent's coroutine chain).
+    // Off-CPU tasks keep only their innermost max_frames coroutine frames: rendering stops at
+    // that limit, and tasks are stitched leaf first, so deeper frames would be dropped anyway.
+    // The on-CPU task stays complete because its depth is needed to split the thread stack.
+    const size_t max_frames = echion.stack_max_frames();
     std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         FrameStack task_stack;
-        task->unwind(echion, task_stack, using_uvloop);
+        task->unwind(echion, task_stack, using_uvloop, task->is_on_cpu ? MAX_RECURSION_DEPTH : max_frames);
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
-    // Swap the on-CPU task to slot 0 so it is always retained by reservoir sampling.
-    bool found_on_cpu = false;
-    for (size_t i = 0; i < leaf_tasks.size(); i++) {
-        if (leaf_tasks[i].get().is_on_cpu) {
-            if (i > 0) {
-                std::swap(leaf_tasks[i], leaf_tasks[0]);
-            }
-            found_on_cpu = true;
-            break;
+    // The thread's CPU time goes to one leaf, the running task. Before 3.14, that is the first leaf whose coroutine
+    // executes. On 3.14+, CPython records the running task. Another leaf whose coroutine executes, such as the
+    // creator of an eager task during its first step, is below the running task on the same thread stack, so it gets
+    // no sample of its own.
+    std::optional<size_t> running_leaf;
+#if PY_VERSION_HEX >= 0x030e0000
+    if (maybe_running_task) {
+        PyObject* running_task = *maybe_running_task;
+        if (running_task != nullptr) {
+            std::erase_if(leaf_tasks, [running_task](const TaskInfo::Ref& task) {
+                return task.get().is_on_cpu && task.get().origin != running_task;
+            });
         }
+        for (size_t i = 0; running_task != nullptr && i < leaf_tasks.size(); i++) {
+            // asyncio_running_task is read before the task snapshots, so the task may have suspended in between.
+            // Its snapshot then shows the suspended coroutine without the thread stack it ran on. Leave such a task
+            // off CPU so the tick's CPU time goes to the thread sample, which has that stack.
+            if (leaf_tasks[i].get().origin == running_task && leaf_tasks[i].get().is_on_cpu) {
+                running_leaf = i;
+                break;
+            }
+        }
+    } else
+#endif
+    {
+        for (size_t i = 0; i < leaf_tasks.size(); i++) {
+            if (leaf_tasks[i].get().is_on_cpu) {
+                running_leaf = i;
+                break;
+            }
+        }
+    }
+
+    // Swap the on-CPU task to slot 0 so it is always retained by reservoir sampling.
+    const bool found_on_cpu = running_leaf.has_value();
+    if (found_on_cpu && *running_leaf > 0) {
+        std::swap(leaf_tasks[*running_leaf], leaf_tasks[0]);
     }
 
     // Algorithm R reservoir sampling
@@ -278,7 +314,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     for (auto& leaf_task : leaf_tasks) {
         // Must match _task.task_object_address() so lock and stack samples correlate.
         auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
+        // Only the running task's sample is on CPU, so the thread's CPU time is charged once.
+        const bool owns_cpu_time = found_on_cpu && leaf_task_idx == 0;
+        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, owns_cpu_time, task_id);
         auto& stack = stack_info->stack;
         if (leaf_task_idx > 0) {
             stack_info->walltime_ns = scaled_walltime_ns;
@@ -413,6 +451,22 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030e0000
+std::optional<PyObject*>
+ThreadInfo::read_asyncio_running_task(EchionSampler& echion) const
+{
+    const size_t running_task_offset = echion.asyncio_thread_running_task_offset();
+    if (this->tstate_addr == 0 || running_task_offset == 0 ||
+        running_task_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
+        return std::nullopt;
+    }
+
+    PyObject* running_task = nullptr;
+    if (copy_type(reinterpret_cast<void*>(this->tstate_addr + running_task_offset), running_task)) {
+        return std::nullopt;
+    }
+    return running_task;
+}
+
 Result<void>
 ThreadInfo::for_each_task_address_from_thread_list(EchionSampler& echion, const TaskAddressCallback& callback)
 {
@@ -828,16 +882,16 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
 
     // Make sure the on-CPU greenlet is first. render_task_begin reuses the
     // sample created by render_thread_begin for the first task it renders;
-    // that sample already received push_cputime via render_cpu_time. Tasks
-    // rendered after the first start a new sample and, if on_cpu is true,
-    // push thread_state.cpu_time_ns again, double-counting CPU time.
+    // that sample already received push_cputime via render_cpu_time. The
+    // renderer charges CPU time once per tick, so an on-CPU greenlet rendered
+    // later would get none of it.
     //
     // unwind_tasks performs the analogous swap on leaf_tasks above. Note that
     // the "on-CPU" signal differs: asyncio's is_on_cpu is derived from frame
     // matching during unwind, while a greenlet's on_cpu is set from
     // snap.frame == Py_None (see the loop above), which is the sentinel
     // greenlet uses for its currently-running greenlet. If that sentinel
-    // changes, this swap silently no-ops and the over-count returns.
+    // changes, this swap silently no-ops and CPU time goes to the wrong greenlet.
     //
     // If no greenlet is on CPU (e.g. all workers are sleeping while the Hub
     // is running, which is filtered out as a parent), no entry triggers
@@ -871,6 +925,13 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             task_stack_info->stack.render(echion, TruncationStatus::Unknown);
 
+            renderer.render_stack_end();
+        }
+
+        // No task runs, for example when the loop is idle or runs a callback that is not a task. The thread's CPU
+        // time goes to its physical stack, never to a pending task.
+        if (renderer.render_cpu_only_thread_begin()) {
+            python_stack.render(echion, python_stack_unwind_result.truncation);
             renderer.render_stack_end();
         }
     } else if (!current_greenlets.empty()) {
@@ -918,7 +979,12 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         return unwind_result.error();
     }
 
-    renderer.render_cpu_time(cpu_time - previous_cpu_time);
+    if (current_tasks.empty()) {
+        renderer.render_cpu_time(cpu_time - previous_cpu_time);
+    } else {
+        // The running task's sample takes the CPU time, or a thread sample when no task runs.
+        renderer.defer_cpu_time(cpu_time - previous_cpu_time);
+    }
 
     this->render_unwound_stacks(echion);
 

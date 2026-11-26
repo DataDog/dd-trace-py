@@ -102,6 +102,14 @@ loop.close()
         return thread.get_all_tasks(echion, tstate);
     }
 
+    static Result<void> unwind_tasks(ThreadInfo& thread,
+                                     EchionSampler& echion,
+                                     PyThreadState* tstate,
+                                     microsecond_t wall_time_us)
+    {
+        return thread.unwind_tasks(echion, tstate, wall_time_us);
+    }
+
     PyObject* globals = nullptr;
     PyObject* loop = nullptr;
     TaskObj* valid_task = nullptr;
@@ -207,5 +215,43 @@ TEST_F(ThreadInfoTaskTraversalTest, DeduplicatesTaskFoundInMultipleSources)
 
     ASSERT_TRUE(all_tasks);
     EXPECT_EQ(all_tasks->size(), 1);
+}
+
+TEST_F(ThreadInfoTaskTraversalTest, SuspendedRunningTaskDoesNotClaimCpuTime)
+{
+    // Advance the tasks once so both coroutines are suspended at their await point.
+    PyObject* stepped = PyRun_String(R"(
+loop.call_soon(loop.stop)
+loop.run_forever()
+)",
+                                     Py_file_input,
+                                     globals,
+                                     globals);
+    ASSERT_NE(stepped, nullptr);
+    Py_DECREF(stepped);
+
+    // Model a task that suspended between reading asyncio_running_task and snapshotting its coroutine:
+    // asyncio_running_task still points to valid_task, while valid_task's coroutine is already suspended.
+    const llist_node original_valid_task_node = valid_task->task_node;
+    _PyThreadStateImpl remote_tstate{};
+    remote_tstate.asyncio_running_task = reinterpret_cast<PyObject*>(valid_task);
+    remote_tstate.asyncio_tasks_head.next = remote_tstate.asyncio_tasks_head.prev = &valid_task->task_node;
+    valid_task->task_node.next = valid_task->task_node.prev = &remote_tstate.asyncio_tasks_head;
+    thread->tstate_addr = reinterpret_cast<uintptr_t>(&remote_tstate);
+    echion.set_asyncio_offsets(
+      AsyncioOffsets{ .interpreter_tasks_head = offsetof(PyInterpreterState, asyncio_tasks_head),
+                      .thread_tasks_head = offsetof(_PyThreadStateImpl, asyncio_tasks_head),
+                      .thread_running_task = offsetof(_PyThreadStateImpl, asyncio_running_task) });
+    PyThreadState local_tstate{};
+
+    auto res = unwind_tasks(*thread, echion, &local_tstate, 10000);
+
+    // Restore CPython's real links before assertions or object destruction can inspect them.
+    valid_task->task_node = original_valid_task_node;
+
+    ASSERT_TRUE(res);
+    ASSERT_EQ(thread->current_tasks.size(), 1);
+    EXPECT_EQ(thread->current_tasks[0]->task_id, reinterpret_cast<uintptr_t>(valid_task));
+    EXPECT_FALSE(thread->current_tasks[0]->on_cpu);
 }
 #endif

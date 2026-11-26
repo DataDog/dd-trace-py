@@ -1,9 +1,15 @@
 import asyncio
 import os
+from unittest.mock import patch
 
+from aiohttp import web
 import pytest
 import pytest_asyncio
 
+from ddtrace.aiguard import Message
+from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._initialization import load_ai_guard
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import ERROR_MSG
@@ -12,9 +18,13 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.rate_sampler import RateSampler
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.version import parse_version
+from tests.aiguard.utils import mock_evaluate_response
+from tests.aiguard.utils import override_ai_guard_config
 from tests.contrib.utils import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
@@ -25,17 +35,27 @@ from .app.web import setup_app
 
 PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 
+CLIENT_HEADERS = {"X-Forwarded-For": "8.8.8.8", "User-Agent": "aiohttp-test-agent"}
+
+AI_GUARD_CONFIG = dict(
+    _ai_guard_enabled="True",
+    _ai_guard_endpoint="https://api.example.com/ai-guard",
+    _dd_api_key="test-api-key",
+    _dd_app_key="test-app-key",
+)
+
 
 async def test_handler(app, test_spans, aiohttp_client, request_completed):
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
     # with the proper tags
-    request = await client.request("GET", "/")
-    assert 200 == request.status
-    text = await request.text()
-    assert "What's tracing?" == text
-    # the trace is created
-    await request_completed()
+    with override_global_config(dict(_retrieve_client_ip=True)):
+        request = await client.request("GET", "/", headers=CLIENT_HEADERS)
+        assert 200 == request.status
+        text = await request.text()
+        assert "What's tracing?" == text
+        # the trace is created
+        await request_completed()
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
@@ -51,6 +71,9 @@ async def test_handler(app, test_spans, aiohttp_client, request_completed):
     assert_span_http_status_code(span, 200)
     assert 0 == span.error
     assert span.get_tag("span.kind") == "server"
+    assert span.get_tag(http.USER_AGENT) == "aiohttp-test-agent"
+    assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+    assert span.get_tag(net.CLIENT_IP) == "127.0.0.1"
 
 
 @pytest.mark.skipif(PYTEST_ASYNCIO_VERSION >= (1, 0), reason="'loop' fixture removed")
@@ -162,8 +185,8 @@ async def test_param_handler_otel_semantics(
 ):
     app[CONFIG_KEY]["trace_query_string"] = trace_query_string
     client = await aiohttp_client(app)
-    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
-        request = await client.request("GET", "/echo/team?" + query_string)
+    with override_global_config(dict(_otel_trace_semantics_enabled=True, _retrieve_client_ip=True)):
+        request = await client.request("GET", "/echo/team?" + query_string, headers=CLIENT_HEADERS)
         assert 200 == request.status
         await request.text()
         await request_completed()
@@ -175,6 +198,9 @@ async def test_param_handler_otel_semantics(
         assert span.get_tag(otel_http.URL_QUERY) == query_string
     else:
         assert span.get_tag(otel_http.URL_QUERY) is None
+    assert span.get_tag(otel_http.USER_AGENT_ORIGINAL) == "aiohttp-test-agent"
+    assert span.get_tag(otel_http.CLIENT_ADDRESS) == "8.8.8.8"
+    assert span.get_tag(otel_http.NETWORK_PEER_ADDRESS) == "127.0.0.1"
 
 
 async def test_404_handler(app, test_spans, aiohttp_client, request_completed):
@@ -1158,3 +1184,41 @@ async def test_outer_clones_on_one_connection_keep_separate_metadata(test_spans,
     assert app[middlewares.CONFIG_KEY]["_request_lifecycles"] == {}
     assert len(test_spans.pop()) == 2
     connection.cancel()
+
+
+@pytest.fixture
+def ai_guard_enabled():
+    with override_ai_guard_config(AI_GUARD_CONFIG):
+        load_ai_guard()
+        yield
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_ai_guard_event_reports_the_client_address_without_appsec(
+    mock_execute_request, test_spans, aiohttp_client, request_completed, ai_guard_enabled
+):
+    assert not asm_config._asm_enabled
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    async def handler(request):
+        new_ai_guard_client().evaluate([Message(role="user", content="hello")])
+        return web.Response(text="ok")
+
+    app = web.Application()
+    app.router.add_get("/", handler)
+    trace_app(app)
+    client = await aiohttp_client(app)
+    response = await client.get("/", headers=CLIENT_HEADERS)
+    assert response.status == 200
+    await response.text()
+    await request_completed()
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    (request_span,) = [span for span in spans if span.name == "aiohttp.request"]
+    (ai_guard_span,) = [span for span in spans if span.name == AI_GUARD.RESOURCE_TYPE]
+    assert request_span.get_tag(AI_GUARD.EVENT_TAG) == "true"
+    assert request_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+    assert request_span.get_tag(net.CLIENT_IP) == "127.0.0.1"
+    assert ai_guard_span.get_tag(f"{AI_GUARD.TAG}.{http.USER_AGENT}") == "aiohttp-test-agent"
+    assert ai_guard_span.get_tag(f"{AI_GUARD.TAG}.{http.CLIENT_IP}") == "8.8.8.8"
+    assert ai_guard_span.get_tag(f"{AI_GUARD.TAG}.{net.CLIENT_IP}") == "127.0.0.1"

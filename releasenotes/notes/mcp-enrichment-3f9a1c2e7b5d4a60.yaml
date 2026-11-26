@@ -1,0 +1,20 @@
+---
+features:
+  - |
+    LLM Observability: Adds ``DD_MCP_ENRICHMENT_ENABLED`` (enabled by default) to enrich MCP server tool calls. It turns
+    on intent capture and groups tool calls into sessions when MCP has no session of its own, such as over stdio or with
+    the stateless protocol. The first tool call of a conversation gets a generated ID, and its result asks the agent to
+    send that ID back in the ``telemetry.conversation_id`` argument on later calls. The ID is set as the ``session_id``
+    of each MCP server tool span. Requests with an ``mcp-session-id`` header, and tool calls that already have a session
+    ID, keep their session.
+upgrade:
+  - |
+    LLM Observability: MCP server enrichment is now enabled by default. When LLM Observability is enabled, MCP servers
+    add a ``telemetry`` argument to each listed tool schema, and the first tool result of a conversation gets an extra
+    text block with a conversation ID. Set ``DD_MCP_ENRICHMENT_ENABLED=false`` to turn this off, or
+    ``DD_MCP_CAPTURE_INTENT=false`` to keep sessions without intent capture.
+fixes:
+  - |
+    LLM Observability: Fixes MCP intent capture making every tool call fail on ``mcp<2`` low-level servers that
+    validate tool arguments, and asking the agent for a top-level ``intent`` argument that reached the tool. Also
+    fixes a tool's own ``telemetry`` argument being removed when MCP enrichment and intent capture are turned off.
