@@ -465,11 +465,9 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.stack = ctx_collectors.get()
 
             if native_lines.enabled():
-                # Pushing re-arms the lines disabled since the previous push; nothing else to arm.
-                self._native_previous = native_lines.ctx_native.get()
+                # Entering re-arms the lines disabled since the previous push; nothing else to arm.
                 self._native = native_lines.new_context()
-                self._native.push()
-                native_lines.ctx_native.set(self._native)
+                self._native_previous = self._native.enter()
                 return self
 
             # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
@@ -499,8 +497,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.stack = stack
             native = getattr(self, "_native", None)
             if native is not None:
-                native.pop()
-                native_lines.ctx_native.set(self._native_previous)
+                native.exit(self._native_previous)
 
         def anchor_file(self, path: str) -> None:
             """Mark a file as covered in this scope without an import event.

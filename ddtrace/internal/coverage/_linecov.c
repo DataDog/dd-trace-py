@@ -132,6 +132,17 @@ typedef _PyCoMonitoringData dd_monitoring;
 #define DD_HAVE_INSTRUCTION_PROBES 0
 #endif
 
+/* Block probes read CPython 3.12's interpreter frames, declared in an internal header. */
+#if DD_HAVE_INSTRUCTION_PROBES && !defined(_WIN32)
+#define DD_HAVE_BLOCK_PROBES 1
+#ifndef Py_BUILD_CORE
+#define Py_BUILD_CORE 1
+#endif
+#include "internal/pycore_frame.h"
+#else
+#define DD_HAVE_BLOCK_PROBES 0
+#endif
+
 /* ------------------------------------------------------------------------------------------------
  * Bitsets: one bit per line number, byte = line / 8, bit = 0x80 >> (line % 8), which is the
  * payload format the intake expects.
@@ -230,7 +241,10 @@ enum
     PROBES_UNDECIDED = 0, /* until the code object's first LINE event */
     PROBES_LINE = 1,
     PROBES_INSTRUCTION = 2, /* INSTRUCTION events on the line starts */
+    PROBES_BLOCK = 3,       /* INSTRUCTION events on the block probes, see "Block probes" */
 };
+
+typedef struct BlockInfo BlockInfo;
 
 typedef struct
 {
@@ -243,9 +257,44 @@ typedef struct
     int32_t n_starts; /* line-start code unit indices, computed on the first internal re-arm */
     int32_t* starts;
     int32_t* start_lines; /* the line of each start, for INSTRUCTION probes */
+#if DD_HAVE_BLOCK_PROBES
+    BlockInfo* blocks;     /* set while probes is PROBES_BLOCK */
+    Py_ssize_t block_slot; /* position in g_block_codes while probes is PROBES_BLOCK */
+    uint8_t settling;      /* listed in g_settle by a frame walk */
+#endif
 } CodeInfo;
 
+#if DD_HAVE_BLOCK_PROBES
+/* The blocks of a code object with block probes, and where its probes are. One allocation. */
+struct BlockInfo
+{
+    int32_t n_code; /* code units */
+    int32_t n_blocks;
+    int32_t n_probes;
+    int32_t n_ranges;      /* exception table entries */
+    uint64_t* token;       /* per block: the context credited with the block and its dominators */
+    int32_t* first;        /* per block, ascending, then n_code: the block's first code unit */
+    int32_t* idom;         /* per block: its immediate dominator, or -1 when only the entry dominates it */
+    int32_t* start_lo;     /* per block, then one more: its line starts are starts[start_lo[b]:start_lo[b + 1]] */
+    int32_t* yield_at;     /* per block: the YIELD_VALUE that ends it, or -1 */
+    int32_t* probe_index;  /* per probe, ascending: its code unit */
+    int32_t* probe_block;  /* per probe: the block it credits, or -1 */
+    uint8_t* probe_caught; /* per probe: 1 for a probe after a handler's PUSH_EXC_INFO */
+    int32_t* range_start;  /* per exception table entry, ascending */
+    int32_t* range_end;
+    int32_t* range_catch; /* per entry: the handler that catches what is raised in it, or -1 */
+};
+
+/* Token of a block credited to the unowned lines; 0 means never credited. */
+#define DD_TOKEN_UNOWNED UINT64_MAX
+#endif
+
 static Py_ssize_t g_extra_index = -1;
+
+#if DD_HAVE_BLOCK_PROBES
+static void
+drop_blocks(CodeInfo* ci);
+#endif
 
 static void
 codeinfo_free(void* p)
@@ -253,6 +302,9 @@ codeinfo_free(void* p)
     CodeInfo* ci = (CodeInfo*)p;
     if (ci == NULL)
         return;
+#if DD_HAVE_BLOCK_PROBES
+    drop_blocks(ci);
+#endif
     PyMem_RawFree(ci->starts);
     PyMem_RawFree(ci->start_lines);
     PyMem_RawFree(ci);
@@ -345,6 +397,10 @@ static PyObject* g_instruction_mask_object = NULL; /* INSTRUCTION event set, as 
 static int g_instruction_probes = 0;
 static int g_min_instrumented = 256;    /* opcodes from this one up are instrumented opcodes */
 static uint8_t g_superinstruction[256]; /* 1 for an opcode that also runs the next instruction */
+static int g_block_probes = 0;
+static int g_block_tables = 0;       /* init() was given the two tables below */
+static uint8_t g_block_kind[256];    /* BK_* of each base opcode */
+static uint8_t g_cache_entries[256]; /* inline cache entries after each base opcode */
 
 /* Counters, for profiling and tests. */
 static unsigned long long g_events = 0;
@@ -359,6 +415,13 @@ static unsigned long long g_rearm_instruction = 0;
 static unsigned long long g_rearm_starts = 0;
 static unsigned long long g_switched = 0;
 static unsigned long long g_reverted = 0;
+static unsigned long long g_events_block = 0;   /* block probe events */
+static unsigned long long g_events_caught = 0;  /* handler probe events */
+static unsigned long long g_events_unwind = 0;  /* PY_UNWIND events in code with block probes */
+static unsigned long long g_switched_block = 0; /* code objects moved to block probes */
+static unsigned long long g_block_refused = 0;  /* code objects the block analysis could not take */
+static unsigned long long g_converted = 0;      /* code objects moved from block probes to line-start probes */
+static unsigned long long g_rearm_block = 0;
 
 static DD_COLD int
 context_reserve_files(Context* c, int32_t file_id)
@@ -571,43 +634,29 @@ has_computed_lines(PyCodeObject* co)
     return 0;
 }
 
-/* The line of each line start, from co_lines(), which reads the line table as LINE events do. */
+/* The line of each line start, read from the line table by _PyCode_CheckLineNumber(), the function
+   LINE events use. The address range is set up as _PyLineTable_InitAddressRange() does, which CPython
+   does not export. Starts are ascending, so the walk reads the table once. */
 static DD_COLD int
 compute_start_lines(CodeInfo* ci, PyCodeObject* co)
 {
     int32_t* lines = PyMem_RawMalloc(sizeof(int32_t) * (size_t)(ci->n_starts ? ci->n_starts : 1));
     if (lines == NULL)
         return -1;
-    PyObject* ranges = PyObject_CallMethod((PyObject*)co, "co_lines", NULL);
-    PyObject* iterator = ranges != NULL ? PyObject_GetIter(ranges) : NULL;
-    Py_XDECREF(ranges);
-    int32_t k = 0;
-    if (iterator != NULL) {
-        PyObject* item;
-        while (k < ci->n_starts && (item = PyIter_Next(iterator)) != NULL) {
-            long start = -1, end = -1, line = -1;
-            if (PyTuple_Check(item) && PyTuple_GET_SIZE(item) == 3) {
-                start = PyLong_AsLong(PyTuple_GET_ITEM(item, 0));
-                end = PyLong_AsLong(PyTuple_GET_ITEM(item, 1));
-                PyObject* number = PyTuple_GET_ITEM(item, 2);
-                if (number != Py_None)
-                    line = PyLong_AsLong(number);
-            }
-            Py_DECREF(item);
-            if (start < 0 || end < start || PyErr_Occurred())
-                break;
-            /* Ranges are contiguous and in offset order, and so are the starts. */
-            if (2L * ci->starts[k] < start)
-                break;
-            while (k < ci->n_starts && 2L * ci->starts[k] < end)
-                lines[k++] = (int32_t)line;
+    PyCodeAddressRange range;
+    range.opaque.lo_next = (const uint8_t*)PyBytes_AS_STRING(co->co_linetable);
+    range.opaque.limit = range.opaque.lo_next + PyBytes_GET_SIZE(co->co_linetable);
+    range.ar_start = -1;
+    range.ar_end = 0;
+    range.opaque.computed_line = co->co_firstlineno;
+    range.ar_line = -1;
+    for (int32_t k = 0; k < ci->n_starts; k++) {
+        int line = _PyCode_CheckLineNumber(ci->starts[k] * (int)sizeof(_Py_CODEUNIT), &range);
+        if (line < 0 && range.ar_end <= ci->starts[k] * (int)sizeof(_Py_CODEUNIT)) {
+            PyMem_RawFree(lines);
+            return -1; /* past the end of the table */
         }
-        Py_DECREF(iterator);
-    }
-    if (PyErr_Occurred() || k != ci->n_starts) {
-        PyErr_Clear();
-        PyMem_RawFree(lines);
-        return -1;
+        lines[k] = line;
     }
     PyMem_RawFree(ci->start_lines);
     ci->start_lines = lines;
@@ -630,29 +679,28 @@ revert_to_line_events(CodeInfo* ci, PyObject* code)
     Py_DECREF(r);
 }
 
-/* Decides, at the code object's first LINE event, between LINE events and INSTRUCTION probes. The
-   switch needs this tool to be alone on LINE events here and nobody on INSTRUCTION events. Never
-   raises. */
-static DD_COLD void
-choose_probes(CodeInfo* ci, PyCodeObject* co)
+/* Whether this tool's LINE events on the code object can become INSTRUCTION events: it must be alone
+   on LINE events there, and nobody on INSTRUCTION events. */
+static int
+can_switch_to_instruction_events(PyCodeObject* co)
 {
-    ci->probes = PROBES_LINE;
-    if (!g_instruction_probes)
-        return;
     dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
-    if (m == NULL || m->lines == NULL || m->per_instruction_opcodes != NULL ||
-        m->active_monitors.tools[g_line_event_index] != g_tool_bit ||
-        m->active_monitors.tools[g_instruction_event_index] != 0 || !has_computed_lines(co))
-        return;
-    if (ci->starts == NULL && compute_starts(ci, co) < 0)
-        return;
-    if (compute_start_lines(ci, co) < 0)
-        return;
+    return m != NULL && m->lines != NULL && m->per_instruction_opcodes == NULL &&
+           m->active_monitors.tools[g_line_event_index] == g_tool_bit &&
+           m->active_monitors.tools[g_instruction_event_index] == 0;
+}
+
+/* Replaces this tool's LINE events on the code object with INSTRUCTION events on the given
+   instructions only, in ascending order. Returns 0 on success. On failure the code object is back on
+   LINE events, with probes set to PROBES_LINE. Never raises. */
+static DD_COLD int
+switch_to_instruction_events(CodeInfo* ci, PyCodeObject* co, const int32_t* positions, int32_t n_positions)
+{
     Py_ssize_t n = Py_SIZE(co);
     uint8_t* bytecode = (uint8_t*)co->co_code_adaptive;
     uint8_t* before = PyMem_RawMalloc((size_t)n);
     if (before == NULL)
-        return;
+        return -1;
     for (Py_ssize_t i = 0; i < n; i++)
         before[i] = bytecode[2 * i];
     /* Replaces this tool's LINE events with INSTRUCTION events on every instruction. */
@@ -662,15 +710,15 @@ choose_probes(CodeInfo* ci, PyCodeObject* co)
         PyErr_Clear();
         PyMem_RawFree(before);
         revert_to_line_events(ci, (PyObject*)co);
-        return;
+        return -1;
     }
     Py_DECREF(r);
-    m = (dd_monitoring*)co->_co_monitoring;
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
     if (m->per_instruction_opcodes == NULL || m->active_monitors.tools[g_instruction_event_index] != g_tool_bit ||
         m->active_monitors.tools[g_line_event_index] != 0) {
         PyMem_RawFree(before);
         revert_to_line_events(ci, (PyObject*)co);
-        return;
+        return -1;
     }
     /* CPython allocates per_instruction_tools only once two tools share an event, and empty, which
        would silence the probes armed then. Allocated now, CPython keeps it up to date. */
@@ -679,20 +727,23 @@ choose_probes(CodeInfo* ci, PyCodeObject* co)
         if (tools == NULL) {
             PyMem_RawFree(before);
             revert_to_line_events(ci, (PyObject*)co);
-            return;
+            return -1;
         }
         memset(tools, 0, (size_t)n);
         m->per_instruction_tools = tools;
     }
     int32_t k = 0;
+    int missing = 0;
     for (Py_ssize_t i = co->_co_firsttraceable; i < n; i++) {
-        int start = k < ci->n_starts && ci->starts[k] == i;
-        if (start)
+        int keep = k < n_positions && positions[k] == i;
+        if (keep)
             k++;
         /* Skips what the switch left alone: RESUME, END_FOR and inline cache entries. */
-        if (bytecode[2 * i] != g_instrumented_instruction || before[i] == g_instrumented_instruction)
+        if (bytecode[2 * i] != g_instrumented_instruction || before[i] == g_instrumented_instruction) {
+            missing |= keep;
             continue;
-        if (start) {
+        }
+        if (keep) {
             m->per_instruction_tools[i] |= g_tool_bit;
         } else {
             /* Back to its opcode before the switch, as if never instrumented. A superinstruction
@@ -705,22 +756,52 @@ choose_probes(CodeInfo* ci, PyCodeObject* co)
         }
     }
     PyMem_RawFree(before);
-    ci->probes = PROBES_INSTRUCTION;
-    g_switched++;
+    if (missing || k != n_positions) {
+        revert_to_line_events(ci, (PyObject*)co);
+        return -1;
+    }
+    return 0;
 }
 
-/* Mirrors CPython's add_per_instruction_tools() for every line start. Returns 0 on success, 1 when
-   the code object must go back to LINE events. */
+#if DD_HAVE_BLOCK_PROBES
 static int
-rearm_instruction_probes(CodeInfo* ci, PyCodeObject* co)
+choose_block_probes(CodeInfo* ci, PyCodeObject* co);
+#endif
+
+/* Decides, at the code object's first LINE event, between LINE events, INSTRUCTION probes on the line
+   starts and block probes. Never raises. */
+static DD_COLD void
+choose_probes(CodeInfo* ci, PyCodeObject* co)
+{
+    ci->probes = PROBES_LINE;
+#if DD_HAVE_BLOCK_PROBES
+    if (g_block_probes && !ci->is_init && choose_block_probes(ci, co))
+        return;
+#endif
+    if (!g_instruction_probes || !can_switch_to_instruction_events(co) || !has_computed_lines(co))
+        return;
+    if (ci->starts == NULL && compute_starts(ci, co) < 0)
+        return;
+    if (compute_start_lines(ci, co) < 0)
+        return;
+    if (switch_to_instruction_events(ci, co, ci->starts, ci->n_starts) == 0) {
+        ci->probes = PROBES_INSTRUCTION;
+        g_switched++;
+    }
+}
+
+/* Mirrors CPython's add_per_instruction_tools() for the given instructions. Returns 0 on success, 1
+   when the code object's INSTRUCTION events are not this tool's alone any more. */
+static int
+rearm_positions(PyCodeObject* co, const int32_t* positions, int32_t n_positions)
 {
     dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
     if (m == NULL || m->lines == NULL || m->per_instruction_opcodes == NULL || m->per_instruction_tools == NULL ||
         !(m->active_monitors.tools[g_instruction_event_index] & g_tool_bit))
         return 1;
     uint8_t* bytecode = (uint8_t*)co->co_code_adaptive;
-    for (int32_t k = 0; k < ci->n_starts; k++) {
-        int32_t i = ci->starts[k];
+    for (int32_t k = 0; k < n_positions; k++) {
+        int32_t i = positions[k];
         m->per_instruction_tools[i] |= g_tool_bit;
         uint8_t* op = &bytecode[2 * i];
         if (*op == g_instrumented_line)
@@ -730,10 +811,25 @@ rearm_instruction_probes(CodeInfo* ci, PyCodeObject* co)
         m->per_instruction_opcodes[i] = *op >= g_min_instrumented ? *op : g_deopt[*op];
         *op = (uint8_t)g_instrumented_instruction;
     }
+    return 0;
+}
+
+/* Re-arms the INSTRUCTION probes on every line start. Returns 0 on success, 1 when the code object
+   must go back to LINE events. */
+static int
+rearm_instruction_probes(CodeInfo* ci, PyCodeObject* co)
+{
+    if (rearm_positions(co, ci->starts, ci->n_starts) != 0)
+        return 1;
     g_rearm_instruction++;
     g_rearm_starts += (unsigned long long)ci->n_starts;
     return 0;
 }
+#endif
+
+#if DD_HAVE_BLOCK_PROBES
+static void
+leave_block_mode(CodeInfo* ci);
 #endif
 
 /* Re-arms every listed code object. Errors are counted, never raised: a code object that cannot
@@ -754,8 +850,19 @@ rearm_all(void)
         PyObject* code = ci->code;
         ci->dirty = 0;
         int done = 0;
+#if DD_HAVE_BLOCK_PROBES
+        if (ci->probes == PROBES_BLOCK) {
+            if (rearm_positions((PyCodeObject*)code, ci->blocks->probe_index, ci->blocks->n_probes) == 0) {
+                g_rearm_block++;
+                g_rearm_starts += (unsigned long long)ci->blocks->n_probes;
+            } else {
+                leave_block_mode(ci);
+            }
+            done = 1;
+        }
+#endif
 #if DD_HAVE_INSTRUCTION_PROBES
-        if (ci->probes == PROBES_INSTRUCTION) {
+        if (!done && ci->probes == PROBES_INSTRUCTION) {
             if (rearm_instruction_probes(ci, (PyCodeObject*)code) != 0)
                 revert_to_line_events(ci, code);
             done = 1;
@@ -829,6 +936,13 @@ current_owner(void)
     return owner;
 }
 
+/* The active context a value of the context variable names, or NULL. */
+static inline Context*
+owner_of(PyObject* value)
+{
+    return value != NULL && Py_IS_TYPE(value, &ContextType) && ((Context*)value)->active ? (Context*)value : NULL;
+}
+
 /* Credits a line of the code object and returns what the callback returns. */
 static inline PyObject*
 record_line(CodeInfo* ci, uint32_t line)
@@ -895,6 +1009,1109 @@ line_event(PyObject* Py_UNUSED(callable), PyObject* const* args, size_t nargsf, 
     return record_line(ci, (uint32_t)value);
 }
 
+#if DD_HAVE_BLOCK_PROBES
+/* ------------------------------------------------------------------------------------------------
+ * Block probes (CPython 3.12).
+ *
+ * The bytecode of a code object is cut into basic blocks. A probe at the last line start of a block
+ * credits the line starts of the block and of every block that dominates it: reaching the probe means
+ * those ran, whole, since the frame last started or resumed. A block needs no probe of its own when
+ * every path from it reaches a probed block it dominates before it leaves the blocks it dominates,
+ * returns, raises, yields or comes back to it. Exception handlers and the instruction after each
+ * yield are entry points of their own, so no inference crosses a catch or a suspension.
+ *
+ * A raise cuts a block short where the newest traceback entry says, when that entry is the frame's.
+ * The handler that catches it credits that much, with a probe after its PUSH_EXC_INFO, and so does
+ * the PY_UNWIND callback when it leaves the frame. A newest entry of another frame means a bare raise
+ * or a RERAISE ended a block, which its probe credited. An exception thrown into a suspended generator
+ * lands on its YIELD_VALUE, after the probe of the block that yields.
+ *
+ * Inference holds while the context a frame runs for stays the same. When it changes (a switch on
+ * the thread, or the window of the context a thread runs for opening or closing), each frame with
+ * block probes on the threads concerned is credited as far as it ran to the context it ran for, and
+ * its code object moves to line-start probes for good, once its frames on other threads are credited
+ * too. A thread runs for the context its innermost frame runs in: a frame below a
+ * contextvars.Context.run() for another context is credited to that one.
+ *
+ * Greenlets switch frames without a yield: block probes stop for good once greenlet is imported.
+ * Initialiser code keeps line-start probes.
+ */
+enum
+{
+    BK_NORMAL = 0,
+    BK_COND = 1,         /* POP_JUMP_IF_*: forward, relative */
+    BK_FORWARD = 2,      /* JUMP_FORWARD */
+    BK_BACKWARD = 3,     /* JUMP_BACKWARD, JUMP_BACKWARD_NO_INTERRUPT */
+    BK_FOR_ITER = 4,     /* exhausted: past its END_FOR; after a generator's return: to its END_FOR */
+    BK_SEND = 5,         /* returned: to its END_SEND */
+    BK_EXIT = 6,         /* RETURN_VALUE, RETURN_CONST, RAISE_VARARGS */
+    BK_RERAISE = 7,      /* RERAISE */
+    BK_YIELD = 8,        /* YIELD_VALUE */
+    BK_EXTENDED_ARG = 9, /* EXTENDED_ARG */
+    BK_PUSH_EXC_INFO = 10,
+    BK_RERAISE_AT = 11,  /* CLEANUP_THROW, END_ASYNC_FOR: fall through, or re-raise where they are */
+    BK_HANDLER = 12,     /* what a handler without PUSH_EXC_INFO may run before its RERAISE */
+    BK_UNSUPPORTED = 13, /* a jump the analysis does not know */
+    BK_COUNT
+};
+
+#define DD_MAX_BLOCKS 4096
+#define DD_MAX_REHANDLE 16 /* re-raising handlers followed to find the one that catches */
+
+/* Code objects with block probes: a CodeInfo with blocks is listed. */
+static CodeInfo** g_block_codes = NULL;
+static Py_ssize_t g_n_block_codes = 0;
+static Py_ssize_t g_cap_block_codes = 0;
+
+static DD_COLD int
+list_block_code(CodeInfo* ci)
+{
+    if (g_n_block_codes == g_cap_block_codes) {
+        Py_ssize_t cap = g_cap_block_codes ? g_cap_block_codes * 2 : 256;
+        CodeInfo** codes = PyMem_RawRealloc(g_block_codes, sizeof(CodeInfo*) * (size_t)cap);
+        if (codes == NULL)
+            return -1;
+        g_block_codes = codes;
+        g_cap_block_codes = cap;
+    }
+    ci->block_slot = g_n_block_codes;
+    g_block_codes[g_n_block_codes++] = ci;
+    return 0;
+}
+
+static void
+drop_blocks(CodeInfo* ci)
+{
+    if (ci->blocks == NULL)
+        return;
+    CodeInfo* last = g_block_codes[--g_n_block_codes];
+    g_block_codes[ci->block_slot] = last;
+    last->block_slot = ci->block_slot;
+    PyMem_RawFree(ci->blocks);
+    ci->blocks = NULL;
+}
+
+/* The block holding a code unit. */
+static inline int32_t
+block_of(const BlockInfo* bi, int32_t index)
+{
+    int32_t lo = 1, hi = bi->n_blocks;
+    while (lo < hi) {
+        int32_t mid = lo + (hi - lo) / 2;
+        if (bi->first[mid] <= index)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo - 1;
+}
+
+/* The exception table entry covering a code unit, or -1. */
+static int32_t
+find_range(const int32_t* start, const int32_t* end, int32_t n, int32_t index)
+{
+    int32_t lo = 0, hi = n;
+    while (lo < hi) {
+        int32_t mid = lo + (hi - lo) / 2;
+        if (start[mid] <= index)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo > 0 && index < end[lo - 1] ? lo - 1 : -1;
+}
+
+static inline int32_t
+find_probe(const BlockInfo* bi, int32_t index)
+{
+    int32_t lo = 0, hi = bi->n_probes;
+    while (lo < hi) {
+        int32_t mid = lo + (hi - lo) / 2;
+        if (bi->probe_index[mid] < index)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo < bi->n_probes && bi->probe_index[lo] == index ? lo : -1;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Block analysis.
+ */
+#define DD_UNIT_INSN 1   /* an instruction starts at this code unit: not an inline cache entry */
+#define DD_UNIT_LEADER 2 /* a block starts here */
+#define DD_UNIT_ROOT 4   /* an entry point: the first instruction, a handler, or the one after a yield */
+
+#define DD_BLOCK_SEEN 1
+#define DD_BLOCK_ROOT 2
+#define DD_BLOCK_PROBED 4
+
+typedef struct
+{
+    int32_t succ[3]; /* blocks, or the exit node */
+    int32_t n_succ;
+} Edges;
+
+typedef struct
+{
+    int32_t index;
+    int32_t block;
+    uint8_t caught;
+} ProbeEntry;
+
+static inline void
+add_edge(Edges* e, int32_t to)
+{
+    for (int32_t k = 0; k < e->n_succ; k++)
+        if (e->succ[k] == to)
+            return;
+    e->succ[e->n_succ++] = to;
+}
+
+static int
+compare_probes(const void* a, const void* b)
+{
+    int32_t x = ((const ProbeEntry*)a)->index, y = ((const ProbeEntry*)b)->index;
+    return (x > y) - (x < y);
+}
+
+static inline int
+is_instruction(const uint8_t* flags, int32_t n, int64_t index)
+{
+    return index >= 0 && index < n && (flags[index] & DD_UNIT_INSN);
+}
+
+/* Reads an exception table varint: 6 bits a byte, 0x40 for more. */
+static const uint8_t*
+read_varint(const uint8_t* p, const uint8_t* end, int32_t* value)
+{
+    if (p >= end)
+        return NULL;
+    uint32_t v = *p & 63;
+    while (*p & 64) {
+        if (++p >= end || v >= (1u << 24))
+            return NULL;
+        v = (v << 6) | (*p & 63);
+    }
+    *value = (int32_t)v;
+    return p + 1;
+}
+
+/* Where a handler that does not start with PUSH_EXC_INFO re-raises: its CLEANUP_THROW or END_ASYNC_FOR,
+   or the RERAISE after a run of BK_HANDLER instructions. -1 for any other shape. */
+static int32_t
+reraise_position(const uint8_t* code, int32_t n, int32_t index)
+{
+    for (int steps = 0; index < n && steps < 64; steps++) {
+        uint8_t op = code[2 * index];
+        int kind = g_block_kind[op];
+        if (kind == BK_RERAISE || (kind == BK_RERAISE_AT && steps == 0))
+            return index;
+        if (kind != BK_HANDLER && kind != BK_EXTENDED_ARG)
+            return -1;
+        index += 1 + g_cache_entries[op];
+    }
+    return -1;
+}
+
+/* The handler that catches what is raised in exception table entry r, past the handlers that only
+   re-raise: its PUSH_EXC_INFO, -1 when the exception leaves the frame, -2 when the analysis gives up. */
+static int32_t
+catching_handler(const uint8_t* code,
+                 int32_t n,
+                 const int32_t* start,
+                 const int32_t* end,
+                 const int32_t* target,
+                 int32_t n_ranges,
+                 int32_t r)
+{
+    for (int step = 0; step < DD_MAX_REHANDLE; step++) {
+        int32_t t = target[r];
+        if (g_block_kind[code[2 * t]] == BK_PUSH_EXC_INFO)
+            return t;
+        int32_t at = reraise_position(code, n, t);
+        if (at < 0)
+            return -2;
+        r = find_range(start, end, n_ranges, at);
+        if (r < 0)
+            return -1;
+    }
+    return -2;
+}
+
+/* The blocks and probes of a code object, or NULL when its bytecode is outside what the analysis
+   knows. ci->starts and ci->start_lines must be set. Never raises. */
+static DD_COLD BlockInfo*
+analyse_blocks(CodeInfo* ci, PyCodeObject* co)
+{
+    PyObject* bytes = PyCode_GetCode(co); /* base opcodes, whatever the instrumentation */
+    if (bytes == NULL) {
+        PyErr_Clear();
+        return NULL;
+    }
+    const uint8_t* code = (const uint8_t*)PyBytes_AS_STRING(bytes);
+    const int32_t n = (int32_t)(PyBytes_GET_SIZE(bytes) / 2);
+    const uint8_t* table = (const uint8_t*)PyBytes_AS_STRING(co->co_exceptiontable);
+    const uint8_t* table_end = table + PyBytes_GET_SIZE(co->co_exceptiontable);
+    const int32_t max_ranges = (int32_t)(PyBytes_GET_SIZE(co->co_exceptiontable) / 4) + 1;
+    const int32_t exit_node = DD_MAX_BLOCKS + 1; /* above every block and the entry */
+
+    BlockInfo* bi = NULL;
+    uint8_t* flags = NULL;      /* per code unit, DD_UNIT_* */
+    int32_t* unit_block = NULL; /* per code unit: its block */
+    int32_t* ranges = NULL;     /* start, end and target of each exception table entry */
+    int32_t* first = NULL;      /* per block, then n */
+    int32_t* yield_at = NULL;   /* per block */
+    Edges* edges = NULL;        /* per block */
+    uint8_t* bflags = NULL;     /* per block, DD_BLOCK_* */
+    uint32_t* mark = NULL;      /* per block: the last search that visited it */
+    int32_t* scratch = NULL;
+    ProbeEntry* entries = NULL;
+    int32_t n_ranges = 0, nb = 0, n_entries = 0, np = 0, n_probed = 0;
+    int32_t *range_start, *range_end, *range_target;
+    uint32_t ext;
+
+    flags = PyMem_RawCalloc((size_t)n + 1, 1);
+    unit_block = PyMem_RawMalloc(sizeof(int32_t) * ((size_t)n + 1));
+    ranges = PyMem_RawMalloc(sizeof(int32_t) * 3 * (size_t)max_ranges);
+    if (flags == NULL || unit_block == NULL || ranges == NULL || n == 0)
+        goto done;
+    range_start = ranges;
+    range_end = ranges + max_ranges;
+    range_target = ranges + 2 * max_ranges;
+
+    for (int32_t i = 0; i < n; i += 1 + g_cache_entries[code[2 * i]])
+        flags[i] |= DD_UNIT_INSN;
+
+    /* Leaders: jump targets, the instruction after each jump, return, raise or yield, and handlers. */
+    flags[0] |= DD_UNIT_LEADER | DD_UNIT_ROOT;
+    ext = 0;
+    for (int32_t i = 0, next; i < n; i = next) {
+        uint8_t op = code[2 * i];
+        uint32_t oparg = (ext << 8) | code[2 * i + 1];
+        int kind = g_block_kind[op];
+        next = i + 1 + g_cache_entries[op];
+        if (kind == BK_EXTENDED_ARG) {
+            ext = oparg;
+            continue;
+        }
+        ext = 0;
+        int64_t targets[2];
+        int n_targets = 0;
+        switch (kind) {
+            case BK_COND:
+            case BK_FORWARD:
+            case BK_SEND:
+                targets[n_targets++] = (int64_t)next + oparg;
+                break;
+            case BK_BACKWARD:
+                targets[n_targets++] = (int64_t)next - oparg;
+                break;
+            case BK_FOR_ITER:
+                targets[n_targets++] = (int64_t)next + oparg; /* END_FOR */
+                targets[n_targets++] = (int64_t)next + oparg + 1;
+                break;
+            case BK_EXIT:
+            case BK_RERAISE:
+                break;
+            case BK_YIELD:
+                if (next < n)
+                    flags[next] |= DD_UNIT_ROOT;
+                break;
+            case BK_UNSUPPORTED:
+                goto done;
+            default:
+                continue;
+        }
+        if ((kind == BK_COND || kind == BK_FOR_ITER || kind == BK_SEND) && next >= n)
+            goto done;
+        for (int k = 0; k < n_targets; k++) {
+            if (!is_instruction(flags, n, targets[k]))
+                goto done;
+            flags[targets[k]] |= DD_UNIT_LEADER;
+        }
+        if (next < n)
+            flags[next] |= DD_UNIT_LEADER;
+    }
+    for (const uint8_t* p = table; p < table_end;) {
+        int32_t start, size, target, depth;
+        if (!(*p & 0x80) || (p = read_varint(p, table_end, &start)) == NULL ||
+            (p = read_varint(p, table_end, &size)) == NULL || (p = read_varint(p, table_end, &target)) == NULL ||
+            (p = read_varint(p, table_end, &depth)) == NULL)
+            goto done;
+        if (n_ranges == max_ranges || size <= 0 || (int64_t)start + size > n || !is_instruction(flags, n, start) ||
+            !is_instruction(flags, n, target) || (n_ranges > 0 && start < range_end[n_ranges - 1]))
+            goto done;
+        range_start[n_ranges] = start;
+        range_end[n_ranges] = start + size;
+        range_target[n_ranges] = target;
+        n_ranges++;
+        flags[target] |= DD_UNIT_LEADER | DD_UNIT_ROOT;
+    }
+
+    /* Blocks and their edges. */
+    for (int32_t i = 0; i < n; i++)
+        nb += (flags[i] & DD_UNIT_LEADER) != 0;
+    if (nb > DD_MAX_BLOCKS)
+        goto done;
+    first = PyMem_RawMalloc(sizeof(int32_t) * ((size_t)nb + 1));
+    yield_at = PyMem_RawMalloc(sizeof(int32_t) * (size_t)nb);
+    edges = PyMem_RawCalloc((size_t)nb, sizeof(Edges));
+    bflags = PyMem_RawCalloc((size_t)nb, 1);
+    mark = PyMem_RawCalloc((size_t)nb, sizeof(uint32_t));
+    if (first == NULL || yield_at == NULL || edges == NULL || bflags == NULL || mark == NULL)
+        goto done;
+    for (int32_t i = 0, b = -1; i < n; i++) {
+        if (flags[i] & DD_UNIT_LEADER)
+            first[++b] = i;
+        unit_block[i] = b;
+    }
+    first[nb] = n;
+    for (int32_t b = 0; b < nb; b++) {
+        yield_at[b] = -1;
+        if (flags[first[b]] & DD_UNIT_ROOT)
+            bflags[b] |= DD_BLOCK_ROOT;
+    }
+    ext = 0;
+    for (int32_t i = 0, next; i < n; i = next) {
+        uint8_t op = code[2 * i];
+        uint32_t oparg = (ext << 8) | code[2 * i + 1];
+        int kind = g_block_kind[op];
+        next = i + 1 + g_cache_entries[op];
+        if (kind == BK_EXTENDED_ARG) {
+            if (next < n && (flags[next] & DD_UNIT_LEADER))
+                goto done;
+            ext = oparg;
+            continue;
+        }
+        ext = 0;
+        if (next < n && !(flags[next] & DD_UNIT_LEADER))
+            continue; /* not the last instruction of its block */
+        int32_t b = unit_block[i];
+        Edges* e = &edges[b];
+        int32_t fall = next < n ? unit_block[next] : exit_node;
+        switch (kind) {
+            case BK_COND:
+                add_edge(e, unit_block[next + oparg]);
+                add_edge(e, fall);
+                break;
+            case BK_FORWARD:
+                add_edge(e, unit_block[next + oparg]);
+                break;
+            case BK_BACKWARD:
+                add_edge(e, unit_block[next - oparg]);
+                break;
+            case BK_FOR_ITER:
+                add_edge(e, fall);
+                add_edge(e, unit_block[next + oparg]);
+                add_edge(e, unit_block[next + oparg + 1]);
+                break;
+            case BK_SEND:
+                add_edge(e, fall);
+                add_edge(e, unit_block[next + oparg]);
+                break;
+            case BK_YIELD:
+                yield_at[b] = i;
+                add_edge(e, exit_node);
+                break;
+            case BK_EXIT:
+            case BK_RERAISE:
+                add_edge(e, exit_node);
+                break;
+            default:
+                add_edge(e, fall);
+                break;
+        }
+    }
+
+    {
+        /* Nodes are the blocks and the entry, nb, which leads to every entry point. */
+        const size_t nn = (size_t)nb + 1;
+        scratch = PyMem_RawMalloc(sizeof(int32_t) * (12 * nn + 8 * (size_t)nb + 8));
+        if (scratch == NULL)
+            goto done;
+        int32_t* post = scratch;                    /* nn: postorder */
+        int32_t* rpo_num = post + nn;               /* nn: position in reverse postorder */
+        int32_t* idom = rpo_num + nn;               /* nn */
+        int32_t* stack_node = idom + nn;            /* nn */
+        int32_t* stack_next = stack_node + nn;      /* nn */
+        int32_t* pred_lo = stack_next + nn;         /* nn + 1 */
+        int32_t* preds = pred_lo + nn + 1;          /* 4 nb: up to three edges per block, and the entry's */
+        int32_t* child_lo = preds + 4 * (size_t)nb; /* nn + 1 */
+        int32_t* children = child_lo + nn + 1;      /* nb */
+        int32_t* pre = children + nb;               /* nn: dominator tree, preorder clock */
+        int32_t* post_clock = pre + nn;             /* nn: dominator tree, postorder clock */
+        int32_t* visit = post_clock + nn;           /* nn: dominator tree, preorder */
+        int32_t* start_lo = visit + nn;             /* nn */
+        int32_t* search = start_lo + nn;            /* 3 nb + 3 */
+        const int32_t entry = nb;
+        int32_t n_post = 0, n_visit = 0, clock = 0, sp;
+
+        /* Reverse postorder from the entry points. A block the entry points do not reach becomes one, in
+           case it runs anyway. */
+        for (int pass = 0; pass < 2; pass++) {
+            for (int32_t r = 0; r < nb; r++) {
+                if ((bflags[r] & DD_BLOCK_SEEN) || (pass == 0 && !(bflags[r] & DD_BLOCK_ROOT)))
+                    continue;
+                bflags[r] |= DD_BLOCK_SEEN | DD_BLOCK_ROOT;
+                stack_node[0] = r;
+                stack_next[0] = 0;
+                sp = 1;
+                while (sp > 0) {
+                    int32_t v = stack_node[sp - 1];
+                    if (stack_next[sp - 1] < edges[v].n_succ) {
+                        int32_t s = edges[v].succ[stack_next[sp - 1]++];
+                        if (s < nb && !(bflags[s] & DD_BLOCK_SEEN)) {
+                            bflags[s] |= DD_BLOCK_SEEN;
+                            stack_node[sp] = s;
+                            stack_next[sp] = 0;
+                            sp++;
+                        }
+                    } else {
+                        post[n_post++] = v;
+                        sp--;
+                    }
+                }
+            }
+        }
+        post[n_post++] = entry;
+        for (int32_t j = 0; j < n_post; j++)
+            rpo_num[post[j]] = n_post - 1 - j;
+
+        /* Predecessors. */
+        memset(pred_lo, 0, sizeof(int32_t) * (nn + 1));
+        for (int32_t v = 0; v < nb; v++) {
+            for (int32_t k = 0; k < edges[v].n_succ; k++)
+                if (edges[v].succ[k] < nb)
+                    pred_lo[edges[v].succ[k] + 1]++;
+            if (bflags[v] & DD_BLOCK_ROOT)
+                pred_lo[v + 1]++;
+        }
+        for (int32_t v = 0; v < nb; v++)
+            pred_lo[v + 1] += pred_lo[v];
+        memcpy(stack_next, pred_lo, sizeof(int32_t) * (size_t)nb);
+        for (int32_t v = 0; v < nb; v++) {
+            for (int32_t k = 0; k < edges[v].n_succ; k++)
+                if (edges[v].succ[k] < nb)
+                    preds[stack_next[edges[v].succ[k]]++] = v;
+            if (bflags[v] & DD_BLOCK_ROOT)
+                preds[stack_next[v]++] = entry;
+        }
+
+        /* Immediate dominators (Cooper, Harvey and Kennedy). */
+        for (size_t k = 0; k < nn; k++)
+            idom[k] = -1;
+        idom[entry] = entry;
+        for (int changed = 1; changed;) {
+            changed = 0;
+            for (int32_t j = n_post - 2; j >= 0; j--) {
+                int32_t b = post[j];
+                int32_t d = -1;
+                for (int32_t q = pred_lo[b]; q < pred_lo[b + 1]; q++) {
+                    int32_t x = preds[q];
+                    if (idom[x] == -1)
+                        continue;
+                    if (d == -1) {
+                        d = x;
+                        continue;
+                    }
+                    int32_t y = d;
+                    while (x != y) {
+                        while (rpo_num[x] > rpo_num[y])
+                            x = idom[x];
+                        while (rpo_num[y] > rpo_num[x])
+                            y = idom[y];
+                    }
+                    d = x;
+                }
+                if (d != idom[b]) {
+                    idom[b] = d;
+                    changed = 1;
+                }
+            }
+        }
+
+        /* Dominator tree, numbered so that d dominates v when pre[d] <= pre[v] and post_clock[v] <=
+           post_clock[d]. */
+        memset(child_lo, 0, sizeof(int32_t) * (nn + 1));
+        for (int32_t b = 0; b < nb; b++)
+            child_lo[idom[b] + 1]++;
+        for (size_t k = 0; k < nn; k++)
+            child_lo[k + 1] += child_lo[k];
+        memcpy(stack_next, child_lo, sizeof(int32_t) * nn);
+        for (int32_t b = 0; b < nb; b++)
+            children[stack_next[idom[b]]++] = b;
+        pre[entry] = clock++;
+        visit[n_visit++] = entry;
+        stack_node[0] = entry;
+        stack_next[0] = child_lo[entry];
+        sp = 1;
+        while (sp > 0) {
+            int32_t v = stack_node[sp - 1];
+            if (stack_next[sp - 1] < child_lo[v + 1]) {
+                int32_t c = children[stack_next[sp - 1]++];
+                pre[c] = clock++;
+                visit[n_visit++] = c;
+                stack_node[sp] = c;
+                stack_next[sp] = child_lo[c];
+                sp++;
+            } else {
+                post_clock[v] = clock++;
+                sp--;
+            }
+        }
+
+        for (int32_t b = 0, s = 0; b < nb; b++) {
+            while (s < ci->n_starts && ci->starts[s] < first[b])
+                s++;
+            start_lo[b] = s;
+        }
+        start_lo[nb] = ci->n_starts;
+
+        /* Probes, dominated blocks first. A block with line starts needs one when a path from it leaves
+           the blocks it dominates, exits or comes back to it before it reaches a dominated block with line
+           starts: such a block has its own probe, or every path from it reaches one it dominates. */
+        uint32_t generation = 0;
+        for (int32_t m = n_visit - 1; m >= 1; m--) {
+            int32_t g = visit[m];
+            if (start_lo[g] == start_lo[g + 1])
+                continue;
+            generation++;
+            sp = 0;
+            for (int32_t k = 0; k < edges[g].n_succ; k++)
+                search[sp++] = edges[g].succ[k];
+            int needs = 0;
+            while (sp > 0) {
+                int32_t v = search[--sp];
+                if (v >= nb || v == g) {
+                    needs = 1;
+                    break;
+                }
+                if (mark[v] == generation)
+                    continue;
+                mark[v] = generation;
+                if (!(pre[g] <= pre[v] && post_clock[v] <= post_clock[g])) {
+                    needs = 1;
+                    break;
+                }
+                if (start_lo[v] < start_lo[v + 1])
+                    continue;
+                for (int32_t k = 0; k < edges[v].n_succ; k++)
+                    search[sp++] = edges[v].succ[k];
+            }
+            if (needs) {
+                bflags[g] |= DD_BLOCK_PROBED;
+                n_probed++;
+            }
+        }
+
+        /* Probe list: a probe at the last line start of each probed block, and one after each
+           PUSH_EXC_INFO. A block probe on a PUSH_EXC_INFO moves to the handler probe after it. */
+        entries = PyMem_RawMalloc(sizeof(ProbeEntry) * ((size_t)n_probed + (size_t)n_ranges + 1));
+        if (entries == NULL)
+            goto done;
+        for (int32_t b = 0; b < nb; b++) {
+            if (!(bflags[b] & DD_BLOCK_PROBED))
+                continue;
+            int32_t at = ci->starts[start_lo[b + 1] - 1];
+            if (g_block_kind[code[2 * at]] == BK_PUSH_EXC_INFO && at + 1 < first[b + 1])
+                at++;
+            entries[n_entries].index = at;
+            entries[n_entries].block = b;
+            entries[n_entries].caught = 0;
+            n_entries++;
+        }
+        for (int32_t r = 0; r < n_ranges; r++) {
+            int32_t h = range_target[r];
+            if (g_block_kind[code[2 * h]] == BK_PUSH_EXC_INFO) {
+                if (h + 1 >= n || (flags[h + 1] & DD_UNIT_LEADER))
+                    goto done;
+                entries[n_entries].index = h + 1;
+                entries[n_entries].block = -1;
+                entries[n_entries].caught = 1;
+                n_entries++;
+            } else if (reraise_position(code, n, h) < 0) {
+                goto done;
+            }
+        }
+        qsort(entries, (size_t)n_entries, sizeof(ProbeEntry), compare_probes);
+        for (int32_t k = 0; k < n_entries; k++) {
+            if (np > 0 && entries[np - 1].index == entries[k].index) {
+                if (entries[k].block >= 0)
+                    entries[np - 1].block = entries[k].block;
+                entries[np - 1].caught |= entries[k].caught;
+            } else {
+                entries[np++] = entries[k];
+            }
+        }
+
+        size_t size = sizeof(BlockInfo) + sizeof(uint64_t) * (size_t)nb + sizeof(int32_t) * (4 * (size_t)nb + 2) +
+                      sizeof(int32_t) * (2 * (size_t)np + 3 * (size_t)n_ranges) + (size_t)np;
+        bi = PyMem_RawCalloc(1, size);
+        if (bi == NULL)
+            goto done;
+        char* cursor = (char*)(bi + 1);
+        bi->token = (uint64_t*)cursor;
+        cursor += sizeof(uint64_t) * (size_t)nb;
+        bi->first = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * ((size_t)nb + 1);
+        bi->idom = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * (size_t)nb;
+        bi->start_lo = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * ((size_t)nb + 1);
+        bi->yield_at = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * (size_t)nb;
+        bi->probe_index = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * (size_t)np;
+        bi->probe_block = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * (size_t)np;
+        bi->range_start = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * (size_t)n_ranges;
+        bi->range_end = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * (size_t)n_ranges;
+        bi->range_catch = (int32_t*)cursor;
+        cursor += sizeof(int32_t) * (size_t)n_ranges;
+        bi->probe_caught = (uint8_t*)cursor;
+        bi->n_code = n;
+        bi->n_blocks = nb;
+        bi->n_probes = np;
+        bi->n_ranges = n_ranges;
+        memcpy(bi->first, first, sizeof(int32_t) * ((size_t)nb + 1));
+        memcpy(bi->start_lo, start_lo, sizeof(int32_t) * ((size_t)nb + 1));
+        memcpy(bi->yield_at, yield_at, sizeof(int32_t) * (size_t)nb);
+        for (int32_t b = 0; b < nb; b++)
+            bi->idom[b] = idom[b] == entry ? -1 : idom[b];
+        for (int32_t k = 0; k < np; k++) {
+            bi->probe_index[k] = entries[k].index;
+            bi->probe_block[k] = entries[k].block;
+            bi->probe_caught[k] = entries[k].caught;
+        }
+        for (int32_t r = 0; r < n_ranges; r++) {
+            bi->range_start[r] = range_start[r];
+            bi->range_end[r] = range_end[r];
+            bi->range_catch[r] = catching_handler(code, n, range_start, range_end, range_target, n_ranges, r);
+            if (bi->range_catch[r] == -2) {
+                PyMem_RawFree(bi);
+                bi = NULL;
+                goto done;
+            }
+        }
+    }
+
+done:
+    PyMem_RawFree(flags);
+    PyMem_RawFree(unit_block);
+    PyMem_RawFree(ranges);
+    PyMem_RawFree(first);
+    PyMem_RawFree(yield_at);
+    PyMem_RawFree(edges);
+    PyMem_RawFree(bflags);
+    PyMem_RawFree(mark);
+    PyMem_RawFree(scratch);
+    PyMem_RawFree(entries);
+    Py_DECREF(bytes);
+    return bi;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Block crediting.
+ */
+static inline void
+credit_line(CodeInfo* ci, Context* owner, int32_t line)
+{
+    if (line <= 0)
+        return;
+    int rc = owner != NULL ? context_set(owner, ci->file_id, (uint32_t)line)
+                           : bitset_set(&g_files[ci->file_id].unowned_lines, (uint32_t)line);
+    if (DD_UNLIKELY(rc < 0))
+        g_errors++;
+}
+
+/* Credits block b and its dominators in full, up to the first one credited to owner already. */
+static void
+credit_chain(CodeInfo* ci, BlockInfo* bi, int32_t b, Context* owner)
+{
+    uint64_t token = owner != NULL ? owner->token : DD_TOKEN_UNOWNED;
+    for (; b >= 0 && bi->token[b] != token; b = bi->idom[b]) {
+        for (int32_t s = bi->start_lo[b]; s < bi->start_lo[b + 1]; s++)
+            credit_line(ci, owner, ci->start_lines[s]);
+        bi->token[b] = token;
+    }
+}
+
+/* Credits block b up to code unit p, and its dominators in full. */
+static void
+credit_partial(CodeInfo* ci, BlockInfo* bi, int32_t b, int32_t p, Context* owner)
+{
+    for (int32_t s = bi->start_lo[b]; s < bi->start_lo[b + 1] && ci->starts[s] <= p; s++)
+        credit_line(ci, owner, ci->start_lines[s]);
+    credit_chain(ci, bi, bi->idom[b], owner);
+}
+
+/* Whether context c lacks a line that a probe of block b credits. */
+static int
+context_lacks_chain(CodeInfo* ci, BlockInfo* bi, int32_t b, Context* c)
+{
+    for (; b >= 0 && bi->token[b] != c->token; b = bi->idom[b]) {
+        for (int32_t s = bi->start_lo[b]; s < bi->start_lo[b + 1]; s++) {
+            int32_t line = ci->start_lines[s];
+            if (line > 0 && !context_has(c, ci->file_id, (uint32_t)line))
+                return 1;
+        }
+    }
+    return 0;
+}
+
+/* The code unit an exception was raised at in the frame, from its newest traceback entry, or -1 when
+   that entry is another frame's. */
+static int32_t
+raised_at(PyObject* exc, _PyInterpreterFrame* frame)
+{
+    if (exc == NULL || !PyExceptionInstance_Check(exc))
+        return -1;
+    PyObject* tb = ((PyBaseExceptionObject*)exc)->traceback;
+    if (tb == NULL || !PyTraceBack_Check(tb))
+        return -1;
+    PyTracebackObject* entry = (PyTracebackObject*)tb;
+    if (entry->tb_frame == NULL || entry->tb_frame->f_frame != frame || entry->tb_lasti < 0)
+        return -1;
+    return entry->tb_lasti / (int)sizeof(_Py_CODEUNIT);
+}
+
+static PyObject*
+block_event(CodeInfo* ci, int32_t index)
+{
+    BlockInfo* bi = ci->blocks;
+    int32_t k = find_probe(bi, index);
+    /* Not a probe: sys.monitoring re-instrumented every instruction. */
+    if (DD_UNLIKELY(k < 0))
+        return Py_NewRef(g_disable);
+    g_events_block++;
+    Context* owner = g_n_active > 0 ? current_owner() : NULL;
+    int32_t b = bi->probe_block[k];
+    if (bi->probe_caught[k]) {
+        /* Stays armed: each catch credits the block its raise cut short. */
+        g_events_caught++;
+        PyThreadState* ts = PyThreadState_Get();
+        PyObject* exc = ts->exc_info != NULL ? ts->exc_info->exc_value : NULL;
+        int32_t p = raised_at(exc, ts->cframe->current_frame);
+        if (p >= 0 && p < bi->n_code) {
+            int32_t at = block_of(bi, p);
+            int32_t r = find_range(bi->range_start, bi->range_end, bi->n_ranges, p);
+            if (bi->yield_at[at] != p && r >= 0 && bi->range_catch[r] == index - 1)
+                credit_partial(ci, bi, at, p, owner);
+        }
+        if (b >= 0)
+            credit_chain(ci, bi, b, owner);
+        Py_RETURN_NONE;
+    }
+    credit_chain(ci, bi, b, owner);
+    if (g_n_active == 0 || (g_n_active == 1 && g_active[0] == owner))
+        return disable_line(ci);
+    /* Keep the probe armed while an active context lacks a line it credits: it may run there next. */
+    for (int j = 0; j < g_n_active; j++) {
+        Context* c = g_active[j];
+        if (c != owner && context_lacks_chain(ci, bi, b, c)) {
+            g_events_kept++;
+            Py_RETURN_NONE;
+        }
+    }
+    return disable_line(ci);
+}
+
+/* The PY_UNWIND callback: an exception leaves a frame. Returns None always, as PY_UNWIND events cannot
+   be disabled. */
+static PyObject*
+unwind_event(PyObject* Py_UNUSED(callable), PyObject* const* args, size_t nargsf, PyObject* kwnames)
+{
+    if (DD_UNLIKELY(PyVectorcall_NARGS(nargsf) != 3 || kwnames != NULL))
+        Py_RETURN_NONE;
+    CodeInfo* ci = codeinfo_get(args[0]);
+    if (DD_LIKELY(ci == NULL || ci->probes != PROBES_BLOCK))
+        Py_RETURN_NONE;
+    long offset = event_number(args[1]);
+    if (DD_UNLIKELY(offset < 0))
+        Py_RETURN_NONE;
+    g_events_unwind++;
+    BlockInfo* bi = ci->blocks;
+    int32_t p = raised_at(args[2], PyThreadState_Get()->cframe->current_frame);
+    if (p < 0)
+        p = (int32_t)(offset / 2);
+    if (p >= bi->n_code)
+        Py_RETURN_NONE;
+    int32_t b = block_of(bi, p);
+    if (bi->yield_at[b] != p)
+        credit_partial(ci, bi, b, p, g_n_active > 0 ? current_owner() : NULL);
+    Py_RETURN_NONE;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Leaving block probes.
+ */
+static DD_COLD void
+convert_to_starts(CodeInfo* ci)
+{
+    drop_blocks(ci);
+    g_converted++;
+    ci->probes = PROBES_INSTRUCTION;
+    if (rearm_instruction_probes(ci, (PyCodeObject*)ci->code) != 0)
+        revert_to_line_events(ci, ci->code);
+}
+
+/* Code objects whose frames a settle credits before they move to line-start probes. The list holds a
+   reference to each code object. */
+static CodeInfo** g_settle = NULL;
+static Py_ssize_t g_n_settle = 0;
+static Py_ssize_t g_cap_settle = 0;
+static int g_settling = 0;
+
+static void
+list_for_settle(CodeInfo* ci)
+{
+    if (ci->settling)
+        return;
+    if (g_n_settle == g_cap_settle) {
+        Py_ssize_t cap = g_cap_settle ? g_cap_settle * 2 : 64;
+        CodeInfo** list = PyMem_RawRealloc(g_settle, sizeof(CodeInfo*) * (size_t)cap);
+        if (list == NULL) {
+            g_errors++;
+            return;
+        }
+        g_settle = list;
+        g_cap_settle = cap;
+    }
+    Py_INCREF(ci->code);
+    g_settle[g_n_settle++] = ci;
+    ci->settling = 1;
+}
+
+/* The CodeInfo of the code a frame runs when it has block probes, else NULL. */
+static inline CodeInfo*
+block_frame(_PyInterpreterFrame* f)
+{
+    if (f->owner == FRAME_OWNED_BY_CSTACK || _PyFrame_IsIncomplete(f))
+        return NULL;
+    CodeInfo* ci = codeinfo_get((PyObject*)f->f_code);
+    return ci != NULL && ci->probes == PROBES_BLOCK ? ci : NULL;
+}
+
+static inline _PyInterpreterFrame*
+innermost_frame(PyThreadState* ts)
+{
+    return ts->cframe != NULL ? ts->cframe->current_frame : NULL;
+}
+
+/* Credits what a frame ran: its block up to where it is, and that block's dominators. */
+static void
+credit_frame(CodeInfo* ci, _PyInterpreterFrame* f, Context* owner)
+{
+    BlockInfo* bi = ci->blocks;
+    int32_t p = _PyInterpreterFrame_LASTI(f);
+    if (p < 0 || p >= bi->n_code)
+        return;
+    int32_t b = block_of(bi, p);
+    if (bi->yield_at[b] != p)
+        credit_partial(ci, bi, b, p, owner);
+}
+
+/* The value of the context variable in the context a thread runs in, as a new reference, or NULL. */
+static PyObject*
+thread_value(PyThreadState* ts)
+{
+    PyObject* value = NULL;
+    if (ts == PyThreadState_Get()) {
+        if (PyContextVar_Get(g_ctxvar, NULL, &value) < 0) {
+            PyErr_Clear();
+            return NULL;
+        }
+        return value;
+    }
+    if (ts->context == NULL)
+        return NULL;
+    value = PyObject_GetItem(ts->context, g_ctxvar);
+    if (value == NULL)
+        PyErr_Clear();
+    return value;
+}
+
+static int
+has_block_frames(PyThreadState* ts)
+{
+    for (_PyInterpreterFrame* f = innermost_frame(ts); f != NULL; f = f->previous)
+        if (block_frame(f) != NULL)
+            return 1;
+    return 0;
+}
+
+/* Credits each frame with block probes on the thread to owner, and lists its code object. */
+static int
+settle_thread(PyThreadState* ts, Context* owner)
+{
+    int found = 0;
+    for (_PyInterpreterFrame* f = innermost_frame(ts); f != NULL; f = f->previous) {
+        CodeInfo* ci = block_frame(f);
+        if (ci != NULL) {
+            credit_frame(ci, f, owner);
+            list_for_settle(ci);
+            found = 1;
+        }
+    }
+    return found;
+}
+
+/* Credits the frames of the listed code objects on the other threads, each to the context its thread
+   runs for, then moves the listed code objects to line-start probes. The threads settle_thread()
+   credited already are skip_thread, or those that run for skip_carrying. */
+static void
+settle_listed(PyThreadState* skip_thread, Context* skip_carrying)
+{
+    if (g_n_settle == 0)
+        return;
+    PyThreadState* current = PyThreadState_Get();
+    for (PyThreadState* ts = PyInterpreterState_ThreadHead(current->interp); ts != NULL; ts = PyThreadState_Next(ts)) {
+        if (ts == skip_thread)
+            continue;
+        int known = 0;
+        Context* owner = NULL;
+        for (_PyInterpreterFrame* f = innermost_frame(ts); f != NULL; f = f->previous) {
+            CodeInfo* ci = block_frame(f);
+            if (ci == NULL || !ci->settling)
+                continue;
+            if (!known) {
+                PyObject* value = thread_value(ts);
+                int credited = skip_carrying != NULL && value == (PyObject*)skip_carrying;
+                /* Borrowed past the decref: the thread's context holds the value. */
+                owner = owner_of(value);
+                Py_XDECREF(value);
+                if (credited)
+                    break;
+                known = 1;
+            }
+            credit_frame(ci, f, owner);
+        }
+    }
+    /* Taken, not cleared, as in rearm_all(). */
+    CodeInfo** list = g_settle;
+    Py_ssize_t n = g_n_settle, cap = g_cap_settle;
+    g_settle = NULL;
+    g_n_settle = 0;
+    g_cap_settle = 0;
+    for (Py_ssize_t k = 0; k < n; k++) {
+        list[k]->settling = 0;
+        if (list[k]->probes == PROBES_BLOCK)
+            convert_to_starts(list[k]);
+    }
+    for (Py_ssize_t k = 0; k < n; k++)
+        Py_DECREF(list[k]->code);
+    if (g_settle == NULL) {
+        g_settle = list;
+        g_cap_settle = cap;
+    } else {
+        PyMem_RawFree(list);
+    }
+}
+
+/* Before this thread switches from running for old_owner to running for another context. */
+static void
+settle_switch(Context* old_owner)
+{
+    if (DD_LIKELY(g_n_block_codes == 0) || g_settling)
+        return;
+    PyObject* raised = PyErr_GetRaisedException();
+    g_settling = 1;
+    PyThreadState* ts = PyThreadState_Get();
+    if (settle_thread(ts, old_owner))
+        settle_listed(ts, NULL);
+    g_settling = 0;
+    PyErr_SetRaisedException(raised);
+}
+
+/* Before the window of c opens or closes, which changes what the threads that carry c run for. */
+static void
+settle_window(Context* c)
+{
+    if (DD_LIKELY(g_n_block_codes == 0) || g_settling)
+        return;
+    PyObject* raised = PyErr_GetRaisedException();
+    g_settling = 1;
+    Context* owner = c->active ? c : NULL;
+    int found = 0;
+    PyThreadState* current = PyThreadState_Get();
+    for (PyThreadState* ts = PyInterpreterState_ThreadHead(current->interp); ts != NULL; ts = PyThreadState_Next(ts)) {
+        if (!has_block_frames(ts))
+            continue;
+        PyObject* value = thread_value(ts);
+        Py_XDECREF(value);
+        if (value == (PyObject*)c && settle_thread(ts, owner))
+            found = 1;
+    }
+    if (found)
+        settle_listed(NULL, c);
+    g_settling = 0;
+    PyErr_SetRaisedException(raised);
+}
+
+/* Moves code objects to line-start probes after crediting their frames: ci alone, or, with NULL, every
+   code object with block probes. */
+static void
+settle_codes(CodeInfo* ci)
+{
+    if (g_settling) {
+        if (ci != NULL)
+            convert_to_starts(ci);
+        return;
+    }
+    PyObject* raised = PyErr_GetRaisedException();
+    g_settling = 1;
+    if (ci != NULL) {
+        list_for_settle(ci);
+    } else {
+        for (Py_ssize_t k = 0; k < g_n_block_codes; k++)
+            list_for_settle(g_block_codes[k]);
+    }
+    settle_listed(NULL, NULL);
+    g_settling = 0;
+    PyErr_SetRaisedException(raised);
+}
+
+/* When a re-arm finds the code object's INSTRUCTION events gone. */
+static void
+leave_block_mode(CodeInfo* ci)
+{
+    settle_codes(ci);
+}
+
+/* Moves a code object to block probes at its first LINE event. Returns 1 when that decides its probes,
+   0 when line-start probes are worth a try. */
+static DD_COLD int
+choose_block_probes(CodeInfo* ci, PyCodeObject* co)
+{
+    if (!can_switch_to_instruction_events(co))
+        return 0;
+    if (ci->starts == NULL && compute_starts(ci, co) < 0)
+        return 0;
+    if (compute_start_lines(ci, co) < 0)
+        return 0;
+    BlockInfo* bi = analyse_blocks(ci, co);
+    if (bi == NULL) {
+        g_block_refused++;
+        return 0;
+    }
+    if (list_block_code(ci) < 0) {
+        PyMem_RawFree(bi);
+        return 0;
+    }
+    ci->blocks = bi;
+    if (switch_to_instruction_events(ci, co, bi->probe_index, bi->n_probes) != 0) {
+        drop_blocks(ci); /* back on LINE events */
+        return 1;
+    }
+    ci->probes = PROBES_BLOCK;
+    g_switched_block++;
+    return 1;
+}
+#endif
+
 #if DD_HAVE_INSTRUCTION_PROBES
 static PyObject*
 instruction_event(PyObject* Py_UNUSED(callable), PyObject* const* args, size_t nargsf, PyObject* kwnames)
@@ -902,12 +2119,18 @@ instruction_event(PyObject* Py_UNUSED(callable), PyObject* const* args, size_t n
     if (DD_UNLIKELY(PyVectorcall_NARGS(nargsf) != 2 || kwnames != NULL))
         return Py_NewRef(g_disable);
     CodeInfo* ci = codeinfo_get(args[0]);
-    if (DD_UNLIKELY(ci == NULL || ci->probes != PROBES_INSTRUCTION))
+    if (DD_UNLIKELY(ci == NULL))
         return Py_NewRef(g_disable);
     long offset = event_number(args[1]);
     if (DD_UNLIKELY(offset < 0))
         return Py_NewRef(g_disable);
     int32_t index = (int32_t)(offset / 2);
+#if DD_HAVE_BLOCK_PROBES
+    if (ci->probes == PROBES_BLOCK)
+        return block_event(ci, index);
+#endif
+    if (DD_UNLIKELY(ci->probes != PROBES_INSTRUCTION))
+        return Py_NewRef(g_disable);
     int32_t lo = 0, hi = ci->n_starts;
     while (lo < hi) {
         int32_t mid = lo + (hi - lo) / 2;
@@ -984,11 +2207,18 @@ publish_owner(PyObject* running)
 #endif
 }
 
+/* Closes the window of c. settle is 0 only when nothing can carry c any more. */
 static void
-context_deactivate(Context* c)
+context_deactivate(Context* c, int settle)
 {
     if (!c->active)
         return;
+#if DD_HAVE_BLOCK_PROBES
+    if (settle)
+        settle_window(c);
+#else
+    (void)settle;
+#endif
     Context* last = g_active[g_n_active - 1];
     g_active[c->index] = last;
     last->index = c->index;
@@ -1021,7 +2251,8 @@ static void
 Context_dealloc(Context* c)
 {
     PyObject_GC_UnTrack(c);
-    context_deactivate(c);
+    /* No context variable holds c, so no thread runs for it. */
+    context_deactivate(c, 0);
     Context_clear(c);
     /* Only touched files have bits: context_set lists a file when it gives it bits. */
     for (int32_t k = 0; k < c->n_touched; k++)
@@ -1044,6 +2275,9 @@ Context_push(Context* c, PyObject* Py_UNUSED(ignored))
         g_active = active;
         g_cap_active = cap;
     }
+#if DD_HAVE_BLOCK_PROBES
+    settle_window(c);
+#endif
     rearm_all();
     c->index = g_n_active;
     g_active[g_n_active++] = c;
@@ -1054,7 +2288,7 @@ Context_push(Context* c, PyObject* Py_UNUSED(ignored))
 static PyObject*
 Context_pop(Context* c, PyObject* Py_UNUSED(ignored))
 {
-    context_deactivate(c);
+    context_deactivate(c, 1);
     Py_RETURN_NONE;
 }
 
@@ -1070,6 +2304,11 @@ Context_enter(Context* c, PyObject* Py_UNUSED(ignored))
     PyObject* previous = NULL;
     if (PyContextVar_Get(g_ctxvar, Py_None, &previous) < 0)
         return NULL;
+#if DD_HAVE_BLOCK_PROBES
+    Context* old_owner = owner_of(previous);
+    if (old_owner != c)
+        settle_switch(old_owner);
+#endif
     PyObject* r = Context_push(c, NULL);
     if (r == NULL) {
         Py_DECREF(previous);
@@ -1078,7 +2317,7 @@ Context_enter(Context* c, PyObject* Py_UNUSED(ignored))
     Py_DECREF(r);
     PyObject* token = PyContextVar_Set(g_ctxvar, (PyObject*)c);
     if (token == NULL) {
-        context_deactivate(c);
+        context_deactivate(c, 1);
         Py_DECREF(previous);
         return NULL;
     }
@@ -1091,8 +2330,14 @@ Context_enter(Context* c, PyObject* Py_UNUSED(ignored))
 static PyObject*
 Context_exit(Context* c, PyObject* previous)
 {
+#if DD_HAVE_BLOCK_PROBES
+    Context* old_owner = g_n_active > 0 ? current_owner() : NULL;
+    Context* new_owner = previous == (PyObject*)c ? NULL : owner_of(previous);
+    if (old_owner != new_owner)
+        settle_switch(old_owner);
+#endif
     PyObject* token = PyContextVar_Set(g_ctxvar, previous);
-    context_deactivate(c);
+    context_deactivate(c, 1);
     if (token == NULL)
         return NULL;
     Py_DECREF(token);
@@ -1446,6 +2691,15 @@ static PyTypeObject ContextType = {
 /* ------------------------------------------------------------------------------------------------
  * Module functions.
  */
+
+/* Block probes need what INSTRUCTION probes need, and the opcode tables. */
+static int
+block_probes_possible(void)
+{
+    return DD_HAVE_BLOCK_PROBES && g_internal_rearm && g_instruction_event_index >= 0 &&
+           g_instrumented_instruction > 0 && g_min_instrumented < 256 && g_block_tables;
+}
+
 static PyObject*
 mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
 {
@@ -1464,15 +2718,19 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
                               "superinstructions",
                               "instruction_probes",
                               "child",
+                              "block_probes",
+                              "block_kinds",
+                              "cache_entries",
                               NULL };
     int tool_id, line_event_index, instrumented_line, enter_executor, instrumented_instruction;
     int internal_rearm = 1, instruction_event_index = -1, min_instrumented = 256, instruction_probes = 0;
-    int child = 0;
+    int child = 0, block_probes = 0;
     PyObject *disable, *set_local_events, *ctxvar, *superinstructions = NULL;
+    PyObject *block_kinds = NULL, *cache_entries = NULL;
     Py_buffer deopt;
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwds,
-                                     "iiOOOy*iii|piiOpp",
+                                     "iiOOOy*iii|piiOpppOO",
                                      kwlist,
                                      &tool_id,
                                      &line_event_index,
@@ -1488,7 +2746,10 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
                                      &min_instrumented,
                                      &superinstructions,
                                      &instruction_probes,
-                                     &child))
+                                     &child,
+                                     &block_probes,
+                                     &block_kinds,
+                                     &cache_entries))
         return NULL;
     if (g_child) {
         PyBuffer_Release(&deopt);
@@ -1511,12 +2772,25 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
         PyErr_SetString(PyExc_ValueError, "superinstructions must be 256 bytes");
         return NULL;
     }
+    int have_tables =
+      block_kinds != NULL && block_kinds != Py_None && cache_entries != NULL && cache_entries != Py_None;
+    if (have_tables && (!PyBytes_Check(block_kinds) || PyBytes_GET_SIZE(block_kinds) != 256 ||
+                        !PyBytes_Check(cache_entries) || PyBytes_GET_SIZE(cache_entries) != 256)) {
+        PyBuffer_Release(&deopt);
+        PyErr_SetString(PyExc_ValueError, "block_kinds and cache_entries must be 256 bytes");
+        return NULL;
+    }
     memcpy(g_deopt, deopt.buf, 256);
     PyBuffer_Release(&deopt);
     if (superinstructions != NULL && superinstructions != Py_None)
         memcpy(g_superinstruction, PyBytes_AS_STRING(superinstructions), 256);
     else
         memset(g_superinstruction, 0, 256);
+    if (have_tables) {
+        memcpy(g_block_kind, PyBytes_AS_STRING(block_kinds), 256);
+        memcpy(g_cache_entries, PyBytes_AS_STRING(cache_entries), 256);
+    }
+    g_block_tables = have_tables;
     PyObject* instruction_mask_object = NULL;
     if (instruction_event_index >= 0 &&
         (instruction_mask_object = PyLong_FromLong(1L << instruction_event_index)) == NULL)
@@ -1559,6 +2833,7 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
     g_internal_rearm = DD_HAVE_INTERNAL_REARM && internal_rearm && instrumented_line > 0;
     g_instruction_probes = DD_HAVE_INSTRUCTION_PROBES && g_internal_rearm && instruction_probes &&
                            instruction_event_index >= 0 && instrumented_instruction > 0 && min_instrumented < 256;
+    g_block_probes = block_probes_possible() && block_probes;
     g_initialized = 1;
     g_child = child;
     return PyBool_FromLong(g_internal_rearm);
@@ -1573,8 +2848,10 @@ mod_set_internal_rearm(PyObject* Py_UNUSED(self), PyObject* arg)
     if (on < 0)
         return NULL;
     g_internal_rearm = DD_HAVE_INTERNAL_REARM && on && g_instrumented_line > 0;
-    if (!g_internal_rearm)
+    if (!g_internal_rearm) {
         g_instruction_probes = 0;
+        g_block_probes = 0;
+    }
     return PyBool_FromLong(g_internal_rearm);
 }
 
@@ -1590,7 +2867,114 @@ mod_set_instruction_probes(PyObject* Py_UNUSED(self), PyObject* arg)
     return PyBool_FromLong(g_instruction_probes);
 }
 
-/* probes(code) -> 0 when not decided or not attached, 1 for LINE events, 2 for INSTRUCTION probes. */
+/* Switches block probes for code objects not decided yet. */
+static PyObject*
+mod_set_block_probes(PyObject* Py_UNUSED(self), PyObject* arg)
+{
+    int on = PyObject_IsTrue(arg);
+    if (on < 0)
+        return NULL;
+    g_block_probes = on && block_probes_possible();
+    return PyBool_FromLong(g_block_probes);
+}
+
+/* Stops block probes for good: every code object with block probes moves to line-start probes, once
+   what its frames ran is credited. */
+static PyObject*
+mod_disable_blocks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
+{
+    g_block_probes = 0;
+#if DD_HAVE_BLOCK_PROBES
+    if (g_n_block_codes > 0)
+        settle_codes(NULL);
+#endif
+    Py_RETURN_NONE;
+}
+
+/* blocks(code) -> the block analysis of an attached code object, for tests, or None when the analysis
+   refuses it: {"blocks": [(first, lines, idom, probed)], "probes": [(index, block, caught)],
+   "ranges": [(start, end, catch)]}. */
+static PyObject*
+mod_blocks(PyObject* Py_UNUSED(self), PyObject* code)
+{
+    if (!PyCode_Check(code)) {
+        PyErr_SetString(PyExc_TypeError, "blocks(code)");
+        return NULL;
+    }
+#if DD_HAVE_BLOCK_PROBES
+    CodeInfo* ci = codeinfo_get(code);
+    PyCodeObject* co = (PyCodeObject*)code;
+    dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
+    if (ci == NULL || !g_block_tables || (ci->blocks == NULL && (m == NULL || m->lines == NULL))) {
+        PyErr_SetString(PyExc_ValueError, "the code object has no line data yet");
+        return NULL;
+    }
+    BlockInfo* own = NULL;
+    BlockInfo* bi = ci->blocks;
+    if (bi == NULL) {
+        if (ci->starts == NULL && compute_starts(ci, co) < 0)
+            return PyErr_NoMemory();
+        if (compute_start_lines(ci, co) < 0) {
+            PyErr_SetString(PyExc_ValueError, "line table walk failed");
+            return NULL;
+        }
+        own = bi = analyse_blocks(ci, co);
+        if (bi == NULL)
+            Py_RETURN_NONE;
+    }
+    PyObject* result = NULL;
+    PyObject* blocks = PyList_New(bi->n_blocks);
+    PyObject* probes = PyList_New(bi->n_probes);
+    PyObject* ranges = PyList_New(bi->n_ranges);
+    uint8_t* probed = PyMem_RawCalloc((size_t)bi->n_blocks + 1, 1);
+    if (blocks == NULL || probes == NULL || ranges == NULL || probed == NULL)
+        goto done;
+    for (int32_t k = 0; k < bi->n_probes; k++) {
+        if (bi->probe_block[k] >= 0)
+            probed[bi->probe_block[k]] = 1;
+        PyObject* item = Py_BuildValue("(iii)", bi->probe_index[k], bi->probe_block[k], bi->probe_caught[k]);
+        if (item == NULL)
+            goto done;
+        PyList_SET_ITEM(probes, k, item);
+    }
+    for (int32_t b = 0; b < bi->n_blocks; b++) {
+        PyObject* lines = PyTuple_New(bi->start_lo[b + 1] - bi->start_lo[b]);
+        if (lines == NULL)
+            goto done;
+        for (int32_t s = bi->start_lo[b]; s < bi->start_lo[b + 1]; s++) {
+            PyObject* line = PyLong_FromLong(ci->start_lines[s]);
+            if (line == NULL) {
+                Py_DECREF(lines);
+                goto done;
+            }
+            PyTuple_SET_ITEM(lines, s - bi->start_lo[b], line);
+        }
+        PyObject* item = Py_BuildValue("(iNii)", bi->first[b], lines, bi->idom[b], probed[b]);
+        if (item == NULL)
+            goto done;
+        PyList_SET_ITEM(blocks, b, item);
+    }
+    for (int32_t r = 0; r < bi->n_ranges; r++) {
+        PyObject* item = Py_BuildValue("(iii)", bi->range_start[r], bi->range_end[r], bi->range_catch[r]);
+        if (item == NULL)
+            goto done;
+        PyList_SET_ITEM(ranges, r, item);
+    }
+    result = Py_BuildValue("{sOsOsO}", "blocks", blocks, "probes", probes, "ranges", ranges);
+done:
+    Py_XDECREF(blocks);
+    Py_XDECREF(probes);
+    Py_XDECREF(ranges);
+    PyMem_RawFree(probed);
+    PyMem_RawFree(own);
+    return result;
+#else
+    Py_RETURN_NONE;
+#endif
+}
+
+/* probes(code) -> 0 when not decided or not attached, 1 for LINE events, 2 for INSTRUCTION probes on
+   the line starts, 3 for block probes. */
 static PyObject*
 mod_probes(PyObject* Py_UNUSED(self), PyObject* code)
 {
@@ -1899,41 +3283,53 @@ done:
 static PyObject*
 mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
 {
-    return Py_BuildValue("{s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:n,s:i,s:i,s:i,s:i}",
-                         "events",
-                         g_events,
-                         "events_init",
-                         g_events_init,
-                         "events_unowned",
-                         g_events_unowned,
-                         "events_kept",
-                         g_events_kept,
-                         "events_instruction",
-                         g_events_instruction,
-                         "errors",
-                         g_errors,
-                         "rearm_internal",
-                         g_rearm_internal,
-                         "rearm_public",
-                         g_rearm_public,
-                         "rearm_instruction",
-                         g_rearm_instruction,
-                         "rearm_starts",
-                         g_rearm_starts,
-                         "switched",
-                         g_switched,
-                         "reverted",
-                         g_reverted,
-                         "dirty",
-                         g_n_dirty,
-                         "active",
-                         g_n_active,
-                         "files",
-                         g_n_files,
-                         "internal_rearm",
-                         g_internal_rearm,
-                         "instruction_probes",
-                         g_instruction_probes);
+    const struct
+    {
+        const char* name;
+        unsigned long long value;
+    } stats[] = {
+        { "events", g_events },
+        { "events_init", g_events_init },
+        { "events_unowned", g_events_unowned },
+        { "events_kept", g_events_kept },
+        { "events_instruction", g_events_instruction },
+        { "events_block", g_events_block },
+        { "events_caught", g_events_caught },
+        { "events_unwind", g_events_unwind },
+        { "errors", g_errors },
+        { "rearm_internal", g_rearm_internal },
+        { "rearm_public", g_rearm_public },
+        { "rearm_instruction", g_rearm_instruction },
+        { "rearm_block", g_rearm_block },
+        { "rearm_starts", g_rearm_starts },
+        { "switched", g_switched },
+        { "switched_block", g_switched_block },
+        { "block_refused", g_block_refused },
+        { "converted", g_converted },
+        { "reverted", g_reverted },
+        { "dirty", (unsigned long long)g_n_dirty },
+        { "active", (unsigned long long)g_n_active },
+        { "files", (unsigned long long)g_n_files },
+#if DD_HAVE_BLOCK_PROBES
+        { "block_codes", (unsigned long long)g_n_block_codes },
+#endif
+        { "internal_rearm", (unsigned long long)g_internal_rearm },
+        { "instruction_probes", (unsigned long long)g_instruction_probes },
+        { "block_probes", (unsigned long long)g_block_probes },
+    };
+    PyObject* d = PyDict_New();
+    if (d == NULL)
+        return NULL;
+    for (size_t k = 0; k < sizeof(stats) / sizeof(stats[0]); k++) {
+        PyObject* v = PyLong_FromUnsignedLongLong(stats[k].value);
+        if (v == NULL || PyDict_SetItemString(d, stats[k].name, v) < 0) {
+            Py_XDECREF(v);
+            Py_DECREF(d);
+            return NULL;
+        }
+        Py_DECREF(v);
+    }
+    return d;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -1948,6 +3344,11 @@ mod_set_running(PyObject* Py_UNUSED(self), PyObject* context)
         PyErr_SetString(PyExc_RuntimeError, "_linecov.init() was not called");
         return NULL;
     }
+#if DD_HAVE_BLOCK_PROBES
+    Context* old_owner = g_n_active > 0 ? current_owner() : NULL;
+    if (old_owner != owner_of(context))
+        settle_switch(old_owner);
+#endif
     PyObject* token = PyContextVar_Set(g_ctxvar, context);
     if (token == NULL)
         return NULL;
@@ -2220,6 +3621,9 @@ static PyMethodDef module_methods[] = {
 #endif
     { "set_internal_rearm", mod_set_internal_rearm, METH_O, "Switch the internal re-arm." },
     { "set_instruction_probes", mod_set_instruction_probes, METH_O, "Switch INSTRUCTION probes." },
+    { "set_block_probes", mod_set_block_probes, METH_O, "Switch block probes." },
+    { "disable_blocks", mod_disable_blocks, METH_NOARGS, "Stop block probes for good." },
+    { "blocks", mod_blocks, METH_O, "The block analysis of a code object." },
     { "probes", mod_probes, METH_O, "The kind of probes a code object uses." },
     { "register_file", (PyCFunction)(void (*)(void))mod_register_file, METH_FASTCALL, "Register a file." },
     { "attach", (PyCFunction)(void (*)(void))mod_attach, METH_FASTCALL, "Attach a code object to a file." },
@@ -2252,10 +3656,13 @@ PyInit__linecov(void)
         Py_DECREF(m);
         return NULL;
     }
-    /* The sys.monitoring LINE and INSTRUCTION callbacks. */
+    /* The sys.monitoring LINE, INSTRUCTION and PY_UNWIND callbacks. */
     if (add_callback(m, "line_event", line_event) < 0
 #if DD_HAVE_INSTRUCTION_PROBES
         || add_callback(m, "instruction_event", instruction_event) < 0
+#endif
+#if DD_HAVE_BLOCK_PROBES
+        || add_callback(m, "unwind_event", unwind_event) < 0
 #endif
     ) {
         Py_DECREF(m);
@@ -2263,6 +3670,7 @@ PyInit__linecov(void)
     }
     if (PyModule_AddIntConstant(m, "HAVE_INTERNAL_REARM", DD_HAVE_INTERNAL_REARM) < 0 ||
         PyModule_AddIntConstant(m, "HAVE_INSTRUCTION_PROBES", DD_HAVE_INSTRUCTION_PROBES) < 0 ||
+        PyModule_AddIntConstant(m, "HAVE_BLOCK_PROBES", DD_HAVE_BLOCK_PROBES) < 0 ||
         PyModule_AddIntConstant(m, "FREE_THREADED", DD_LINECOV_FREE_THREADED) < 0) {
         Py_DECREF(m);
         return NULL;
