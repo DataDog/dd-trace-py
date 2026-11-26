@@ -5,7 +5,9 @@ from pathlib import Path
 import sys
 import threading
 import time
+from types import FrameType
 from typing import TYPE_CHECKING
+from typing import Optional
 from unittest.mock import patch
 import uuid
 
@@ -164,7 +166,7 @@ def test_exact_native_frame_limit_is_not_truncated() -> None:
 
     def sample_full_stack() -> None:
         frame_count = 0
-        frame = sys._getframe()
+        frame: Optional[FrameType] = sys._getframe()
         while frame is not None:
             frame_count += 1
             frame = frame.f_back
@@ -443,9 +445,19 @@ def test_code_object_address_reuse_does_not_return_stale_frame() -> None:
         gc.collect()
         assert old_code() is None
 
+        # Freeing any other block of the code object's size, e.g. cyclic garbage collected above, can make the
+        # allocator hand that block out first. Keep allocating until the old address comes back.
         replacement_name = "new_dynamic_function"
-        replacement_function = make_function(replacement_name)
-        assert id(replacement_function.__code__) == old_address
+        candidates = [None] * 10_000
+        for i in range(len(candidates)):
+            code = template_code.replace(co_name=replacement_name, co_qualname=replacement_name)
+            if id(code) == old_address:
+                break
+            candidates[i] = code
+        else:
+            raise AssertionError("no code object reused the freed address")
+        del candidates
+        replacement_function = FunctionType(code, {"time": time})
         replacement_function(time.monotonic() + 0.3)
 
     ddup.upload()
@@ -1781,7 +1793,7 @@ def test_span_id_in_profile_after_fork() -> None:
             while time.monotonic() < end:
                 time.sleep(0.05)
 
-            bootstrap.profiler._profiler._scheduler.flush()  # type: ignore[attr-defined]
+            bootstrap.profiler._profiler._scheduler.flush()  # type: ignore[union-attr]
 
             child_output = pprof_prefix + "." + str(os.getpid())
             profile = pprof_utils.parse_newest_profile(child_output)
