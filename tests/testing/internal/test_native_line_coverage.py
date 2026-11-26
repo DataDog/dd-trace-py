@@ -777,6 +777,79 @@ def test_spawn_child_terminated_before_its_run(tmp_path) -> None:
     )
 
 
+_SIGTERM_HOOK_SOURCE = textwrap.dedent(
+    """\
+    import os
+    import signal
+
+
+    def on_sigterm(signum, frame):
+        open(os.environ["HOOK_SIGTERM"], "w").close()
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+
+    if os.environ.get("HOOK_SIGTERM") and signal.getsignal(signal.SIGTERM) == signal.SIG_DFL:
+        signal.signal(signal.SIGTERM, on_sigterm)
+    """
+)
+
+
+def test_spawn_child_terminated_before_its_run_keeps_startup_hook_handler(tmp_path) -> None:
+    """A start-up hook of a spawn child that handles SIGTERM only while the signal has its default
+    action still does, and still gets the signal when the child records its lines on SIGTERM.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "pkg" / "starting.py").write_text(_STARTING_SOURCE)
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "sitecustomize.py").write_text(_SIGTERM_HOOK_SOURCE)
+    _run_isolated(
+        f"""
+        import multiprocessing
+        import os
+        from pathlib import Path
+        import signal
+        import sys
+        import time
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        # After the bootstrap directory, as another tool's start-up hook would be.
+        os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [{str(hooks)!r}, os.environ.get("PYTHONPATH")]))
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        sys.path.insert(0, root)
+        from pkg import starting
+
+        def lines(bitmaps):
+            for path, bitmap in bitmaps:
+                if path == "/pkg/starting.py":
+                    return {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+            return set()
+
+        ready = os.path.join(root, "ready")
+        handled = os.path.join(root, "handled")
+        os.environ["STARTING_READY"] = ready
+        os.environ["HOOK_SIGTERM"] = handled
+        with coverage.coverage_collection() as data:
+            child = multiprocessing.get_context("spawn").Process(target=starting.target)
+            child.start()
+            deadline = time.monotonic() + 60
+            while not os.path.exists(ready) and time.monotonic() < deadline:
+                time.sleep(0.01)
+            child.terminate()
+            child.join(60)
+        assert child.exitcode == -signal.SIGTERM, child.exitcode
+        assert os.path.exists(handled)
+        assert lines(data.get_coverage_bitmaps(Path(root))) == {{1, 2, 5, 9, 10, 11, 12}}
+        coverage.uninstall_coverage()
+        """
+    )
+
+
 def test_exec_wrapper_behaves_like_exec() -> None:
     """The builtins.exec replacement passes module code to the callback, and is otherwise exec():
     same name, signature, documentation and pickling, and the caller's namespace without globals.
