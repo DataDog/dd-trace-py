@@ -1,5 +1,9 @@
 from itertools import chain
 import multiprocessing as mp
+import os
+import shutil
+import subprocess
+import sys
 
 import pytest
 
@@ -14,10 +18,8 @@ import threading
 import time
 
 from ddtrace._trace.span import Span
-from ddtrace.internal import forksafe
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
-from ddtrace.internal.native import seed
 
 
 def test_random():
@@ -96,7 +98,6 @@ def test_fork_no_pid_check():
 
 
 def _test_multiprocess_target(q):
-    assert sum(_ is seed for _ in forksafe._registry) == 1
     q.put([rand64bits() for _ in range(100)])
 
 
@@ -386,3 +387,107 @@ def test_uuid4_differs_across_fork():
     parent_values = {uuid4() for _ in range(64)}
     assert len(child_values) == 64
     assert not child_values & parent_values
+
+
+# Each scenario forks after the parent has drawn from the RNG, so a child that is not reseeded repeats the parent's
+# values. The reseed is native (a pthread_atfork handler in rand.rs), so no forksafe hook may be registered for it.
+_FORK_PRELUDE = """
+import os
+
+{imports}
+from ddtrace.internal import forksafe
+from ddtrace.internal.native import rand64bits
+from ddtrace.internal.native import seed
+
+assert not any(hook is seed for hook in forksafe._registry)
+
+
+def fork_and_draw():
+    rand64bits()
+    r, w = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.write(w, " ".join(str(rand64bits()) for _ in range(16)).encode())
+        os._exit(0)
+    os.close(w)
+    os.waitpid(pid, 0)
+    child_values = set(map(int, os.read(r, 4096).decode().split()))
+    parent_values = {{rand64bits() for _ in range(16)}}
+    assert len(child_values) == 16, child_values
+    assert not child_values & parent_values
+"""
+
+_FORK_SCENARIOS = {
+    "main-thread": """
+fork_and_draw()
+""",
+    # Only the forking thread survives in the child, and its RNG is the one the handler must reseed.
+    "thread": """
+import threading
+
+errors = []
+
+
+def target():
+    try:
+        fork_and_draw()
+    except BaseException as e:
+        errors.append(e)
+
+
+thread = threading.Thread(target=target)
+thread.start()
+thread.join()
+assert not errors, errors
+""",
+    "multiprocessing": """
+import multiprocessing
+
+
+def child(queue):
+    queue.put([rand64bits() for _ in range(16)])
+
+
+context = multiprocessing.get_context("fork")
+rand64bits()
+queue = context.SimpleQueue()
+processes = [context.Process(target=child, args=(queue,)) for _ in range(2)]
+for process in processes:
+    process.start()
+children = [set(queue.get()) for _ in processes]
+for process in processes:
+    process.join()
+    assert process.exitcode == 0, process.exitcode
+parent_values = {rand64bits() for _ in range(16)}
+assert all(len(values) == 16 for values in children), children
+assert not children[0] & children[1]
+assert not (children[0] | children[1]) & parent_values
+""",
+}
+
+
+@pytest.mark.parametrize("scenario", sorted(_FORK_SCENARIOS))
+@pytest.mark.parametrize(
+    "imports,ddtrace_run",
+    [
+        ("import ddtrace", False),
+        ("import ddtrace.auto", False),
+        ("import ddtrace.internal.native", False),
+        ("", True),
+    ],
+    ids=["ddtrace", "ddtrace.auto", "ddtrace.internal.native", "ddtrace-run"],
+)
+def test_child_is_reseeded_after_fork(imports, ddtrace_run, scenario):
+    """The child is reseeded however ddtrace is loaded and whichever thread forks, without a forksafe hook."""
+    code = _FORK_PRELUDE.format(imports=imports) + _FORK_SCENARIOS[scenario] + 'print("OK")\n'
+    command = [sys.executable, "-c", code]
+    if ddtrace_run:
+        executable = shutil.which("ddtrace-run", path=os.path.dirname(sys.executable))
+        if executable is None:
+            pytest.skip("ddtrace-run is not installed next to the interpreter")
+        command = [executable] + command
+
+    env = dict(os.environ, PYTHONWARNINGS="ignore::DeprecationWarning")
+    result = subprocess.run(command, capture_output=True, text=True, timeout=60, env=env)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().endswith("OK"), result.stdout
