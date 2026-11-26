@@ -47,11 +47,10 @@ PID = "process_id"
 
 # Sampling priorities: USER_REJECT (-1) and USER_KEEP (2) explicitly tell the backend to reject or keep a trace,
 # AUTO_REJECT (0) and AUTO_KEEP (1) are the builtin sampler's decisions. They are defined in
-# ddtrace.internal.constants, which needs them and must not import this public module.
+# ddtrace.internal.constants, which needs them and must not import this public module. So are the ENV_KEY and
+# VERSION_KEY tag keys, which the shared settings need.
 from ddtrace.internal.constants import AUTO_KEEP as AUTO_KEEP  # noqa: E402
 from ddtrace.internal.constants import AUTO_REJECT as AUTO_REJECT  # noqa: E402
-
-# Tag keys the shared settings need, defined in ddtrace.internal.constants for the same reason.
 from ddtrace.internal.constants import ENV_KEY as ENV_KEY  # noqa: E402
 from ddtrace.internal.constants import USER_KEEP as USER_KEEP  # noqa: E402
 from ddtrace.internal.constants import USER_REJECT as USER_REJECT  # noqa: E402
