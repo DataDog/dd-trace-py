@@ -8,6 +8,11 @@ started via multiprocessing.
 
 Inspired by the coverage.py multiprocessing support at
 https://github.com/nedbat/coveragepy/blob/401a63bf08bdfd780b662f64d2dfe3603f2584dd/coverage/multiproc.py
+
+Native line coverage (native_lines) replaces all of the above: start() names the context the process
+runs for on the Process object, and the child writes its lines to a record file when its run ends.
+A child forked from the test process does so in _bootstrap below; spawn and forkserver children,
+which start a fresh interpreter, through the child process start-up hook (child_bootstrap).
 """
 
 from collections import defaultdict
@@ -19,6 +24,7 @@ from pathlib import Path
 import pickle  # nosec: B403  -- pickle is only used to serialize coverage data from the child process to its parent
 import typing as t
 
+from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.context_state import _get_ctx_covered_lines
 from ddtrace.internal.coverage.context_state import ctx_coverage_enabled
@@ -32,6 +38,7 @@ log = get_logger(__name__)
 BaseProcess = multiprocessing.process.BaseProcess
 base_process_bootstrap = BaseProcess._bootstrap  # type: ignore[attr-defined]
 base_process_init = BaseProcess.__init__
+base_process_start = BaseProcess.start
 base_process_close = BaseProcess.close
 base_process_join = BaseProcess.join
 base_process_terminate = BaseProcess.terminate
@@ -103,6 +110,10 @@ class CoverageCollectingMultiprocess(BaseProcess):
         parent process. Context-based coverage is not used for processes started by this bootstrap because it is
         assumed that the parent process wants all coverage data from this child.
         """
+        native_record = getattr(self, "_dd_coverage_record", None)
+        if native_record is not None and native_lines.enabled():
+            return native_lines.run_forked_process(native_record, base_process_bootstrap, self, args, kwargs)
+
         # Install the module code collector
         if self._dd_coverage_enabled:
             # Inline the installer logic to avoid a circular import:
@@ -144,7 +155,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
         self._parent_ctx_covered = None
 
         # Only enable coverage in a child process being created if the parent process has coverage enabled
-        if ModuleCodeCollector.coverage_enabled():
+        if ModuleCodeCollector.coverage_enabled() and not native_lines.enabled():
             parent_conn, child_conn = multiprocessing.Pipe()
             self._parent_conn = parent_conn
             self._child_conn = child_conn
@@ -158,6 +169,14 @@ class CoverageCollectingMultiprocess(BaseProcess):
                 self._parent_ctx_covered = _get_ctx_covered_lines()
 
         base_process_init(self, *posargs, **kwargs)
+
+    def start(self):
+        if native_lines.enabled():
+            record = native_lines.process_record()
+            if record is not None:
+                # Pickled with the process for a spawn or forkserver child.
+                self._dd_coverage_record = record
+        return base_process_start(self)
 
     def join(self, *args, **kwargs):
         rval = base_process_join(self, *args, **kwargs)
@@ -219,6 +238,7 @@ def _patch_multiprocessing():
 
     multiprocessing.process.BaseProcess._bootstrap = CoverageCollectingMultiprocess._bootstrap
     multiprocessing.process.BaseProcess.__init__ = CoverageCollectingMultiprocess.__init__
+    multiprocessing.process.BaseProcess.start = CoverageCollectingMultiprocess.start
     multiprocessing.process.BaseProcess.close = CoverageCollectingMultiprocess.close
     multiprocessing.process.BaseProcess.join = CoverageCollectingMultiprocess.join
     multiprocessing.process.BaseProcess.kill = CoverageCollectingMultiprocess.kill
@@ -236,6 +256,9 @@ def _patch_multiprocessing():
         def get_preparation_data_with_stowaway(name: str) -> dict[str, t.Any]:
             """Make sure that the ModuleCodeCollector is installed as soon as possible, with the same include paths"""
             d = original_get_preparation_data(name)
+            if native_lines.enabled():
+                # The child process start-up hook records the child.
+                return d
             include_paths = (
                 [] if ModuleCodeCollector._instance is None else ModuleCodeCollector._instance._include_paths
             )
