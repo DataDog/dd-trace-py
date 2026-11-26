@@ -535,9 +535,13 @@ def test_remoteconfig_logs_injection_std_logger(ddtrace_run_python_code_in_subpr
         """
 import logging
 from ddtrace import config, tracer
-from ddtrace._logger import DD_LOG_FORMAT
 from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
 
+# The correlation fields (dd.service, dd.trace_id, ...) are filled in by the tracer's log injection.
+DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
+    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
+    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+)
 logging.basicConfig(format=DD_LOG_FORMAT, level=logging.CRITICAL)
 log = logging.getLogger()
 # Enable logs injection

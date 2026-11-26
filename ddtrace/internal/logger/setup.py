@@ -1,3 +1,5 @@
+"""Runtime setup of the `ddtrace` logger: handlers, levels and the native logger backend."""
+
 import logging
 from os import path
 import sys
@@ -14,11 +16,6 @@ if TYPE_CHECKING:
 
 
 log = get_logger(__name__)
-
-DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
-    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-)
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
