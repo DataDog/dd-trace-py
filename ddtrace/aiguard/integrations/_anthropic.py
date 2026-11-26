@@ -651,13 +651,24 @@ def _list_iterable_params(kwargs: dict[str, Any]) -> None:
     An error raised by a caller iterable reaches the caller, as it would from the SDK.
     """
     keys = ["messages", "system", "tools"]
-    if not _extra_body_overrides_mcp_servers(kwargs):
-        # Otherwise this param is never sent: leave it unread.
+    if _extra_body_overrides_mcp_servers(kwargs):
+        # The top-level param is then never sent: leave it unread. A new dict keeps the caller's extra_body intact.
+        servers = kwargs["extra_body"]["mcp_servers"]
+        listed = _listed(servers)
+        if listed is not servers:
+            kwargs["extra_body"] = {**kwargs["extra_body"], "mcp_servers": listed}
+    else:
         keys.append("mcp_servers")
     for key in keys:
-        value = kwargs.get(key)
-        if isinstance(value, Iterable) and not isinstance(value, (list, tuple, str, bytes, bytearray, Mapping)):
-            kwargs[key] = list(value)
+        if key in kwargs:
+            kwargs[key] = _listed(kwargs[key])
+
+
+def _listed(value: Any) -> Any:
+    """value as a list when it is an iterable that may only be read once, else value itself."""
+    if isinstance(value, Iterable) and not isinstance(value, (list, tuple, str, bytes, bytearray, Mapping)):
+        return list(value)
+    return value
 
 
 def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:

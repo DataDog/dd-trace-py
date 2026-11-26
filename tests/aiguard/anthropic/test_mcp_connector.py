@@ -452,16 +452,21 @@ def test_connector_rounds_keep_their_order():
 
 @needs_connector
 @pytest.mark.parametrize("declared", [None, [{"type": "url", "name": "deepwiki", "url": "https://other.example/mcp"}]])
+@pytest.mark.parametrize("servers", [list, iter])
 @patch(EXECUTE_REQUEST)
-def test_sdk_extra_body_mcp_servers(mock_execute_request, anthropic_sdk, declared):
+def test_sdk_extra_body_mcp_servers(mock_execute_request, anthropic_sdk, declared, servers):
     """Servers sent through extra_body, which the SDK merges over mcp_servers, are the ones referenced."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     transport = MessagesTransport([BODY])
     create = {key: value for key, value in CREATE.items() if key != "mcp_servers"}
     if declared is not None:
         create["mcp_servers"] = declared
+    extra_body = {"mcp_servers": servers([CONNECTOR])}
+    caller_servers = extra_body["mcp_servers"]
 
-    sync_client(anthropic_sdk, transport).beta.messages.create(extra_body={"mcp_servers": [CONNECTOR]}, **create)
+    sync_client(anthropic_sdk, transport).beta.messages.create(extra_body=extra_body, **create)
 
     assert transport.requests[0]["mcp_servers"] == [CONNECTOR]
     _assert_connector_evaluations(mock_execute_request)
+    # The caller's extra_body is not modified.
+    assert extra_body["mcp_servers"] is caller_servers
