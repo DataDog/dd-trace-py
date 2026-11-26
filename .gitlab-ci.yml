@@ -109,17 +109,17 @@ include:
   # Flask RealWorld macrobenchmarks on Speedlab (manual trial; runs next to the
   # existing benchmark jobs). `ref` and `speedlab_ref` must name the same Speedlab ref.
   - project: 'DataDog/apm-reliability/speedlab'
-    ref: 'fayssal/sdk-ci-python'
+    ref: 'fayssal/sdk-ci-dd-trace-py'
     file: '.gitlab/ci-sdk-python-flask-realworld.yml'
     inputs:
       stage: benchmarks
-      speedlab_ref: 'fayssal/sdk-ci-python'
+      speedlab_ref: 'fayssal/sdk-ci-dd-trace-py'
   - project: 'DataDog/apm-reliability/speedlab'
-    ref: 'fayssal/sdk-ci-python'
+    ref: 'fayssal/sdk-ci-dd-trace-py'
     file: '.gitlab/ci-sdk-python-flask-realworld-matrix.yml'
     inputs:
       stage: benchmarks
-      speedlab_ref: 'fayssal/sdk-ci-python'
+      speedlab_ref: 'fayssal/sdk-ci-dd-trace-py'
 
 "pipeline variables":
   stage: .pre
