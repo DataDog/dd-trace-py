@@ -20,6 +20,8 @@ VULN_SSRF = "SSRF"
 VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
 
 HEADER_NAME_VALUE_SEPARATOR = ": "
+# Longer values are redacted without running the value pattern, which bounds its CPU and memory.
+MAX_REDACTION_VALUE_LENGTH = 32_768
 
 MD5_DEF = "md5"
 SHA1_DEF = "sha1"
