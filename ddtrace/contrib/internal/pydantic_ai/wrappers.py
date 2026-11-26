@@ -73,6 +73,20 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
         ctx.event.request_kwargs["streamed_run_result"] = self.__wrapped__
         self._generator = None
 
+    def __getattribute__(self, name):
+        # Only advertise the stream methods the wrapped result has, so hasattr() feature detection
+        # keeps working across pydantic-ai versions.
+        if name in (
+            "stream",
+            "stream_text",
+            "stream_structured",
+            "stream_responses",
+            "stream_output",
+            "stream_response",
+        ):
+            getattr(self.__wrapped__, name)
+        return super().__getattribute__(name)
+
     def stream(self, *args, **kwargs):
         self._generator = TracedPydanticGenerator(self.__wrapped__.stream(*args, **kwargs), self._dd_ctx)
         return self._generator
@@ -88,6 +102,15 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
 
     def stream_responses(self, *args, **kwargs):
         self._generator = TracedPydanticGenerator(self.__wrapped__.stream_responses(*args, **kwargs), self._dd_ctx)
+        return self._generator
+
+    # 2.x removed stream, stream_structured and stream_responses in favor of these two.
+    def stream_output(self, *args, **kwargs):
+        self._generator = TracedPydanticGenerator(self.__wrapped__.stream_output(*args, **kwargs), self._dd_ctx)
+        return self._generator
+
+    def stream_response(self, *args, **kwargs):
+        self._generator = TracedPydanticGenerator(self.__wrapped__.stream_response(*args, **kwargs), self._dd_ctx)
         return self._generator
 
     async def get_output(self):

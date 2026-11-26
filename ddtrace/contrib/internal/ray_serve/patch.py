@@ -398,7 +398,7 @@ def traced_serve_deployment(func, instance, args, kwargs):
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"ray": ">=2.47.1"}
+    return {"ray": ">=2.48.0"}
 
 
 def patch(module) -> None:

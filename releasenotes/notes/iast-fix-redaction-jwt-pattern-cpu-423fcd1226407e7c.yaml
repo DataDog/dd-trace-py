@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Improves the performance of sensitive data redaction when a vulnerability is reported.

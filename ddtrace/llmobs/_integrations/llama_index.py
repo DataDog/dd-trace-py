@@ -231,7 +231,14 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             metrics=metrics,
         )
 
-    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+    def _set_apm_shadow_tags(
+        self,
+        span: _LLMObsSpan,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
         span_kind_map = {
             "": "llm",
             "llm": "llm",

@@ -77,6 +77,19 @@ def mock_evaluate_response(
     return _TransportResponse(mock_response)
 
 
+def mock_evaluate_policies_response(
+    action: str, reason: str = "", block: bool = True, policy: Optional[dict[str, Any]] = None
+) -> _TransportResponse:
+    """A 200 response of the policies evaluation endpoint, with the result for the first target."""
+    result: dict[str, Any] = {"target_index": 0, "action": action, "reason": reason, "is_blocking_enabled": block}
+    if policy is not None:
+        result["policy"] = policy
+    mock_response = Mock()
+    mock_response.status = 200
+    mock_response.get_json.return_value = {"data": {"attributes": {"results": [result]}}}
+    return _TransportResponse(mock_response)
+
+
 def assert_mock_execute_request_call(
     mock_execute_request,
     ai_guard_client: AIGuardClient,

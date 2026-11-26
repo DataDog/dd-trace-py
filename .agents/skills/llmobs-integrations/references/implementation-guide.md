@@ -42,7 +42,7 @@ Implement only the extraction helpers needed by the provider. Register exported 
 
 ## Patch lifecycle (`LlmRequestEvent`)
 
-Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/contrib/_events/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
+Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/internal/core/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
 
 Key points:
 - Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)`; the registered LLMObs integration tags the span through product subscribers, so contrib does not import LLMObs

@@ -5,6 +5,7 @@ from unittest.mock import patch as mock_patch
 import pytest
 
 from ddtrace.contrib.internal.bedrock_inference_profiles import _clear_inference_profile_cache
+from ddtrace.contrib.internal.botocore.services.bedrock import _extract_streamed_response_metadata
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -190,6 +191,40 @@ class TestLLMObsBedrock:
             test_spans,
             expected_metrics={"input_tokens": 18, "output_tokens": 51, "total_tokens": 69},
         )
+
+    def test_llmobs_amazon_nova_invoke_stream_token_usage(self, bedrock_client, bedrock_llmobs, test_spans):
+        # Nova streams report 0 tokens in amazon-bedrock-invocationMetrics; the real counts are in metadata.usage
+        body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": "Say hello world."}]}],
+            "inferenceConfig": {"maxTokens": 20, "temperature": 0},
+        }
+        with get_request_vcr().use_cassette("amazon_nova_invoke_stream.yaml"):
+            response = bedrock_client.invoke_model_with_response_stream(
+                body=json.dumps(body), modelId="us.amazon.nova-micro-v1:0"
+            )
+            for _ in response.get("body"):
+                pass
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
+        assert metrics["input_tokens"] == 4
+        assert metrics["output_tokens"] == 20
+        assert metrics["total_tokens"] == 24
+
+    @pytest.mark.parametrize("stream_metadata", [None, "unexpected", {"usage": None}])
+    def test_llmobs_invoke_stream_non_dict_metadata_keeps_invocation_metrics(self, stream_metadata):
+        request = {"model_provider": "amazon"}
+        streamed_body = [
+            {
+                "amazon-bedrock-invocationMetrics": {"inputTokenCount": 3, "outputTokenCount": 5},
+                "metadata": stream_metadata,
+            }
+        ]
+        result = _extract_streamed_response_metadata(request, streamed_body)
+        assert result["usage.prompt_tokens"] == 3
+        assert result["usage.completion_tokens"] == 5
+        assert request["usage"] == {"input_tokens": 3, "output_tokens": 5}
 
     def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(

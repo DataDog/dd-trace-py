@@ -7,7 +7,11 @@ Release notes are the primary product documentation a user sees when updating th
 Therefore, we must take care to ensure the quality of release notes.
 
 A release note entry should be included for every pull request that changes how a user interacts
-with the library.
+with the library. Release notes are written for customers upgrading the library; whether a change
+is customer-facing is a decision the author must make deliberately, not something CI can infer.
+
+If you are unsure, ask: "What would a customer notice after upgrading?" If the answer is "nothing",
+no release note is needed.
 
 A release note is **required** if a PR is user-impacting, or if it meets any of the following conditions:
 
@@ -15,12 +19,33 @@ A release note is **required** if a PR is user-impacting, or if it meets any of 
 * New feature
 * Bug fix
 * Deprecations
-* Dependency upgrades
+* Dependency upgrades that customers receive (for example a bundled native library such as libdatadog)
+* Behavior, performance, logging or telemetry changes that customers can observe, even when the PR
+  is a ``refactor``, ``chore`` or ``perf``
 
 Examples of when a release note is **not required** are:
 
 * CI chores (e.g., upgrade/pinning dependency versions to fix CI)
+* Test-only and documentation-only changes
 * Changes to internal API (Non-public facing, or not-yet released components/features)
+
+How the ``Validate changelog`` CI job treats each pull request title type:
+
+.. list-table::
+   :header-rows: 1
+
+   * - PR title type
+     - Release note
+   * - ``fix``, ``feat``
+     - Always required. The ``changelog/no-changelog`` label is rejected.
+   * - ``chore``, ``refactor``, ``perf`` and other types
+     - Add a release note, **or** explicitly opt out with the ``changelog/no-changelog`` label.
+       This requires a human to decide that the change has no customer-facing impact.
+   * - ``ci``, ``test``, ``docs``
+     - Neither a note nor the label is required. Add a note if the change is customer-facing.
+
+The PR title type must describe the change. Do not pick a type, or add the
+``changelog/no-changelog`` label, only to make CI pass.
 
 After you've written a release note by following this guide, commit it to your change branch and
 include it in your pull request.
