@@ -20,6 +20,7 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def pending_probe():
+    """An application thread probing the Agent, blocked inside /info until released."""
     entered = original_Event()
     release = original_Event()
     workers = []
@@ -29,20 +30,16 @@ def pending_probe():
         assert release.wait(5), "probe was not released"
         return {"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}
 
-    def make_thread(*args, **kwargs):
-        worker = Thread(*args, **kwargs)
-        workers.append(worker)
-        return worker
-
     with (
-        patch("ddtrace.aiguard._api_client.Thread", side_effect=make_thread),
         patch("ddtrace.internal.agent.info", side_effect=info) as mock_info,
         patch.object(agent_config, "trace_agent_url", "http://agent:8126"),
         patch.object(agent_config, "trace_agent_timeout_seconds", 5),
     ):
+        prober = Thread(target=_agent_route.resolve, name="test.aiguard.prober")
+        workers.append(prober)
         try:
-            _agent_route.start()
-            assert entered.wait(5), "background discovery did not start"
+            prober.start()
+            assert entered.wait(5), "discovery did not start"
             yield release, mock_info, workers
         finally:
             release.set()
@@ -104,25 +101,6 @@ def test_pending_discovery_wait_is_bounded(pending_probe):
     mock_info.assert_called_once_with(raise_on_404=True)
 
 
-def test_start_is_idempotent_until_reset(pending_probe):
-    release, mock_info, workers = pending_probe
-    for _ in range(10):
-        _agent_route.start()
-    assert len(workers) == 1
-    release.set()
-    assert _agent_route.resolve() == ("http://agent:8126", "")
-    for _ in range(10):
-        _agent_route.start()
-    assert len(workers) == 1
-    mock_info.assert_called_once_with(raise_on_404=True)
-
-    _agent_route.reset()
-    _agent_route.start()
-    assert _agent_route.resolve() == ("http://agent:8126", "")
-    assert len(workers) == 2
-    assert mock_info.call_count == 2
-
-
 @pytest.mark.parametrize("change", ["reset", "invalidate"])
 def test_state_change_wakes_waiters_and_discards_late_probe(pending_probe, change):
     release, _, workers = pending_probe
@@ -157,35 +135,24 @@ def test_state_change_wakes_waiters_and_discards_late_probe(pending_probe, chang
     assert _agent_route._base_url is None
 
 
-def test_start_can_retry_after_thread_creation_fails():
-    with patch("ddtrace.aiguard._api_client.Thread") as thread:
-        thread.return_value.start.side_effect = [RuntimeError("cannot start thread"), None]
-        with pytest.raises(RuntimeError, match="cannot start thread"):
-            _agent_route.start()
-        _agent_route.start()
-
-    assert thread.return_value.start.call_count == 2
-
-
-@pytest.mark.parametrize("error", [OSError("thread resources exhausted"), RuntimeError("cannot start thread")])
-def test_background_thread_failure_preserves_listener_installation(error):
+def test_keyless_setup_starts_no_discovery():
+    """Installing AI Guard sends nothing to the Agent: the first evaluation discovers the route."""
     with (
         override_global_config(dict(_dd_api_key="", _dd_app_key="")),
         override_ai_guard_config(dict(_ai_guard_enabled=True)),
         patch("ddtrace.aiguard._initialization._AI_GUARD_TO_BE_LOADED", True),
-        patch("ddtrace.aiguard._api_client.Thread") as thread,
         patch("ddtrace.aiguard._listener._openai_listen") as openai_listen,
         patch("ddtrace.aiguard._listener._anthropic_listen"),
         patch("ddtrace.aiguard._listener._langchain_listen"),
         patch("ddtrace.aiguard._listener.core.on"),
-        patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}),
+        patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}) as info,
         patch.object(agent_config, "trace_agent_url", "http://agent:8126"),
     ):
-        thread.return_value.start.side_effect = error
         load_ai_guard()
-        openai_listen.assert_called_once()
+        info.assert_not_called()
         client = openai_listen.call_args.args[0]
         assert client._transport.resolve_base_url() == "http://agent:8126"
+    info.assert_called_once_with(raise_on_404=True)
 
 
 @pytest.mark.parametrize("failure", [None, ConnectionFailedError("Agent unavailable")])

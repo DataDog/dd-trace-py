@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import json
 import re
+import threading
 from typing import Any
 from typing import Optional
 from typing import Protocol
@@ -46,6 +47,7 @@ from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
+from ddtrace.internal import threads
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.agent import AGENT_CHECK_INTERVAL
 from ddtrace.internal.http import HTTPConnection
@@ -61,8 +63,6 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
-from ddtrace.internal.threads import Thread
-from ddtrace.internal.threads import original_Event
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.time import HourGlass
 from ddtrace.version import __version__
@@ -1088,7 +1088,8 @@ class _AgentRouteDiscovery:
     """Process-wide discovery of the Agent AI Guard proxy route.
 
     The route can appear after startup, so absence is re-checked at most once per
-    AGENT_CHECK_INTERVAL; transient failures are retried by the next evaluation.
+    AGENT_CHECK_INTERVAL; transient failures are retried by the next evaluation. Probes run on
+    the evaluating application thread: concurrent evaluations share one probe.
     """
 
     def __init__(self) -> None:
@@ -1096,11 +1097,10 @@ class _AgentRouteDiscovery:
         self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
         self._base_url: Optional[str] = None
         self._generation = 0
-        self._pending: Optional[original_Event] = None
-        self._started = False
+        self._pending: Optional[threading.Event] = None
         self._reason = "the Agent has not been checked for the AI Guard proxy route yet"
 
-    def _probe(self, generation: int, completed: original_Event) -> None:
+    def _probe(self, generation: int, completed: threading.Event) -> None:
         """Check the Agent outside the lock; a stale generation discards the result."""
         unsupported = False
         base_url, reason = None, "the Agent /info endpoint could not be read"
@@ -1139,14 +1139,14 @@ class _AgentRouteDiscovery:
                 return None, self._reason
             probe = completed is None
             if completed is None:
-                completed = self._pending = forksafe.Event()
+                # The application's own Event: only application threads probe and wait.
+                completed = self._pending = threads.Event()
                 self._reason = "the Agent AI Guard proxy discovery is still in progress"
             generation = self._generation
 
         if probe:
             self._probe(generation, completed)
         else:
-            # Share the in-flight probe, bounded in case its thread is delayed.
             completed.wait(agent_config.trace_agent_timeout_seconds)
 
         with self._lock:
@@ -1159,7 +1159,6 @@ class _AgentRouteDiscovery:
             self._generation += 1
             self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
             completed, self._pending = self._pending, None
-            self._started = False
             self._reason = "the Agent has not been checked for the AI Guard proxy route yet"
         if completed is not None:
             completed.set()
@@ -1170,33 +1169,12 @@ class _AgentRouteDiscovery:
             self._base_url = None
             self._generation += 1
             completed, self._pending = self._pending, None
-            self._started = False
             self._reason = reason
             # A fresh glass: turn() on a running one flips it back and skips the delay.
             self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
             self._throttle.turn()
         if completed is not None:
             completed.set()
-
-    def start(self) -> None:
-        """Run the first check in the background, so a slow Agent cannot delay startup."""
-        with self._lock:
-            if self._started:
-                return
-            self._started = True
-            generation = self._generation
-
-        def discover() -> None:
-            self.resolve()
-
-        try:
-            thread = Thread(target=discover, name="ddtrace.aiguard.discovery")
-            thread.start()
-        except Exception:
-            with self._lock:
-                if generation == self._generation:
-                    self._started = False
-            raise
 
 
 _agent_route = _AgentRouteDiscovery()
@@ -1219,11 +1197,6 @@ def new_ai_guard_client(
         return AIGuardClient(endpoint, api_key, app_key)
 
     # Without both keys, the Agent proxies AI Guard with its own credentials. An endpoint override
-    # names a direct endpoint, so it does not apply. The route is resolved per evaluation, so an
-    # Agent that is not ready yet does not prevent setup.
-    try:
-        _agent_route.start()
-    except (OSError, RuntimeError):
-        # Evaluations can still discover the Agent synchronously.
-        logger.debug("Could not start AI Guard Agent discovery in the background", exc_info=True)
+    # names a direct endpoint, so it does not apply. The route is resolved on the first evaluation,
+    # so an Agent that is not ready yet does not prevent setup.
     return AIGuardClient(transport=_AgentTransport())
