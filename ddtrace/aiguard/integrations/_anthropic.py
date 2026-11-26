@@ -204,6 +204,14 @@ def _parts_from_content_blocks(blocks: Sequence[Any]) -> list[ContentPart]:
     return parts
 
 
+def _is_one_shot(content: Any, what: str) -> bool:
+    """Whether content is a one-shot iterator, which is left unread so the SDK still sends it (unevaluated)."""
+    if not isinstance(content, Iterator):
+        return False
+    _report_converter_error("AI Guard anthropic: one-shot iterator content not evaluated: %s" % what)
+    return True
+
+
 def _format_tool_result_block(block: Any) -> list[Message]:
     """Convert a user-side ``tool_result`` block to AI Guard tool message(s)."""
     tool_use_id = _get(block, "tool_use_id", "") or ""
@@ -215,9 +223,7 @@ def _format_tool_result_block(block: Any) -> list[Message]:
             msg["content"] = content
         return [msg]
 
-    if isinstance(content, Iterator):
-        # Reading a one-shot iterator would leave it empty for the SDK: send it intact, unevaluated.
-        _report_converter_error("AI Guard anthropic: tool result content is a one-shot iterator; not evaluated")
+    if _is_one_shot(content, "tool result"):
         return [msg]
 
     # tool_result.content is typed Iterable[...]: list tuples and other re-iterables.
@@ -256,6 +262,8 @@ def _format_server_tool_result_block(block: Any) -> Message:
 
     if block_type == "web_search_tool_result":
         results = _get(block, "content", []) or []
+        if _is_one_shot(results, "web search result"):
+            results = []
         parts = []
         for r in results:
             if _get(r, "type", "") == "web_search_result":
@@ -326,7 +334,7 @@ def _format_document_block(block: Any) -> list[ContentPart]:
         if isinstance(inner, str):
             if inner:
                 parts.append(ContentPart(type="text", text=inner))
-        else:
+        elif not _is_one_shot(inner, "document source"):
             if not isinstance(inner, (list, tuple)):
                 try:
                     inner = list(inner)

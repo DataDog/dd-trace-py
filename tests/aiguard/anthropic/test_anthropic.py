@@ -32,6 +32,17 @@ CHAT_MODEL = "claude-3-opus-20240229"
 CHAT_PARAMS = dict(model=CHAT_MODEL, max_tokens=256)
 
 
+class _RecordingClient:
+    """An AI Guard client that records the messages of its last evaluation."""
+
+    def __init__(self):
+        self.evaluated = None
+
+    def evaluate(self, messages, options, **kwargs):
+        self.evaluated = list(messages)
+        return None
+
+
 def _user_messages(content="Hello"):
     return [{"role": "user", "content": content}]
 
@@ -921,14 +932,6 @@ def test_before_hook_materializes_iterator_messages():
     so the SDK still sees the messages after AI Guard reads them.
     """
 
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
-
     def _gen():
         yield {"role": "user", "content": "Hello"}
 
@@ -943,14 +946,6 @@ def test_before_hook_materializes_iterator_messages():
 
 def test_before_hook_materializes_iterator_system():
     """Iterable system blocks are written back so the SDK receives them too."""
-
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
 
     def _system_blocks():
         yield {"type": "text", "text": "Be concise."}
@@ -970,14 +965,6 @@ def test_before_hook_materializes_iterator_system():
 
 def test_before_hook_reads_params_from_extra_body():
     """extra_body, which the SDK merges over the params, carries what is sent: the replaced params stay unread."""
-
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
 
     unsent = {
         "messages": iter([{"role": "user", "content": "Unsent"}]),
@@ -1000,6 +987,32 @@ def test_before_hook_reads_params_from_extra_body():
     }
     # The caller's extra_body is not modified.
     assert all(extra_body[key] is value for key, value in caller_extra_body.items())
+
+
+@pytest.mark.parametrize("in_extra_body", [False, True])
+def test_before_hook_leaves_one_shot_nested_content_unread(in_extra_body):
+    """One-shot document source and web search result content stays unread, so the SDK still sends it."""
+
+    source = iter([{"type": "text", "text": "Doc"}])
+    results = iter([{"type": "web_search_result", "title": "T", "url": "https://example.com"}])
+    messages = [
+        {"role": "assistant", "content": [{"type": "web_search_tool_result", "tool_use_id": "s1", "content": results}]},
+        {"role": "user", "content": [{"type": "document", "source": {"type": "content", "content": source}}]},
+    ]
+    kwargs = {"messages": [{"role": "user", "content": "Unsent"}], "extra_body": {"messages": messages}}
+    if not in_extra_body:
+        kwargs = {"messages": messages}
+
+    client = _RecordingClient()
+    _anthropic_messages_create_before(client, kwargs)
+
+    # Both blocks were converted, without their content.
+    assert client.evaluated == [
+        {"role": "tool", "tool_call_id": "s1"},
+        {"role": "user", "content": "[non-text document]"},
+    ]
+    assert next(source, None) is not None
+    assert next(results, None) is not None
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
@@ -1039,14 +1052,6 @@ def test_sdk_evaluates_extra_body_params(mock_execute_request, anthropic_sdk):
 def test_before_hook_evaluates_final_assistant_prefill():
     """Anthropic treats a final assistant message as response prefill, so it is request input."""
 
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
-
     client = _RecordingClient()
     kwargs = {
         "messages": [
@@ -1065,14 +1070,6 @@ def test_before_hook_evaluates_document_only_prompt():
     """APMSP-3286 regression: a document-only prompt must reach AI Guard
     instead of skipping evaluation entirely.
     """
-
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
 
     client = _RecordingClient()
     kwargs = {
