@@ -833,7 +833,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.19.0
+      max: 4.20.1
 
 - integration_name: pymysql
   is_external_package: true
