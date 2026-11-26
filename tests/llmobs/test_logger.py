@@ -9,7 +9,7 @@ from ddtrace.llmobs._log_writer import V2LogWriter
 
 @pytest.fixture
 def mock_logs():
-    with mock.patch("ddtrace.llmobs._log_writer.logger") as m:
+    with mock.patch("ddtrace.internal.logs.logger") as m:
         yield m
 
 

@@ -54,6 +54,7 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
         self._endpoint = urlsplit(intake_url).path.rstrip("/") + "/api/v2/logs"
         self._url = intake_url.rstrip("/") + "/api/v2/logs"
         self._headers = {"DD-API-KEY": api_key, "Content-Type": "application/json", "Content-Encoding": "gzip"}
+        logger.debug("started log writer to %r", self._url)
 
     def start(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().start(*args, **kwargs)
@@ -95,8 +96,11 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
             packs.append(current)
         return [("[%s]" % ",".join(pack), len(pack)) for pack in packs]
 
+    def _connect(self) -> t.Any:
+        return get_connection(self._intake_url, self._timeout)
+
     def _post(self, pack: str, count: int) -> None:
-        conn = get_connection(self._intake_url, self._timeout)
+        conn = self._connect()
         try:
             conn.request("POST", self._endpoint, gzip.compress(pack.encode("utf-8")), self._headers)
             resp = conn.getresponse()
