@@ -1410,7 +1410,9 @@ Logs
 
         Records are sent at least every 5 seconds and when the process exits normally, including
         ``multiprocessing`` workers that finish normally, such as ``Pool`` workers after
-        ``close()`` and ``join()``. Records not sent yet are lost when the process is ended by a
+        ``close()`` and ``join()``. The exit flush gives up after 1 second, so a slow or unreachable
+        intake delays the exit by at most that long, and records not sent by then are dropped.
+        Records not sent yet are lost when the process is ended by a
         signal such as ``SIGTERM`` or ``SIGKILL``, by ``os._exit()`` (for example an
         ``os.fork()`` child), by ``Pool.terminate()`` (which leaving a ``with Pool()`` block calls;
         use ``close()`` and ``join()`` to keep worker logs), or by a crash.

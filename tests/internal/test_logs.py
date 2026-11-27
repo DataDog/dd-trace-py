@@ -6,6 +6,7 @@ import contextlib
 import json
 import logging
 import os
+import signal
 import socket
 import time
 from typing import Any
@@ -734,3 +735,48 @@ if __name__ == "__main__":
 
     messages = [event["message"] for event in log_intake_receiver.events()]
     assert messages.count("from cloned process") == 1, messages
+
+
+def _run_against_unresponsive_intake(run, code: str, enabled: bool) -> tuple[int, float, Any]:
+    with unresponsive_intake() as url:
+        env = os.environ.copy()
+        env.update({"DD_API_KEY": "test-key", "DD_AGENTLESS_LOG_SUBMISSION_URL": url})
+        # A closed port, so the tracer's own shutdown flush fails fast.
+        env["DD_TRACE_AGENT_URL"] = "http://127.0.0.1:9"
+        env["DD_AGENTLESS_LOG_SUBMISSION_ENABLED"] = "true" if enabled else "false"
+        env.pop("DD_LOGS_OTEL_ENABLED", None)
+        start = time.monotonic()
+        _, err, status, _ = run(code, env=env)
+        return status, time.monotonic() - start, err
+
+
+def test_sigterm_with_unresponsive_intake_exits_promptly(ddtrace_run_python_code_in_subprocess):
+    """Pending logs must not delay a SIGTERM'd process: it exits as fast, and as SIGTERM'd, as with the feature off."""
+    code = """
+import logging
+import os
+import signal
+import time
+
+logging.getLogger("app").warning("pending")
+os.kill(os.getpid(), signal.SIGTERM)
+time.sleep(30)
+"""
+    off_status, off_elapsed, _ = _run_against_unresponsive_intake(ddtrace_run_python_code_in_subprocess, code, False)
+    on_status, on_elapsed, err = _run_against_unresponsive_intake(ddtrace_run_python_code_in_subprocess, code, True)
+    assert off_status == on_status == -signal.SIGTERM, err
+    assert on_elapsed < off_elapsed + 0.5, (on_elapsed, off_elapsed)
+
+
+def test_exit_with_unresponsive_intake_is_delayed_at_most_by_the_deadline(ddtrace_run_python_code_in_subprocess):
+    """A normal exit waits for the unresponsive intake no longer than the exit flush deadline."""
+    code = """
+import logging
+
+for _ in range(2500):
+    logging.getLogger("app").warning("pending")
+"""
+    off_status, off_elapsed, _ = _run_against_unresponsive_intake(ddtrace_run_python_code_in_subprocess, code, False)
+    on_status, on_elapsed, err = _run_against_unresponsive_intake(ddtrace_run_python_code_in_subprocess, code, True)
+    assert off_status == on_status == 0, err
+    assert on_elapsed < off_elapsed + LogsIntakeWriter._EXIT_FLUSH_SECONDS + 0.5, (on_elapsed, off_elapsed)
