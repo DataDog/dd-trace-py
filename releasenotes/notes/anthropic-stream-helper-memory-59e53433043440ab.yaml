@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    anthropic: Fixes an issue where streaming long responses with ``messages.stream()`` or
+    ``beta.messages.stream()`` causes excessive memory usage.
