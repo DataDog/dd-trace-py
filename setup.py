@@ -1923,9 +1923,18 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
             ),
+            # The msgpack headers live next to _msgpack, which moves to ddtrace-native with them.
+            # _encoding's trace encoders also compile against them.
             Extension(
                 "ddtrace.internal._encoding",
                 ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=[".", "ddtrace/internal/native"],
+                libraries=encoding_libraries,
+                define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
+            ),
+            Extension(
+                "ddtrace.internal.native._msgpack",
+                ["ddtrace/internal/native/_msgpack.pyx"],
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],

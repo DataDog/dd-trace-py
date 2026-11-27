@@ -25,11 +25,6 @@ NATIVE_DIR = ROOT / "src" / "native"
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 IMPORT_CALL = re.compile(r"\bimport(?:_bound)?\s*\(")
 
-# The packb import in span/wire.rs predates this check. The packer-split PR replaces it with the
-# sibling _msgpack import and deletes this entry; until then the check still flags every other
-# ddtrace import.
-ALLOWED_IMPORTS = frozenset({"ddtrace.internal._encoding"})
-
 
 def _blank_comment(match: re.Match[str]) -> str:
     # Keep the newlines so reported line numbers stay right.
@@ -69,7 +64,7 @@ def find_violations(root: Path = NATIVE_DIR) -> list[str]:
         source = COMMENT.sub(_blank_comment, path.read_text(encoding="utf-8"))
         for match in IMPORT_CALL.finditer(source):
             for literal in _argument_literals(source, match.end()):
-                if literal.startswith("ddtrace") and literal not in ALLOWED_IMPORTS:
+                if literal.startswith("ddtrace"):
                     line = source.count("\n", 0, match.start()) + 1
                     violations.append(f"{path.relative_to(ROOT)}:{line}: imports a ddtrace module")
                     break

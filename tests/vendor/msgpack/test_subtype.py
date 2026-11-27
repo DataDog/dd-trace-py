@@ -4,18 +4,18 @@ from collections import namedtuple
 
 from msgpack import unpackb
 
-from ddtrace.internal._encoding import packb
+from ddtrace.internal.native._msgpack import packb
 
 
-class MyList(list):
+class MyList(list[object]):
     pass
 
 
-class MyDict(dict):
+class MyDict(dict[object, object]):
     pass
 
 
-class MyTuple(tuple):
+class MyTuple(tuple[object, ...]):
     pass
 
 

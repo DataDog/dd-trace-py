@@ -6,10 +6,11 @@
 
 use pyo3::types::{
     PyAnyMethods as _, PyBytes, PyBytesMethods as _, PyDictMethods as _, PyListMethods as _,
-    PyString,
+    PyModule, PyModuleMethods as _, PyString, PyStringMethods as _,
 };
-use pyo3::{Bound, Py, PyAny, Python};
+use pyo3::{Bound, Py, PyAny, PyResult, Python};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use libdd_trace_utils::span::v04::{
     AttributeAnyValue, AttributeArrayValue, Span, SpanEvent, SpanLink,
@@ -61,17 +62,45 @@ fn wire_str(py: Python<'_>, s: PyBackedString) -> PyBackedString {
         .expect("a newly created PyString is valid UTF-8")
 }
 
-/// Cached once on first use: `ddtrace.internal._encoding.packb`.
-static PACKB: std::sync::OnceLock<Py<PyAny>> = std::sync::OnceLock::new();
+/// The full name of the msgpack module shipped next to this extension, set at module init.
+///
+/// The extension and `_msgpack` are siblings in one package: `ddtrace.internal.native` in
+/// dd-trace-py, `_ddtrace_native` in the ddtrace-native package. Deriving the package from the name
+/// this extension was imported under keeps both working without naming either one here.
+static MSGPACK_MODULE: OnceLock<String> = OnceLock::new();
 
-fn get_packb(py: Python<'_>) -> Option<&'static Py<PyAny>> {
+/// Cached on first successful use: `packb` from [`MSGPACK_MODULE`].
+static PACKB: OnceLock<Py<PyAny>> = OnceLock::new();
+
+/// Record the sibling msgpack module of `extension`, the module being initialized.
+///
+/// CPython initializes an extension module under its full dotted name, so `extension.__name__` is
+/// already `<package>._native`. An extension loaded as a top-level module gets a top-level
+/// `_msgpack`.
+pub(crate) fn init_msgpack_module(extension: &Bound<'_, PyModule>) -> PyResult<()> {
+    let name = extension.name()?;
+    let name = name.to_str()?;
+    let module = match name.rsplit_once('.') {
+        Some((package, _)) => format!("{package}._msgpack"),
+        None => "_msgpack".to_string(),
+    };
+    let _ = MSGPACK_MODULE.set(module);
+    Ok(())
+}
+
+/// Return the sibling `_msgpack.packb`, importing it on first use.
+///
+/// `TraceBuffer.__init__` calls this so that the import happens when the writer is built, not
+/// from `write()`: some sandboxes (e.g. Temporal) block imports after startup. A failed import is
+/// not cached, so a later call retries it.
+pub(crate) fn get_packb(py: Python<'_>) -> Option<&'static Py<PyAny>> {
     // OnceLock::get_or_try_init is unstable, so use get-then-set. A lost race just means two imports
     // of the same already-imported module, and `set` keeps the first winner.
     if let Some(f) = PACKB.get() {
         return Some(f);
     }
     let f = py
-        .import("ddtrace.internal._encoding")
+        .import(MSGPACK_MODULE.get()?.as_str())
         .and_then(|m| m.getattr("packb"))
         .map(|a| a.unbind())
         .ok()?;
@@ -97,7 +126,7 @@ fn log_meta_struct_drop(reason: &str) {
 /// `span.finish()` on an application thread, so an error raised from here escapes into user code.
 fn pack_meta_struct_value(py: Python<'_>, obj: &Bound<'_, PyAny>) -> Option<Bytes> {
     let Some(packb) = get_packb(py) else {
-        log_meta_struct_drop("ddtrace.internal._encoding.packb is unavailable");
+        log_meta_struct_drop("the sibling _msgpack.packb is unavailable");
         return None;
     };
     let packed = match packb.call1(py, (obj,)) {

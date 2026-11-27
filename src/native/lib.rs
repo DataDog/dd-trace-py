@@ -41,6 +41,8 @@ pub extern "C" fn ddtrace_force_export_for_windows() {}
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    span::wire::init_msgpack_module(m)?;
+
     #[cfg(feature = "stats")]
     {
         m.add_class::<ddsketch::DDSketchPy>()?;

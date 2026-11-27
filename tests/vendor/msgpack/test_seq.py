@@ -4,7 +4,7 @@ import io
 
 import msgpack
 
-from ddtrace.internal._encoding import Packer
+from ddtrace.internal.native._msgpack import Packer
 
 
 binarydata = bytes(bytearray(range(256)))
