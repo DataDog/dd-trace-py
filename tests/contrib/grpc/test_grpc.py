@@ -338,6 +338,9 @@ class GrpcTestCase(GrpcBaseTestCase):
             del responses_iterator
             gc.collect()
 
+        # The server span finishes asynchronously on the server pool thread, and the trace is only written
+        # once both spans finish. Stop the server so its handler has exited before reading spans.
+        self._stop_server()
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
         assert client_span.duration is not None
