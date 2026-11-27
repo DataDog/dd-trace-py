@@ -70,6 +70,10 @@ unwind_frame(EchionSampler& echion,
 
     auto result = UnwindResult::Unknown();
     size_t frames_probed_after_limit = 0;
+    bool is_generator_frame = false;
+    // An unreadable frame ends the chain (Frame::read returns no previous frame for it), but proves nothing
+    // about where the thread stack ends.
+    bool last_frame_is_invalid = false;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
         const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_STACK_UNWIND_SAFETY_LIMIT;
@@ -93,13 +97,15 @@ unwind_frame(EchionSampler& echion,
 #if PY_VERSION_HEX >= 0x030b0000
         auto maybe_frame = Frame::read(echion,
                                        reinterpret_cast<_PyInterpreterFrame*>(current_frame_addr),
-                                       reinterpret_cast<_PyInterpreterFrame**>(&current_frame_addr));
+                                       reinterpret_cast<_PyInterpreterFrame**>(&current_frame_addr),
+                                       &is_generator_frame);
 #else
-        auto maybe_frame = Frame::read(echion, current_frame_addr, &current_frame_addr);
+        auto maybe_frame = Frame::read(echion, current_frame_addr, &current_frame_addr, &is_generator_frame);
 #endif
         if (!maybe_frame) {
             return result;
         }
+        last_frame_is_invalid = &maybe_frame->get() == &INVALID_FRAME;
 
         if (maybe_frame->get().name == StringTable::C_FRAME) {
             continue;
@@ -118,9 +124,10 @@ unwind_frame(EchionSampler& echion,
         sampled_frame.is_in_gc = is_in_gc;
         stack.push_back(sampled_frame);
         result.frames_added++;
+        result.has_generator_frame |= is_generator_frame;
     }
 
-    if (detect_truncation) {
+    if (detect_truncation && !last_frame_is_invalid) {
         result.truncation = TruncationStatus::NotTruncated;
     }
     return result;

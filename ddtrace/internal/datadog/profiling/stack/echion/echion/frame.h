@@ -66,14 +66,18 @@ class Frame
       : name(name) {};
     [[nodiscard]] static Result<Frame::Ptr> create(EchionSampler& echion, PyCodeObject* code, int lasti);
 
+    // When is_generator_frame is not null, it is set to whether the frame at frame_addr belongs to a
+    // generator or coroutine, once that frame has been copied.
 #if PY_VERSION_HEX >= 0x030b0000
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(EchionSampler& echion,
                                                                     _PyInterpreterFrame* frame_addr,
-                                                                    _PyInterpreterFrame** prev_addr);
+                                                                    _PyInterpreterFrame** prev_addr,
+                                                                    bool* is_generator_frame);
 #else
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(EchionSampler& echion,
                                                                     PyObject* frame_addr,
-                                                                    PyObject** prev_addr);
+                                                                    PyObject** prev_addr,
+                                                                    bool* is_generator_frame);
 #endif
 
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(EchionSampler& echion,

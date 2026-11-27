@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where samples of a waiting asyncio task sometimes include frames from another
+    task running on the same thread.

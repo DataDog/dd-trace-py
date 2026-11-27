@@ -34,6 +34,8 @@ struct UnwindResult
 {
     size_t frames_added = 0;
     TruncationStatus truncation = TruncationStatus::Unknown;
+    // Whether a reported frame belongs to a generator or coroutine.
+    bool has_generator_frame = false;
 
     static UnwindResult Unknown() { return UnwindResult{ 0, TruncationStatus::Unknown }; }
 };
@@ -60,7 +62,7 @@ class EchionSampler;
 // seen_frames is cleared on entry.
 // Disabling detection always returns Unknown. With detection enabled, only a
 // reportable frame beyond the limit proves Truncated; reaching the end proves
-// NotTruncated. An incomplete probe (read failure, cycle, or safety limit) stays Unknown.
+// NotTruncated. An incomplete probe (read failure, unreadable frame, cycle, or safety limit) stays Unknown.
 UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,

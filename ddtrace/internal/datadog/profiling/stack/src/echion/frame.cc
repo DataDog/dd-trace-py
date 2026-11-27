@@ -77,10 +77,13 @@ Frame::key(PyCodeObject* code, int lasti, int firstlineno)
 // ------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 Result<std::reference_wrapper<Frame>>
-Frame::read(EchionSampler& echion, _PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
+Frame::read(EchionSampler& echion,
+            _PyInterpreterFrame* frame_addr,
+            _PyInterpreterFrame** prev_addr,
+            bool* is_generator_frame)
 #else
 Result<std::reference_wrapper<Frame>>
-Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
+Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr, bool* is_generator_frame)
 #endif
 {
     if (frame_addr == nullptr) {
@@ -109,6 +112,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
         }
     }
     frame_addr = &iframe;
+
+    if (is_generator_frame != nullptr) {
+        *is_generator_frame = frame_addr->owner == FRAME_OWNED_BY_GENERATOR;
+    }
 
 #if PY_VERSION_HEX >= 0x030c0000
     // _PyInterpreterFrame.owner is stored as char, not the _frameowner enum
@@ -222,6 +229,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     if (copy_type(frame_addr, py_frame)) {
         return ErrorKind::FrameError;
+    }
+
+    if (is_generator_frame != nullptr) {
+        *is_generator_frame = py_frame.f_gen != nullptr;
     }
 
     auto maybe_frame = Frame::get(echion, py_frame.f_code, py_frame.f_lasti);
