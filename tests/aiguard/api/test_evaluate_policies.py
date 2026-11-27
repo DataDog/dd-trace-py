@@ -11,6 +11,7 @@ from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import middleware
+from ddtrace.aiguard._api_client import _TransportResponse
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard.middleware import AIGuardMiddleware
 from ddtrace.aiguard.middleware import register_middleware
@@ -45,7 +46,7 @@ def _response(status=200, body=None, json_error=None):
         response.get_json.side_effect = json_error
     else:
         response.get_json.return_value = body
-    return response
+    return _TransportResponse(response)
 
 
 def _results(*results):
