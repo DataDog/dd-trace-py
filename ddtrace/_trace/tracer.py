@@ -1009,7 +1009,9 @@ class Tracer:
                     try:
                         to_send, to_throw = (yield item), None
                     except GeneratorExit:
-                        await agen.aclose()
+                        # Skip aclose when the inner generator is already running its own cleanup.
+                        if not getattr(agen, "ag_running", False):
+                            await agen.aclose()
                         raise
                     except BaseException as exc:
                         to_throw = exc
