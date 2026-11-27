@@ -272,7 +272,7 @@ def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
         if not style or style == _PROPAGATION_STYLE_NONE:
             continue
         if style not in PROPAGATION_STYLE_ALL:
-            log.warning("Unknown DD_TRACE_PROPAGATION_STYLE: {!r}, allowed values are %r", style, PROPAGATION_STYLE_ALL)
+            log.warning("Unknown DD_TRACE_PROPAGATION_STYLE: %r, allowed values are %r", style, PROPAGATION_STYLE_ALL)
             continue
         styles.append(style)
     return styles

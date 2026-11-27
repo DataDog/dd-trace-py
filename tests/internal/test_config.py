@@ -1,6 +1,9 @@
+import logging
+
 import pytest
 
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings._config import _parse_propagation_styles
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.settings.integration import IntegrationConfig
 from tests.utils import BaseTestCase
@@ -200,3 +203,14 @@ def test_x_datadog_tags(env, expected):
     with override_env(env):
         _ = Config()
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+
+
+def test_parse_propagation_styles_unknown_style_logs_warning(caplog):
+    with caplog.at_level(logging.WARNING, logger="ddtrace.internal.settings._config"):
+        styles = _parse_propagation_styles("datadog,not-a-style")
+
+    assert styles == ["datadog"]
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert message.startswith("Unknown DD_TRACE_PROPAGATION_STYLE: 'not-a-style', allowed values are ")
