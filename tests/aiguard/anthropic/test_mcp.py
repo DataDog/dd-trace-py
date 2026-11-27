@@ -42,6 +42,9 @@ from ddtrace.aiguard.integrations._mcp import stdio_program  # noqa: E402
 from ddtrace.internal import core  # noqa: E402
 from ddtrace.internal.span_bus import store_span_on_context  # noqa: E402
 from ddtrace.trace import tracer  # noqa: E402
+from tests.aiguard.anthropic.conftest import async_client  # noqa: E402
+from tests.aiguard.anthropic.conftest import payloads as _payloads  # noqa: E402
+from tests.aiguard.anthropic.conftest import sync_client  # noqa: E402
 from tests.aiguard.utils import mock_evaluate_response  # noqa: E402
 from tests.aiguard.utils import override_ai_guard_config  # noqa: E402
 
@@ -64,10 +67,6 @@ def _mcp_tool_def(name="echo"):
 
 def _call_result(text="echoed"):
     return mcp_types.CallToolResult(content=[mcp_types.TextContent(type="text", text=text)])
-
-
-def _payloads(mock_execute_request):
-    return [call.args[1]["data"]["attributes"] for call in mock_execute_request.call_args_list]
 
 
 def _tool_call_payloads(mock_execute_request):
@@ -364,9 +363,7 @@ async def test_mcp_disabled(mock_execute_request, anthropic_sdk):
             await tool.call({"text": "hi"})
 
             mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-            client = anthropic_sdk.Anthropic(
-                api_key="<not-a-real-key>", http_client=httpx.Client(transport=_Responses([_tool_use_body()]))
-            )
+            client = sync_client(anthropic_sdk, [_tool_use_body()])
             client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
 
     session.call_tool.assert_awaited_once()
@@ -409,60 +406,6 @@ def _text_body():
     }
 
 
-def _sse(event, data):
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
-
-
-def _stream_body(body):
-    """The SSE events that stream a non-streaming message body (text and tool_use blocks)."""
-    start = dict(body, content=[], stop_reason=None)
-    events = [_sse("message_start", {"type": "message_start", "message": start})]
-    for index, block in enumerate(body["content"]):
-        if block["type"] == "text":
-            empty, delta = {"type": "text", "text": ""}, {"type": "text_delta", "text": block["text"]}
-        else:
-            empty = dict(block, input={})
-            delta = {"type": "input_json_delta", "partial_json": json.dumps(block["input"])}
-        events.append(
-            _sse("content_block_start", {"type": "content_block_start", "index": index, "content_block": empty})
-        )
-        events.append(_sse("content_block_delta", {"type": "content_block_delta", "index": index, "delta": delta}))
-        events.append(_sse("content_block_stop", {"type": "content_block_stop", "index": index}))
-    message_delta = {"stop_reason": body["stop_reason"], "stop_sequence": None}
-    events.append(
-        _sse("message_delta", {"type": "message_delta", "delta": message_delta, "usage": {"output_tokens": 1}})
-    )
-    events.append(_sse("message_stop", {"type": "message_stop"}))
-    return b"".join(events)
-
-
-class _Responses(httpx.BaseTransport, httpx.AsyncBaseTransport):
-    """Anthropic API mock returning the given message bodies in order, streamed when the request asks."""
-
-    def __init__(self, bodies):
-        self._bodies = list(bodies)
-
-    def _response(self, request):
-        body = self._bodies.pop(0)
-        if json.loads(request.content).get("stream"):
-            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_stream_body(body))
-        return httpx.Response(200, headers={"content-type": "application/json"}, content=json.dumps(body).encode())
-
-    def handle_request(self, request):
-        return self._response(request)
-
-    async def handle_async_request(self, request):
-        return self._response(request)
-
-
-def _sync_client(sdk, bodies):
-    return sdk.Anthropic(api_key="<not-a-real-key>", http_client=httpx.Client(transport=_Responses(bodies)))
-
-
-def _async_client(sdk, bodies):
-    return sdk.AsyncAnthropic(api_key="<not-a-real-key>", http_client=httpx.AsyncClient(transport=_Responses(bodies)))
-
-
 def _assert_single_mcp_check(mock_execute_request):
     (payload,) = _tool_call_payloads(mock_execute_request)
     tool_call = payload["messages"][-1]["tool_calls"][0]
@@ -478,7 +421,7 @@ async def test_create_then_call_is_evaluated_once(mock_execute_request, anthropi
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
         ordinary = {"name": "get_time", "description": "Time", "input_schema": {"type": "object"}}
-        client = _sync_client(anthropic_sdk, [_tool_use_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body()])
         response = client.beta.messages.create(
             model=MODEL, max_tokens=64, messages=_USER, tools=[ordinary, tool.to_dict()]
         )
@@ -502,7 +445,7 @@ async def test_unconsumed_evaluation_does_not_spare_another_context(mock_execute
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body()])
         response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
         assert mock_execute_request.call_count == 2
 
@@ -522,7 +465,7 @@ async def test_next_response_replaces_unconsumed_evaluations(mock_execute_reques
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         create = dict(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
         response = client.beta.messages.create(**create)
         client.beta.messages.create(**create)
@@ -539,7 +482,7 @@ async def test_evaluations_are_scoped_to_the_root_span(mock_execute_request, ant
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body()])
         with tracer.trace("request.one"):
             response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
             if same_root:
@@ -557,7 +500,7 @@ async def test_request_without_mcp_tools_keeps_the_marks(mock_execute_request, a
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
         client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER)
         await tool.call(response.content[0].input)
@@ -582,7 +525,7 @@ async def test_middleware_skipped_response_does_not_spare_the_call(mock_execute_
     try:
         async with _remote_session() as session:
             tool = async_mcp_tool(_mcp_tool_def(), session)
-            client = _sync_client(anthropic_sdk, [_tool_use_body()])
+            client = sync_client(anthropic_sdk, [_tool_use_body()])
             response = client.beta.messages.create(
                 model=MODEL, max_tokens=64, messages=[{"role": "user", "content": "x"}], tools=[tool.to_dict()]
             )
@@ -607,7 +550,7 @@ async def test_history_tool_calls_carry_mcp_metadata(mock_execute_request, anthr
             {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_2", "name": "other", "input": {}}]},
             {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_2", "content": "x"}]},
         ]
-        client = _sync_client(anthropic_sdk, [_text_body()])
+        client = sync_client(anthropic_sdk, [_text_body()])
         ordinary = {"name": "other", "description": "Other", "input_schema": {"type": "object"}}
         client.beta.messages.create(model=MODEL, max_tokens=64, messages=history, tools=[tool.to_dict(), ordinary])
 
@@ -617,12 +560,45 @@ async def test_history_tool_calls_carry_mcp_metadata(mock_execute_request, anthr
     assert before["mcp_servers"] == [_remote_server()]
 
 
+@pytest.mark.parametrize(
+    "connector_url", ["https://docs.example.com/mcp", REMOTE_ORIGIN + "/connector"], ids=["other_origin", "same_origin"]
+)
+@patch(EXECUTE_REQUEST)
+async def test_connector_call_named_like_a_client_tool(mock_execute_request, anthropic_sdk, connector_url):
+    """An MCP connector call named like a client-managed tool keeps its server and spares no call of that tool.
+
+    On the same origin both servers share an ID, so only the call's provenance tells them apart.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    connector = {"type": "url", "name": "docs", "url": connector_url}
+    call = {"type": "mcp_tool_use", "id": "mcptoolu_1", "name": "echo", "server_name": "docs", "input": {"text": "hi"}}
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = sync_client(anthropic_sdk, [dict(_text_body(), content=[call])])
+        client.beta.messages.create(
+            model=MODEL,
+            max_tokens=64,
+            messages=_USER,
+            tools=[tool.to_dict()],
+            mcp_servers=[connector],
+            betas=["mcp-client-2025-11-20"],
+        )
+        await tool.call({"text": "hi"})
+
+    session.call_tool.assert_awaited_once()
+    _, after, direct = _payloads(mock_execute_request)
+    connector_id = mcp_server_id(url=connector_url.rsplit("/", 1)[0])
+    assert after["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": connector_id}
+    assert [(server["id"], server["managed_by"]) for server in after["mcp_servers"]] == [(connector_id, "provider")]
+    _assert_direct_call(direct, _remote_server())
+
+
 @patch(EXECUTE_REQUEST)
 async def test_response_block_prevents_tools_call(mock_execute_request, anthropic_sdk_buffered):
     mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
         with pytest.raises(AIGuardAbortError):
             async for _ in runner:
@@ -633,7 +609,7 @@ async def test_response_block_prevents_tools_call(mock_execute_request, anthropi
 @patch(EXECUTE_REQUEST)
 async def test_ordinary_tools_unchanged(mock_execute_request, anthropic_sdk):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    client = _sync_client(anthropic_sdk, [_tool_use_body(name="get_time")])
+    client = sync_client(anthropic_sdk, [_tool_use_body(name="get_time")])
     ordinary = {"name": "get_time", "description": "Time", "input_schema": {"type": "object"}}
     client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[ordinary])
 
@@ -647,7 +623,7 @@ async def test_sync_tool_runner(mock_execute_request, anthropic_sdk):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool])
         await anyio.to_thread.run_sync(lambda: list(runner))
 
@@ -660,7 +636,7 @@ async def test_async_tool_runner(mock_execute_request, anthropic_sdk):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool])
         async for _ in runner:
             pass
@@ -674,7 +650,7 @@ async def test_async_tool_runner_block(mock_execute_request, anthropic_sdk):
     mock_execute_request.return_value = mock_evaluate_response("DENY")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool])
         with pytest.raises(AIGuardAbortError):
             async for _ in runner:
@@ -691,7 +667,7 @@ async def test_async_streaming_tool_runner(mock_execute_request, request, buffer
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(sdk, [_tool_use_body(), _text_body()])
+        client = async_client(sdk, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
         async for stream in runner:
             await stream.get_final_message()
@@ -710,7 +686,7 @@ async def test_sync_streaming_tool_runner(mock_execute_request, anthropic_sdk):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
 
         def run():
@@ -736,7 +712,7 @@ async def test_async_buffered_streaming_runner_in_web_request(mock_execute_reque
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
         with _web_request():
             runner = client.beta.messages.tool_runner(
                 model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True
@@ -755,7 +731,7 @@ async def test_sync_buffered_streaming_runner(mock_execute_request, anthropic_sd
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
+        client = sync_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
 
         def run():
             with _web_request() if web_request else contextlib.nullcontext():
@@ -777,7 +753,7 @@ async def test_create_then_call_in_web_request(mock_execute_request, anthropic_s
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body()])
         with _web_request():
             response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
             await tool.call(response.content[0].input)
@@ -793,7 +769,7 @@ async def test_sibling_tasks_do_not_consume_each_others_evaluations(mock_execute
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body(), _tool_use_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body(), _tool_use_body()])
         create = dict(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
         response = client.beta.messages.create(**create)
         sibling_evaluated = asyncio.Event()
@@ -820,7 +796,7 @@ async def test_parse_ends_the_previous_operation(mock_execute_request, anthropic
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
         client.beta.messages.parse(model=MODEL, max_tokens=64, messages=_USER)
         await tool.call(response.content[0].input)
@@ -852,7 +828,7 @@ async def test_iterable_tools_param(mock_execute_request, anthropic_sdk):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session() as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _sync_client(anthropic_sdk, [_tool_use_body()])
+        client = sync_client(anthropic_sdk, [_tool_use_body()])
         response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=iter([tool.to_dict()]))
         await tool.call(response.content[0].input)
 
@@ -966,7 +942,7 @@ async def test_unidentified_server_tool_runner_block(mock_execute_request, anthr
     mock_execute_request.return_value = mock_evaluate_response("DENY")
     async with _remote_session(url) as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool])
         with pytest.raises(AIGuardAbortError):
             async for _ in runner:
@@ -984,7 +960,7 @@ async def test_unidentified_server_streaming_tool_runner_block(mock_execute_requ
     mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
     async with _remote_session(url) as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
         with pytest.raises(AIGuardAbortError):
             async for stream in runner:
@@ -1002,7 +978,7 @@ async def test_unidentified_server_buffered_response_is_evaluated_once(mock_exec
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     async with _remote_session(UNIDENTIFIED_URLS[0]) as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
         async for stream in runner:
             await stream.get_final_message()
@@ -1018,7 +994,7 @@ async def test_unidentified_server_response_block_prevents_tools_call(mock_execu
     mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
     async with _remote_session(UNIDENTIFIED_URLS[0]) as session:
         tool = async_mcp_tool(_mcp_tool_def(), session)
-        client = _async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
+        client = async_client(anthropic_sdk_buffered, [_tool_use_body(), _text_body()])
         runner = client.beta.messages.tool_runner(model=MODEL, max_tokens=64, messages=_USER, tools=[tool], stream=True)
         with pytest.raises(AIGuardAbortError):
             async for _ in runner:
