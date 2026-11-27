@@ -528,6 +528,7 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.requests",
         "ddtrace.contrib.pyramid",
         "ddtrace.contrib.ray",
+        "ddtrace.contrib.temporal",
     }
 
 
