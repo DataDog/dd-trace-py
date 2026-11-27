@@ -14,6 +14,8 @@ import agents
 from ddtrace import config
 from ddtrace.contrib.internal.openai_agents._constants import COMPONENT
 from ddtrace.contrib.internal.openai_agents._constants import RUN_SINGLE_TURN_EVENT
+from ddtrace.contrib.internal.openai_agents._realtime import patch_realtime
+from ddtrace.contrib.internal.openai_agents._realtime import unpatch_realtime
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
@@ -248,6 +250,7 @@ def patch():
 
     # The spans of this integration come from LLMObs' trace processor, which the hook adds.
     integration_hooks.on_patch(COMPONENT)
+    patch_realtime()
 
     if _has_module_level_run_loop():
         for module_path, attr_name, wrapper in _MODULE_RUN_LOOP_WRAP_TARGETS:
@@ -275,6 +278,7 @@ def unpatch():
 
     agents._datadog_patch = False
 
+    unpatch_realtime()
     integration_hooks.on_unpatch(COMPONENT)
 
     if _has_module_level_run_loop():

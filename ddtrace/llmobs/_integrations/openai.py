@@ -18,6 +18,7 @@ from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
@@ -52,6 +53,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_attribute(COMPONENT, self.integration_config.integration_name)
         span._set_attribute("openai.request.provider", provider_name(self._base_url(span) or ""))
         return span
+
+    def realtime_audio_format(self, audio_format: Any) -> str:
+        """Interpret a transport's format using the shared Realtime codec contract."""
+        return realtime_audio_format_to_mime(audio_format)
 
     def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: the openai integration sets the OpenAI APM tags."""

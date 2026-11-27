@@ -1126,13 +1126,16 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     input_tokens = _get_attr(usage, "input_tokens", None)
     output_tokens = _get_attr(usage, "output_tokens", None)
     total_tokens = _get_attr(usage, "total_tokens", None)
+    input_tokens = input_tokens if _valid_token_count(input_tokens) else None
+    output_tokens = output_tokens if _valid_token_count(output_tokens) else None
+    total_tokens = total_tokens if _valid_token_count(total_tokens) else None
     if input_tokens is not None:
         metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
     if output_tokens is not None:
         metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if total_tokens is None and input_tokens is not None and output_tokens is not None:
         total_tokens = input_tokens + output_tokens  # mirror the chat/responses fallback
-    if total_tokens is not None:
+    if _valid_token_count(total_tokens):
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
 
     # Modality and cached counts are subsets of the totals, not additional tokens.
@@ -1151,7 +1154,7 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
         ("cache_text_read_tokens", _get_attr(cached_details, "text_tokens", None)),
         ("cache_image_read_tokens", _get_attr(cached_details, "image_tokens", None)),
     ):
-        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        if _valid_token_count(value):
             metrics[key] = value
     return metrics or None
 
@@ -1223,4 +1226,19 @@ def _segment_duration_ns(decoded_bytes: int, mime: str, sample_rate: int) -> Opt
     bytes_per_second = _bytes_per_second(mime, sample_rate)
     if not bytes_per_second:
         return None
-    return int(decoded_bytes / bytes_per_second * 1_000_000_000)
+    return decoded_bytes * 1_000_000_000 // bytes_per_second
+
+
+def _valid_token_count(value: Any) -> bool:
+    return type(value) is int and 0 <= value <= (1 << 53) - 1
+
+
+def _encoded_realtime_audio_size(decoded_bytes: int, mime: str) -> Optional[int]:
+    """Bound the eventual inline WAV, including its header and base64 encoding."""
+    if is_pcm16_audio_mime(mime):
+        pcm_bytes = decoded_bytes
+    elif g711_variant(mime) is not None:
+        pcm_bytes = decoded_bytes * 2
+    else:
+        return None
+    return 4 * ((pcm_bytes + 44 + 2) // 3)

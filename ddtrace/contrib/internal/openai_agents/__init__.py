@@ -17,6 +17,42 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI
     patch(openai_agents=True)
 
 
+Realtime agents
+~~~~~~~~~~~~~~~
+
+Realtime WebSocket conversations are instrumented independently of the SDK's provider tracing.
+Realtime support requires ``openai-agents>=0.2.0`` and ``websockets>=14.0``; attaching to a SIP or WebRTC call through
+``call_id`` requires ``openai-agents>=0.5.0``. Older non-Realtime Agents versions remain supported.
+Enable LLM Observability to capture one workflow per turn, with model generation and speech
+windows, transcripts, audio, tools, and provider-reported token usage.
+Realtime span capture does not automatically evaluate or block Realtime turns through AI Guard;
+OpenAI Chat/Responses and Agents MCP tool evaluations use their separate AI Guard hooks.
+
+On call attachments, server playback events determine the agent speech window. Audio is retrieved
+from stored conversation items, preferring requests already made by the SDK or application.
+Additional retrieval is enabled by default. Successful retrieval events remain visible to application listeners. Set
+``DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED=false`` to disable additional audio requests;
+passive observation of existing retrieval replies continues. Set ``DD_OPENAI_REALTIME_ENABLED=false``
+to disable Realtime instrumentation while retaining ordinary Agents instrumentation.
+
+Additional requests require a known byte bound that fits the connection's message limit and
+inline audio budget. Otherwise, transcripts and timing are kept without requesting the clip.
+Provider audio offsets, acknowledged truncation, and reported output audio usage can supply bounds;
+network arrival spacing cannot. Output usage bounds account for playback speed. Missing output recordings
+are marked with ``output_audio_capture=omitted`` in span metadata. Successful replies remain unchanged and can add audio to ``RealtimeSession`` history
+for the session's lifetime. Disable additional retrieval to avoid that extra history retention.
+
+Text output records the model's generated response, including content beyond an interruption.
+Recorded audio is independently capped to acknowledged playback, so it can be shorter than the text.
+Shortened conversation snapshots do not replace the generated transcript.
+
+Retained turns and retrieved audio are bounded. Recordings that are incomplete, malformed, too
+large, or have inconsistent audio formats are omitted while available transcripts are retained. The integration
+tracks at most 16 turns and 256 stored items, with a 12 MiB budget for retained encoded retrieved
+audio and rebuilt clips. This budget excludes SDK history, parsed messages, temporary audio conversion buffers,
+exported span payloads, and total process memory. Audio and transcription waits expire, and
+at most two additional retrieval sends are in flight, and connection termination cancels outstanding work.
+
 Configuration
 ~~~~~~~~~~~~~
 

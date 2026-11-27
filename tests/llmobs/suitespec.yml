@@ -42,6 +42,7 @@ components:
     - ddtrace/contrib/internal/crewai/*
   openai_agents:
     - ddtrace/contrib/internal/openai_agents/*
+    - ddtrace/contrib/_events/openai_agents_realtime.py
   pydantic_ai:
     - ddtrace/contrib/internal/pydantic_ai/*
   vllm:
@@ -471,10 +472,11 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==8.3.0']
   openai_agents:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@openai_agents'
+      - '@openai'
       - '@llmobs'
       - tests/contrib/openai_agents/*
       - tests/snapshots/tests.contrib.openai_agents.*
@@ -501,6 +503,18 @@ suites:
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
+        - name: openai_agents
+          python: ['3.10', '3.12']
+          dependencies: [vcrpy, pytest-asyncio, 'openai==1.93.1', 'openai-agents==0.2.0', 'websockets==14.0']
+        - name: openai_agents
+          python: ['3.10', '3.12']
+          dependencies: [vcrpy, pytest-asyncio, 'openai==2.7.1', 'openai-agents==0.5.0', 'websockets==14.0']
+        - name: openai_agents
+          python: ['3.10', '3.12']
+          dependencies: [vcrpy, pytest-asyncio, 'openai-agents==0.19.3']
+        - name: openai_agents
+          python: ['3.10', '3.12', '3.14']
+          dependencies: [vcrpy, pytest-asyncio, 'openai-agents==0.24.0']
   pydantic_ai:
     venvs_per_job: 8
     paths:

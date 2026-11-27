@@ -4,11 +4,13 @@ from typing import Optional
 from agents.tracing import add_trace_processor
 
 from ddtrace import config
+from ddtrace.contrib._events.openai_agents_realtime import OpenAIAgentsRealtimeSessionEvent
 from ddtrace.contrib.internal.openai_agents._constants import RUN_SINGLE_TURN_EVENT
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._contrib.openai_agents._processor import LLMObsTraceProcessor
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
+from ddtrace.llmobs._integrations.openai_agents_realtime import _AgentsRealtimeState
 
 
 log = get_logger(__name__)
@@ -28,6 +30,11 @@ def _on_run_single_turn(span: Any, args: list[Any], kwargs: dict[str, Any]) -> N
         log.debug("openai_agents tag_agent_manifest failed", exc_info=True)
 
 
+def _on_realtime_session(event: OpenAIAgentsRealtimeSessionEvent) -> None:
+    if _integration is not None and _integration.llmobs_enabled:
+        event.observer = _AgentsRealtimeState(_integration.realtime_integration(), event.url, event.model, event.owner)
+
+
 def listen() -> None:
     global _integration
     # The SDK cannot remove a trace processor, so each patch adds one; a processor only
@@ -35,7 +42,9 @@ def listen() -> None:
     _integration = OpenAIAgentsIntegration(integration_config=config.openai_agents)
     add_trace_processor(LLMObsTraceProcessor(_integration))
     core.on(RUN_SINGLE_TURN_EVENT, _on_run_single_turn)
+    core.on(OpenAIAgentsRealtimeSessionEvent.event_name, _on_realtime_session)
 
 
 def unlisten() -> None:
     core.reset_listeners(RUN_SINGLE_TURN_EVENT, _on_run_single_turn)
+    core.reset_listeners(OpenAIAgentsRealtimeSessionEvent.event_name, _on_realtime_session)

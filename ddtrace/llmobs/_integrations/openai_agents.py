@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
 from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
@@ -35,6 +36,10 @@ from ddtrace.llmobs._utils import safe_json
 logger = get_logger(__name__)
 
 
+class _AgentsRealtimeOpenAIIntegration(OpenAIIntegration):
+    _integration_name = "openai_agents"
+
+
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
 
@@ -45,6 +50,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of OpenAI trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
+
+    def realtime_integration(self) -> OpenAIIntegration:
+        """Reuse provider extraction while attributing spans to the Agents integration."""
+        return _AgentsRealtimeOpenAIIntegration(self.integration_config)
 
     def _set_base_span_tags(self, span: _LLMObsSpan, **kwargs: Any) -> None:
         """Nothing to do: spans are tagged from the OpenAI span or trace they mirror."""
