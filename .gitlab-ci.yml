@@ -84,7 +84,7 @@ workflow:
 
 include:
   - project: 'ddoghq/llm-validation-platform'
-    ref: 68250345c9e358d4345545516f4c180e0370eb76  # v0.1.5
+    ref: 745818b5d65805d5852b07cbdf4d09c29b3da6c9  # v0.1.6
     file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/retry-policies.yml"
@@ -989,5 +989,19 @@ publishing-gate:
   variables:
     LLMVAL_PLATFORM_PROJECT: "ddoghq/llm-validation-platform"  # canonical mirror; the DataDog/ mirror is stale (frozen ~v0.1.1)
     LLMVAL_BASE_REF: "main"
-    LLMVAL_PLATFORM_REF: "68250345c9e358d4345545516f4c180e0370eb76"  # v0.1.5 (keep identical to the include ref above)
+    LLMVAL_PLATFORM_REF: "745818b5d65805d5852b07cbdf4d09c29b3da6c9"  # v0.1.6 (keep identical to the include ref above)
+
+# A GitLab monthly schedule selects setup-full and sets LLMVAL_SETUP_ENABLED=true.
+# Other pipelines can opt in with the same enable flag.
+"llm validation (setup smoke)":
+  allow_failure: true
+  variables:
+    LLMVAL_SETUP_PRESET: "setup-calibration"
+  rules:
+    - if: '$LLMVAL_SETUP_ENABLED == "true"'
+      when: on_success
+    - when: never
+  artifacts:
+    # Retain the shared setup artifact paths and preserve monthly evidence for a year.
+    expire_in: 13 mos
 
