@@ -11,7 +11,7 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 |----------|-----------|-----------|-------|
 | cache | `redis/patch.py` | `pymemcache/patch.py` | Key-value stores, `cache.*` span tags, uses Pin + `context_with_data` via redis_utils |
 | cloud-provider | `botocore/patch.py` | `google_genai/patch.py` | AWS services via botocore (Pin + `context_with_data`), GCP via google libs (LLM pattern) |
-| database | `psycopg/patch.py` | `mysql/patch.py` | SQL clients, `db.*` span tags, DBM support, uses Pin + dbapi helpers |
+| database | `asyncpg/patch.py` | `mysql/patch.py`, `aiomysql/patch.py` | Shared `DatabaseOperationEvent` and tracing-owned database subscriber; sync/async DB-API wrappers share the lifecycle and optional query preparation |
 | faas | `aws_lambda/patch.py` | `azure_functions/patch.py` | Serverless function wrappers, uses `ddtrace.internal.wrapping` |
 | generative-ai | `anthropic/patch.py` | `litellm/patch.py` | LLM/AI integrations; use `llmobs-integrations` for LLMObs lifecycle, extraction, streaming, and tests |
 | graphql | `graphql/patch.py` | -- | GraphQL resolvers and operations, shared tracing gate + `tracer.trace` |

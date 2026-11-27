@@ -1,3 +1,5 @@
+import asyncio
+
 import mock
 import pytest
 
@@ -76,6 +78,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 3
+        assert [span.resource for span in spans] == ["SELECT * FROM db;", "SELECT * FROM db;", "procedure_named_moon"]
         dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
         cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
         cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
@@ -416,6 +419,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 4
+        assert all(span.get_tag("_dd.dbm_trace_injected") is None for span in spans)
 
         # The following operations should generate DBM comments
         await traced_cursor.execute("SELECT * FROM db;")
@@ -423,6 +427,8 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 2
+        assert [span.resource for span in spans] == ["SELECT * FROM db;", "SELECT * FROM db;"]
+        assert all(span.get_tag("_dd.dbm_trace_injected") == "true" for span in spans)
         dbm_comment_exc = dbm_propagator._get_dbm_comment(spans[0])
         cursor.execute.assert_called_once_with(dbm_comment_exc + "SELECT * FROM db;")
         dbm_comment_excmany = dbm_propagator._get_dbm_comment(spans[1])
@@ -657,3 +663,111 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         await cursor.execute("query")
         spans = self.pop_spans()
         assert len(spans) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_type", [None, ValueError, asyncio.CancelledError])
+@pytest.mark.parametrize("metadata_fails", [False, True])
+async def test_result_metadata_and_parent_restored(tracer, test_spans, failure_type, metadata_fails):
+    failure = failure_type("driver failed") if failure_type else None
+    cursor = mock.AsyncMock(rowcount=7)
+    cursor.execute.return_value = mock.sentinel.result
+    cursor.execute.side_effect = failure
+    if metadata_fails:
+        type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
+    traced = TracedAsyncCursor(cursor)
+    execution_context = core.current
+
+    try:
+        raise LookupError("already handled by the application")
+    except LookupError:
+        with tracer.trace("parent") as parent:
+            if failure is not None:
+                with pytest.raises(failure_type) as caught:
+                    await traced.execute("SELECT 1")
+                assert caught.value is failure
+            else:
+                assert await traced.execute("SELECT 1") is mock.sentinel.result
+            assert tracer.current_span() is parent
+            assert core.current is execution_context
+
+    cursor.execute.assert_awaited_once_with("SELECT 1")
+    parent, span = test_spans.spans
+    assert span.finished
+    assert span.parent_id == parent.span_id
+    assert span.resource == "SELECT 1"
+    assert span.get_metric("db.row_count") == (None if metadata_fails else 7)
+    assert span.error == int(failure is not None)
+    assert span.get_tag("error.message") == ("driver failed" if failure is not None else None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method_name", ["commit", "rollback"])
+@pytest.mark.parametrize("failure_type", [ValueError, asyncio.CancelledError])
+async def test_transaction_failure_restores_parent(tracer, test_spans, method_name, failure_type):
+    failure = failure_type("transaction failed")
+    connection = mock.AsyncMock()
+    getattr(connection, method_name).side_effect = failure
+    traced = TracedAsyncConnection(connection)
+    execution_context = core.current
+
+    with tracer.trace("parent") as parent:
+        with pytest.raises(failure_type) as caught:
+            await getattr(traced, method_name)()
+        assert caught.value is failure
+        assert tracer.current_span() is parent
+        assert core.current is execution_context
+
+    assert len(test_spans.spans) == 2
+    span = test_spans.spans[1]
+    assert span.name.endswith("." + method_name)
+    assert span.parent_id == parent.span_id
+    assert span.finished
+    assert span.error == 1
+    assert span.span_type is None
+    assert_is_not_measured(span)
+
+
+@pytest.mark.asyncio
+async def test_disabled_tracing_calls_driver_without_database_context(tracer, test_spans):
+    result = object()
+    cursor = mock.AsyncMock(rowcount=1)
+    cursor.execute.return_value = result
+    with mock.patch.object(tracer, "enabled", False):
+        with mock.patch.object(core, "context_with_event", wraps=core.context_with_event) as context:
+            assert await TracedAsyncCursor(cursor).execute("SELECT 1") is result
+    cursor.execute.assert_awaited_once_with("SELECT 1")
+    context.assert_not_called()
+    assert test_spans.spans == []
+
+
+@pytest.mark.asyncio
+async def test_result_contexts_are_isolated_between_tasks(tracer, test_spans):
+    ready = asyncio.Event()
+    entered = []
+
+    async def run_query(query, row_count):
+        cursor = mock.AsyncMock(rowcount=row_count)
+
+        async def execute(statement):
+            entered.append(statement)
+            if len(entered) == 2:
+                ready.set()
+            await ready.wait()
+            return statement
+
+        cursor.execute.side_effect = execute
+        return await TracedAsyncCursor(cursor).execute(query)
+
+    with tracer.trace("parent") as parent:
+        assert await asyncio.gather(run_query("SELECT 1", 1), run_query("SELECT 2", 2)) == ["SELECT 1", "SELECT 2"]
+        assert tracer.current_span() is parent
+
+    spans = test_spans.spans
+    assert len(spans) == 3
+    results = {span.resource: span for span in spans if span.name == "sql.query"}
+    assert set(results) == {"SELECT 1", "SELECT 2"}
+    for query, row_count in (("SELECT 1", 1), ("SELECT 2", 2)):
+        assert results[query].parent_id == parent.span_id
+        assert results[query].get_metric("db.row_count") == row_count
+        assert results[query].finished

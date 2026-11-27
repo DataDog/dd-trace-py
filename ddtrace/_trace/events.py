@@ -3,10 +3,15 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import ClassVar
 from typing import Optional
 
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.core.events import event_field
 from ddtrace.internal.settings.integration import IntegrationConfig
 
 
@@ -92,3 +97,32 @@ class TracingEvent(Event):
         setattr(event, "span_type", span_type)
         setattr(event, "span_kind", span_kind)
         return event
+
+
+@dataclass
+class DatabaseResultEvent(Event):
+    """Cursor metadata collected before the operation ends."""
+
+    event_name = "database.result"
+
+    context: core.ExecutionContext["DatabaseOperationEvent"]
+    row_count: Any = None
+    row_number: Any = None
+    tags: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class DatabaseOperationEvent(TracingEvent):
+    """A SQL query, connection, or transaction operation."""
+
+    event_name = "database.operation"
+    span_kind = SpanKind.CLIENT
+
+    component: str = event_field()
+    integration_config: IntegrationConfig = event_field()
+    operation_name: str = event_field()
+    # Queries and transactions select their span type per operation.
+    span_type: Optional[str] = event_field(default=SpanTypes.SQL)  # type: ignore[misc, assignment]
+    resource: Any = event_field(default=None)
+    connection_tags: dict[str, Any] = event_field(default_factory=dict)
+    result: Optional[DatabaseResultEvent] = event_field(default=None)

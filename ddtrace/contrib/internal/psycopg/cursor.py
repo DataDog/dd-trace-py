@@ -1,4 +1,6 @@
 import sys
+from typing import Any
+from typing import Callable
 
 from ddtrace.contrib import dbapi
 
@@ -20,7 +22,16 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
         encoding: str = self.__wrapped__.connection.info.encoding
         return encoding
 
-    def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
+    def _trace_method(
+        self,
+        method: Callable[..., Any],
+        name: str,
+        resource: Any,
+        extra_tags: dict[str, Any],
+        dbm_propagator: Any,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         # treat Composable resource objects as strings
         if resource.__class__.__name__ == "SQL" or resource.__class__.__name__ == "Composed":
             resource = resource.as_string(self.__wrapped__)

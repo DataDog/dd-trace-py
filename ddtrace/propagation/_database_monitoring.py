@@ -7,11 +7,13 @@ from typing import Union
 
 import ddtrace
 from ddtrace import config as dd_config
+from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.internal import core
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import PROPAGATED_HASH
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.peer_service import _ps_config
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat
@@ -162,36 +164,25 @@ def handle_dbm_injection(int_config, span, args, kwargs):
     return span, args, kwargs
 
 
-def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
-    # bind_execute_many uses prepared statements which we want to avoid injection for
-    if method.__name__ != "bind_execute_many":
-        return handle_dbm_injection(int_config, span, args, kwargs)
-    return span, args, kwargs
-
-
-_DBM_STANDARD_EVENTS = {
-    "aiomysql.execute",
-    "dbapi.execute",
-    "django-database.execute",
-    "mysql.execute",
-    "mysqldb.execute",
-    "psycopg.execute",
-    "pymysql.execute",
-    "pymongo.execute",
-}
+def handle_query_prepare_event(event: DatabaseQueryPrepareEvent) -> None:
+    if not event.supports_query_rewriting:
+        return
+    span = find_span_on_context(event.context)
+    if span is None:
+        return
+    _, args, kwargs = handle_dbm_injection(event.context.event.integration_config, span, event.args, event.kwargs)
+    event.args, event.kwargs = args, kwargs
 
 
 def listen():
     if dbm_config.propagation_mode in _DBM_INJECTION_MODES:
-        for event in _DBM_STANDARD_EVENTS:
-            core.on(event, handle_dbm_injection, "result")
-        core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
+        core.on(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
+        core.on("pymongo.execute", handle_dbm_injection, "result")
 
 
 def unlisten():
-    for event in _DBM_STANDARD_EVENTS:
-        core.reset_listeners(event, handle_dbm_injection)
-    core.reset_listeners("asyncpg.execute", handle_dbm_injection_asyncpg)
+    core.reset_listeners(DatabaseQueryPrepareEvent.event_name, handle_query_prepare_event)
+    core.reset_listeners("pymongo.execute", handle_dbm_injection)
 
 
 listen()

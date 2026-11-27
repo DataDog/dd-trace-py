@@ -1,6 +1,10 @@
 import mock
 import pytest
 
+from ddtrace._trace.subscribers.database import DatabaseTracingSubscriber
+from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
+from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
+from ddtrace.contrib._events.dbapi import DatabaseResultEvent
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -8,7 +12,9 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import find_span_on_context
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.propagation._database_monitoring import handle_query_prepare_event
 from ddtrace.trace import Span
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -70,6 +76,7 @@ class TestTracedCursor(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 3
+        assert [span.resource for span in spans] == ["SELECT * FROM db;", "SELECT * FROM db;", "procedure_named_moon"]
         dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
         cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
         cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
@@ -394,6 +401,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 4
+        assert all(span.get_tag("_dd.dbm_trace_injected") is None for span in spans)
 
         # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
@@ -401,6 +409,8 @@ class TestFetchTracedCursor(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 2
+        assert [span.resource for span in spans] == ["SELECT * FROM db;", "SELECT * FROM db;"]
+        assert all(span.get_tag("_dd.dbm_trace_injected") == "true" for span in spans)
         dbm_comment_exc = dbm_propagator._get_dbm_comment(spans[0])
         cursor.execute.assert_called_once_with(dbm_comment_exc + "SELECT * FROM db;")
         dbm_comment_excmany = dbm_propagator._get_dbm_comment(spans[1])
@@ -616,3 +626,158 @@ class TestTracedConnection(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 0
+
+
+@pytest.mark.parametrize("failure_type", [None, ValueError])
+@pytest.mark.parametrize("metadata_fails", [False, True])
+def test_result_metadata_and_parent_restored(tracer, test_spans, failure_type, metadata_fails):
+    failure = failure_type("driver failed") if failure_type else None
+    cursor = mock.Mock(rowcount=7)
+    cursor.execute.return_value = mock.sentinel.result
+    cursor.execute.side_effect = failure
+    if metadata_fails:
+        type(cursor).rowcount = mock.PropertyMock(side_effect=RuntimeError("cursor closed"))
+    traced = TracedCursor(cursor)
+    execution_context = core.current
+
+    try:
+        raise LookupError("already handled by the application")
+    except LookupError:
+        with tracer.trace("parent") as parent:
+            if failure is not None:
+                with pytest.raises(failure_type) as caught:
+                    traced.execute("SELECT 1")
+                assert caught.value is failure
+            else:
+                assert traced.execute("SELECT 1") is mock.sentinel.result
+            assert tracer.current_span() is parent
+            assert core.current is execution_context
+
+    cursor.execute.assert_called_once_with("SELECT 1")
+    parent, span = test_spans.spans
+    assert span.finished
+    assert span.parent_id == parent.span_id
+    assert span.resource == "SELECT 1"
+    assert span.get_metric("db.row_count") == (None if metadata_fails else 7)
+    assert span.error == int(failure is not None)
+    assert span.get_tag("error.message") == ("driver failed" if failure is not None else None)
+
+
+@pytest.mark.parametrize("method_name", ["commit", "rollback"])
+def test_transaction_failure_restores_parent(tracer, test_spans, method_name):
+    failure = ValueError("transaction failed")
+    connection = mock.Mock()
+    getattr(connection, method_name).side_effect = failure
+    traced = TracedConnection(connection)
+    execution_context = core.current
+
+    with tracer.trace("parent") as parent:
+        with pytest.raises(ValueError) as caught:
+            getattr(traced, method_name)()
+        assert caught.value is failure
+        assert tracer.current_span() is parent
+        assert core.current is execution_context
+
+    assert len(test_spans.spans) == 2
+    span = test_spans.spans[1]
+    assert span.name.endswith("." + method_name)
+    assert span.parent_id == parent.span_id
+    assert span.finished
+    assert span.error == 1
+    assert span.span_type is None
+    assert_is_not_measured(span)
+
+
+def test_disabled_tracing_calls_driver_without_database_context(tracer, test_spans):
+    result = object()
+    cursor = mock.Mock(rowcount=1)
+    cursor.execute.return_value = result
+    with mock.patch.object(tracer, "enabled", False):
+        with mock.patch.object(core, "context_with_event", wraps=core.context_with_event) as context:
+            assert TracedCursor(cursor).execute("SELECT 1") is result
+    cursor.execute.assert_called_once_with("SELECT 1")
+    context.assert_not_called()
+    assert test_spans.spans == []
+
+
+@pytest.mark.parametrize("configured", [False, True])
+@pytest.mark.parametrize("method_name", ["execute", "executemany", "callproc", "fetchone"])
+def test_query_preparation_is_product_neutral(tracer, test_spans, method_name, configured):
+    prepared = []
+    parameters = object()
+    cursor = mock.Mock(rowcount=1)
+    cfg = IntegrationConfig(Config(), "db-test", service="orders-db", _dbm_propagator=object() if configured else None)
+    traced = FetchTracedCursor(cursor, cfg=cfg)
+
+    def prepare(event):
+        span = find_span_on_context(event.context)
+        assert span is tracer.current_span()
+        assert span.service == "orders-db"
+        assert span.resource == "SELECT 1"
+        prepared.append(event.context)
+        event.args = ("/* prepared */ " + event.args[0], *event.args[1:])
+
+    core.on(DatabaseQueryPrepareEvent.event_name, prepare)
+    try:
+        args = ("SELECT 1", parameters) if method_name != "fetchone" else ()
+        getattr(traced, method_name)(*args)
+    finally:
+        core.reset_listeners(DatabaseQueryPrepareEvent.event_name, prepare)
+
+    if configured and method_name in ("execute", "executemany"):
+        assert len(prepared) == 1
+        getattr(cursor, method_name).assert_called_once_with("/* prepared */ SELECT 1", parameters)
+    else:
+        assert prepared == []
+        getattr(cursor, method_name).assert_called_once_with(*args)
+    assert len(test_spans.spans) == 1
+    if method_name != "fetchone":
+        assert test_spans.spans[0].resource == "SELECT 1"
+
+
+def test_missing_operation_span_does_not_borrow_parent(tracer, test_spans):
+    propagator = mock.Mock()
+    cfg = IntegrationConfig(Config(), "db-test", _dbm_propagator=propagator)
+    operation = DatabaseOperationEvent(component="db-test", integration_config=cfg, operation_name="sql.query")
+
+    with tracer.trace("parent") as parent:
+        with core.context_with_data("unassociated", event=operation) as context:
+            args = ("SELECT 1",)
+            prepare = DatabaseQueryPrepareEvent(context=context, args=args, kwargs={})
+            handle_query_prepare_event(prepare)
+            operation.result = DatabaseResultEvent(context=context, row_count=99, tags={"wrong.target": "yes"})
+            DatabaseTracingSubscriber.on_ended(context, (None, None, None))
+            assert find_span_on_context(context) is None
+            assert prepare.args is args
+            assert tracer.current_span() is parent
+        assert parent.get_metric("db.row_count") is None
+        assert parent.get_tag("wrong.target") is None
+
+    propagator.inject.assert_not_called()
+    assert len(test_spans.spans) == 1
+
+
+@pytest.mark.parametrize("suppression", ["argument", "cursor"])
+def test_propagator_suppression(tracer, suppression):
+    cursor = mock.Mock(rowcount=1)
+    traced = TracedCursor(cursor, cfg=IntegrationConfig(Config(), "db-test", _dbm_propagator=object()))
+    prepare = mock.Mock()
+    core.on(DatabaseQueryPrepareEvent.event_name, prepare)
+    try:
+        if suppression == "cursor":
+            traced._self_dbm_propagator = None
+            traced.execute("SELECT 1")
+        else:
+            traced._trace_method(cursor.execute, "sql.query", "SELECT 1", {}, None, "SELECT 1")
+    finally:
+        core.reset_listeners(DatabaseQueryPrepareEvent.event_name, prepare)
+    prepare.assert_not_called()
+    cursor.execute.assert_called_once_with("SELECT 1")
+
+
+def test_operation_tags_override_connection_tags(tracer, test_spans):
+    cursor = mock.Mock(rowcount=1)
+    traced = TracedCursor(cursor, db_tags={"db.name": "initial"})
+    traced._trace_method(cursor.execute, "sql.query", "SELECT 1", {"db.name": "override"}, None, "SELECT 1")
+    (span,) = test_spans.spans
+    assert span.get_tag("db.name") == "override"

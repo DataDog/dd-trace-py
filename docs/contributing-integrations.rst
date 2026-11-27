@@ -102,6 +102,18 @@ Check out existing database integrations for examples of using the `dbapi`:
     - `psycopg <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/psycopg>`_
     - `mysql <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mysql>`_
 
+Database integrations emit ``DatabaseOperationEvent`` through
+``core.context_with_event()``. ``DatabaseTracingSubscriber`` extends the shared
+``TracingSubscriber`` lifecycle and applies connection and result metadata.
+DB-API cursor subclasses override ``_get_post_execute_result(context)`` to add
+result metadata such as driver query IDs.
+
+Emit ``DbQueryEvent`` for security subscribers before checking whether tracing
+is enabled. ``DatabaseQueryPrepareEvent`` exposes mutable query arguments after
+span metadata is ready; DBM owns its listener and propagation-mode gating.
+Keep the original query as the span resource and preserve each driver's
+injection exclusions for fetches, stored procedures, and prepared statements.
+
 How should an integration be tested?
 ------------------------------------
 

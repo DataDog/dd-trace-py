@@ -1,9 +1,25 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace._trace.events import DatabaseOperationEvent as DatabaseOperationEvent
+from ddtrace._trace.events import DatabaseResultEvent as DatabaseResultEvent
+from ddtrace.internal import core
 from ddtrace.internal.core.events import Event
+
+
+@dataclass
+class DatabaseQueryPrepareEvent(Event):
+    """Optional query preparation after operation metadata is available."""
+
+    event_name = "database.query.prepare"
+
+    context: core.ExecutionContext[DatabaseOperationEvent]
+    args: tuple[Any, ...]
+    kwargs: dict[str, Any]
+    supports_query_rewriting: bool = True
 
 
 @dataclass

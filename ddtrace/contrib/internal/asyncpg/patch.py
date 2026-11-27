@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import ModuleType
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
 from typing import Union
 
 import asyncpg
@@ -9,26 +11,21 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.dbapi import DatabaseOperationEvent
+from ddtrace.contrib._events.dbapi import DatabaseQueryPrepareEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import iswrapped
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.trace_utils_async import with_traced_module
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -92,7 +89,14 @@ class _TracedConnection(wrapt.ObjectProxy):
 
 
 @with_traced_module
-async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
+async def _traced_connect(
+    asyncpg: ModuleType,
+    pin: Pin,
+    func: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
     """Traced asyncpg.connect().
 
     connect() is instrumented and patched to return a connection proxy.
@@ -100,14 +104,15 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     # When using a pool, there's a connection_class args
     is_pool_context = "connection_class" in kwargs
 
-    with tracer.trace("postgres.connect", span_type=SpanTypes.SQL) as span:
-        set_service_and_source(span, ext_service(pin, config.asyncpg), config.asyncpg)
-        span._set_attribute(COMPONENT, config.asyncpg.integration_name)
-        span._set_attribute(db.SYSTEM, DBMS_NAME)
-
-        # set span.kind to the type of request being performed
-        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-
+    event = DatabaseOperationEvent(
+        component=config.asyncpg.integration_name,
+        integration_config=config.asyncpg,
+        operation_name="postgres.connect",
+        service=ext_service(pin, config.asyncpg),
+        measured=False,
+        connection_tags={db.SYSTEM: DBMS_NAME},
+    )
+    with core.context_with_event(event):
         raw_conn = await func(*args, **kwargs)
         if is_pool_context:
             # Return the unwrapped connection to avoid _TracedConnection errors
@@ -116,38 +121,36 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
             connection_tags[db.SYSTEM] = DBMS_NAME
             conn_pin = pin.clone(tags=connection_tags)
             conn_pin.onto(raw_conn._protocol)
-            span.set_tags(connection_tags)
+            event.connection_tags.update(connection_tags)
             # Returns a asyncpg.connection.Connection object
             return raw_conn
         else:
             # # Need an ObjectProxy when not using pools since Connection uses slots
             conn = _TracedConnection(raw_conn, pin)
-            span.set_tags(_get_connection_tags(conn))
+            event.connection_tags.update(_get_connection_tags(conn))
             # Returns a _TracedConnection object
             return conn
 
 
-async def _traced_query(pin, method, query, args, kwargs):
-    with tracer.trace(
-        schematize_database_operation("postgres.query", database_provider="postgresql"),
+async def _traced_query(
+    pin: Pin, method: Callable[..., Any], query: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    event = DatabaseOperationEvent(
+        component=config.asyncpg.integration_name,
+        integration_config=config.asyncpg,
+        operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
+        service=ext_service(pin, config.asyncpg),
         resource=query,
-        span_type=SpanTypes.SQL,
-    ) as span:
-        set_service_and_source(span, ext_service(pin, config.asyncpg), config.asyncpg)
-        span._set_attribute(COMPONENT, config.asyncpg.integration_name)
-        span._set_attribute(db.SYSTEM, DBMS_NAME)
-
-        # set span.kind to the type of request being performed
-        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-        span._set_attribute(_SPAN_MEASURED_KEY, 1)
-        span.set_tags(pin.tags)
-
+        connection_tags={db.SYSTEM: DBMS_NAME, **(pin.tags or {})},
+    )
+    with core.context_with_event(event) as ctx:
         # dispatch DBM
-        result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-            "asyncpg.execute", (config.asyncpg, method, span, args, kwargs)
-        ).result
-        if result:
-            span, args, kwargs = result.value
+        # bind_execute_many uses prepared statements which we want to avoid injection for.
+        injection = DatabaseQueryPrepareEvent(
+            context=ctx, args=args, kwargs=kwargs, supports_query_rewriting=method.__name__ != "bind_execute_many"
+        )
+        core.dispatch_event(injection)
+        args, kwargs = injection.args, injection.kwargs
 
         return await method(*args, **kwargs)
 
