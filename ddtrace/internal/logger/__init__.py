@@ -92,12 +92,16 @@ class LoggerPrefix:
         parts = name.replace("_", ".").lower().split(".")
         parts.pop(0)  # remove the ddtrace prefix
         current = self
+        level = self.level
         while parts:
             if (part := parts.pop(0)) not in current.children:
-                return current.level
+                break
             current = current.children[part]
+            # Intermediate nodes created only to reach a deeper setting have no level of their own
+            if current.level is not None:
+                level = current.level
 
-        return current.level
+        return level
 
     @classmethod
     def build_trie(cls):
@@ -108,10 +112,15 @@ class LoggerPrefix:
             logger_name = logger_name[4:-10]
             parts = logger_name.lower().split("_")
             current = trie.children
+            node = trie
             while parts:
-                if (part := parts.pop(0)) not in current:
-                    current[part] = cls(prefix=part, level=getattr(logging, level, None) if not parts else None)
-                current = current[part].children
+                part = parts.pop(0)
+                if part not in current:
+                    current[part] = cls(prefix=part)
+                node = current[part]
+                current = node.children
+            # The node may already exist as the parent of a setting processed earlier
+            node.level = getattr(logging, level, None)
 
         return trie
 
@@ -230,12 +239,14 @@ def log_filter(record: logging.LogRecord) -> bool:
             # format the stacks if they are present with the right depth
             if stack_limit and record.stack_info:
                 record.stack_info = format_stack(record.stack_info, stack_limit)
-            string_buffer = [f"{product}::{record.msg}{more_info}{skip_str}"]
+            # Interpolate the arguments now: the exception and stack text appended below is not a format string
+            string_buffer = [f"{product}::{record.getMessage()}{more_info}{skip_str}"]
             if record.stack_info:
                 string_buffer.append(record.stack_info)
             if record.exc_info:
                 string_buffer.extend(traceback.format_exception(*record.exc_info, limit=exec_limit or None))
             record.msg = "\n".join(string_buffer)
+            record.args = None
             # clean the record for any subsequent handlers
             record.stack_info = None
             record.exc_info = None

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where a product log message with formatting arguments was lost when its exception text contained a ``%`` character.
