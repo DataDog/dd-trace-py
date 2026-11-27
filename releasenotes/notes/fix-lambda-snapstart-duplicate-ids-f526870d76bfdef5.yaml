@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where AWS Lambda functions using SnapStart generated duplicate trace and span IDs
+    across execution environments restored from the same snapshot, which grouped unrelated invocations into one trace.

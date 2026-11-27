@@ -1,10 +1,18 @@
+import os
+
 import bm
 
 
 class Rand(bm.Scenario):
     func: str  # "rand64bits" or "rand128bits"
+    snapstart: bool  # emulate AWS Lambda SnapStart (AWS_LAMBDA_INITIALIZATION_TYPE=snap-start)
 
     def run(self):
+        if self.snapstart:
+            # The native module reads AWS_LAMBDA_INITIALIZATION_TYPE once at
+            # import, so it must be set before ddtrace.internal.native loads.
+            os.environ["AWS_LAMBDA_INITIALIZATION_TYPE"] = "snap-start"
+
         try:
             from ddtrace.internal.native import rand64bits
 
