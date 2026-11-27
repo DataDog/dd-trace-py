@@ -4,6 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import os
 import re
+import sys
 
 import pytest
 
@@ -423,3 +424,71 @@ async def test_wrapped_async_gen_athrow_yields(tracer, test_spans):
     assert recovery == -1
     assert await gen.asend(None) == 2  # resumes normally after recovery
     await gen.aclose()
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_overlapping_close(tracer, test_spans):
+    cleanup_started = asyncio.Event()
+    finish_cleanup = asyncio.Event()
+    events = []
+
+    @tracer.wrap("stream")
+    async def stream():
+        try:
+            yield "chunk"
+        finally:
+            events.append("cleanup_start")
+            cleanup_started.set()
+            await finish_cleanup.wait()
+            events.append("cleanup_done")
+
+    generators = []
+    hooks = sys.get_asyncgen_hooks()
+
+    def firstiter(gen):
+        generators.append(gen)
+        if hooks.firstiter is not None:
+            hooks.firstiter(gen)
+
+    outer = stream()
+    sys.set_asyncgen_hooks(firstiter=firstiter, finalizer=hooks.finalizer)
+    try:
+        assert await outer.__anext__() == "chunk"
+    finally:
+        sys.set_asyncgen_hooks(*hooks)
+
+    assert len(generators) == 2 and generators[0] is outer
+    inner = generators[1]
+
+    closing = asyncio.create_task(inner.aclose())
+    try:
+        await cleanup_started.wait()
+        await outer.aclose()
+    finally:
+        finish_cleanup.set()
+        await closing
+
+    assert events == ["cleanup_start", "cleanup_done"]
+    traces = test_spans.pop_traces()
+    assert 1 == len(traces)
+    assert traces[0][0].name == "stream"
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_close_cleanup_runtime_error(tracer, test_spans):
+    @tracer.wrap("stream")
+    async def stream():
+        try:
+            yield "chunk"
+        finally:
+            raise RuntimeError("cleanup boom")
+
+    gen = stream()
+    assert await gen.__anext__() == "chunk"
+    with pytest.raises(RuntimeError, match="cleanup boom"):
+        await gen.aclose()
+
+    traces = test_spans.pop_traces()
+    assert 1 == len(traces)
+    assert traces[0][0].error == 1
+    assert traces[0][0].get_tag(ERROR_MSG) == "cleanup boom"

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where closing an async generator decorated with ``@tracer.wrap()``
+    raises ``RuntimeError: aclose(): asynchronous generator is already running`` when the
+    wrapped generator is already awaiting inside its cleanup block (#22152).
