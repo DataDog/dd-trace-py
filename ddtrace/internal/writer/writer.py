@@ -1025,6 +1025,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
         self._accepting_writes = True
         self._exporter_dropped = False
+        # A fork child leaves the exporter it inherits to the parent, see recreate().
+        self._pid = os.getpid()
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
@@ -1224,7 +1226,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except ServiceStatusError:
             # A writer that was never started, e.g. in sync mode or one that was not
             # created by create_trace_writer, raises a ServiceStatusError when stopped.
-            if not exporter_dropped and not self._discarded_by_refresh:
+            # A fork child skips the shutdown, which would send the stats of the parent
+            # again, from its fork hook.
+            if not exporter_dropped and not self._discarded_by_refresh and os.getpid() == self._pid:
                 self.shutdown_exporter()
 
         return self._recreate(appsec_enabled, llmobs_enabled, compute_stats_enabled, stats_opt_out)

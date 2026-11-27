@@ -2,7 +2,7 @@ import abc
 import enum
 import typing  # noqa:F401
 
-from ddtrace.internal.threads import Lock
+from ddtrace.internal import forksafe
 
 
 class ServiceStatus(enum.Enum):
@@ -27,7 +27,10 @@ class Service(metaclass=abc.ABCMeta):
 
     def __init__(self) -> None:
         self.status: ServiceStatus = ServiceStatus.STOPPED
-        self._service_lock: typing.ContextManager = Lock()
+        # Fork-safe: a child that stops or restarts an inherited service, for example the tracer
+        # rebuilding its writer in its fork hook, must not wait on a lock that another thread of the
+        # parent held at fork.
+        self._service_lock: typing.ContextManager = forksafe.Lock()
 
     def __repr__(self):
         class_name = self.__class__.__name__

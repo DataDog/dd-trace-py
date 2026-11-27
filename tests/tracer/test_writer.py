@@ -2904,3 +2904,30 @@ def test_deferred_exporter_build_failure_is_retried_on_the_next_flush():
     with mock.patch.object(NativeWriter, "_create_exporter", return_value=exporter):
         assert writer._ensure_exporter()
     assert writer._exporter is exporter
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30, err=None)
+def test_sync_writer_recreated_in_a_fork_child_leaves_the_inherited_exporter_alone():
+    """Shutting down the exporter inherited from the parent would send the stats of the parent again."""
+    import os
+    from unittest import mock
+
+    from ddtrace.internal.writer import NativeWriter
+
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    pid = os.fork()
+    if pid == 0:
+        code = 1
+        try:
+            with mock.patch.object(NativeWriter, "shutdown_exporter") as shutdown_exporter:
+                writer.recreate()
+            code = 0 if not shutdown_exporter.called else 2
+        finally:
+            os._exit(code)
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+    with mock.patch.object(NativeWriter, "shutdown_exporter") as shutdown_exporter:
+        writer.recreate()
+    shutdown_exporter.assert_called_once_with()
