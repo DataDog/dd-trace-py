@@ -551,6 +551,157 @@ def test_child_processes_and_runpy(tmp_path) -> None:
     )
 
 
+_MULTIPROCESSING_WORK = textwrap.dedent(
+    """\
+    import os
+
+
+    def write(path, text):
+        with open(path, "w") as f:
+            f.write(text)
+
+
+    def square(x):
+        return x * x
+
+
+    def cube(x):
+        return x * x * x
+
+
+    def wait(started, event):
+        started.set() or event.wait(60)
+        return os.getpid()
+
+
+    def nested(method, path):
+        import multiprocessing
+
+        child = multiprocessing.get_context(method).Process(target=write, args=(path, method))
+        child.start()
+        child.join(60)
+        return child.exitcode
+    """
+)
+
+
+def test_multiprocessing_children_run_for_the_test(tmp_path) -> None:
+    """multiprocessing children report their lines to the test that started them, on every start
+    method: processes, pools that a with block terminates, pools closed and joined, the default
+    process pool executor, a process the test terminates, and the processes a child starts. A
+    child that outlives its test reports to the unowned lines.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "pkg" / "work.py").write_text(_MULTIPROCESSING_WORK)
+    _run_isolated(
+        f"""
+        import concurrent.futures
+        import multiprocessing
+        from multiprocessing import spawn
+        import os
+        from pathlib import Path
+        import signal
+        import sys
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        sys.path.insert(0, root)
+        from pkg import work
+
+        assert coverage.native_line_coverage_enabled()
+        # The initialiser lines of work.py, which a test that touches the file gets.
+        init = {{1, 4, 9, 13, 17, 22}}
+
+        def lines(bitmaps):
+            for path, bitmap in bitmaps:
+                if path == "/pkg/work.py":
+                    return {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+            return set()
+
+        def run_test(function, *args):
+            with coverage.coverage_collection() as data:
+                function(*args)
+            return lines(data.get_coverage_bitmaps(Path(root)))
+
+        def process(method):
+            target = os.path.join(root, method + ".txt")
+            child = multiprocessing.get_context(method).Process(target=work.write, args=(target, method))
+            child.start()
+            child.join(60)
+            assert child.exitcode == 0, child.exitcode
+
+        def pool_with_block(method):
+            # Leaving the block terminates the workers. One worker, which has started by then: CPython
+            # drops a SIGTERM that reaches a fork child before its after-fork setup, and terminate()
+            # would wait for that worker forever.
+            with multiprocessing.get_context(method).Pool(1) as pool:
+                assert pool.map(work.square, [2, 3]) == [4, 9]
+
+        def pool_closed(method):
+            pool = multiprocessing.get_context(method).Pool(2)
+            assert pool.map(work.cube, [2, 3]) == [8, 27]
+            pool.close()
+            pool.join()
+
+        def terminated(method):
+            context = multiprocessing.get_context(method)
+            started, event = context.Event(), context.Event()
+            child = context.Process(target=work.wait, args=(started, event))
+            child.start()
+            # Line 18 has started: it sets started, then waits.
+            assert started.wait(60)
+            child.terminate()
+            child.join(60)
+            assert child.exitcode == -signal.SIGTERM, child.exitcode
+
+        def nested(outer, inner):
+            target = os.path.join(root, outer + "-" + inner + ".txt")
+            child = multiprocessing.get_context(outer).Process(target=work.nested, args=(inner, target))
+            child.start()
+            child.join(60)
+            assert child.exitcode == 0, child.exitcode
+            assert Path(target).read_text() == inner
+
+        for method in ("fork", "spawn", "forkserver"):
+            assert run_test(process, method) == init | {{5, 6}}, method
+            assert run_test(pool_with_block, method) == init | {{10}}, method
+            assert run_test(pool_closed, method) == init | {{14}}, method
+            assert run_test(terminated, method) == init | {{18}}, method
+
+        # Not fork then forkserver: CPython fails it, as a fork child cannot use its parent's forkserver.
+        for outer, inner in (("fork", "fork"), ("fork", "spawn"), ("spawn", "fork")):
+            assert run_test(nested, outer, inner) == init | {{5, 6, 23, 25, 26, 27, 28}}, (outer, inner)
+
+        def executor():
+            with concurrent.futures.ProcessPoolExecutor(2) as pool:
+                assert list(pool.map(work.cube, [2, 3])) == [8, 27]
+
+        assert run_test(executor) == init | {{14}}
+
+        # A child still running when its test ends reports to the unowned lines.
+        context = multiprocessing.get_context("fork")
+        started, event = context.Event(), context.Event()
+        with coverage.coverage_collection() as data:
+            child = context.Process(target=work.wait, args=(started, event))
+            child.start()
+            assert started.wait(60)
+        event.set()
+        child.join(60)
+        assert lines(data.get_coverage_bitmaps(Path(root))) == set()
+        assert lines(coverage.get_shared_coverage_bitmaps()["unowned"]) == {{18, 19}}
+
+        # Native collection replaces the legacy child coverage: no pipe, nothing added for spawn children.
+        assert "stowaway" not in spawn.get_preparation_data("child")
+        assert getattr(multiprocessing.Process(), "_parent_conn", None) is None
+        coverage.uninstall_coverage()
+        """
+    )
+
+
 def test_exec_wrapper_behaves_like_exec() -> None:
     """The builtins.exec replacement passes module code to the callback, and is otherwise exec():
     same name, signature, documentation and pickling, and the caller's namespace without globals.
