@@ -1917,6 +1917,23 @@ class RequestFailedError(HttpClientError):
     status: int
     body: str  # NOTE: binary bodies are lossy-UTF-8 decoded; not byte-perfect.
 
+class AiGuardX509Client:
+    def __init__(
+        self,
+        runtime: SharedRuntime,
+        *,
+        site: str,
+        api_key: str,
+        app_name: str = "dd-trace-py",
+        app_version: str = "0.0.0",
+    ) -> None: ...
+    def connection_id(self) -> Optional[str]: ...
+    def payload(self) -> Optional[str]: ...
+    def wait_for_connection_id(self, timeout_ms: int = 5000) -> Optional[str]: ...
+    def wait_for_payload(self, timeout_ms: int = 1000) -> Optional[tuple[str, str]]: ...
+    def shutdown(self) -> None: ...
+
+
 class InvalidConfigError(HttpClientError):
     """The client/request configuration was invalid (e.g. zero timeout,
     both body and multipart parts set on the same request).

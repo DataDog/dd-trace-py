@@ -5,6 +5,7 @@ from ddtrace.internal.settings import env
 
 from ._native import AgentError  # noqa: F401
 from ._native import AgentResponse  # noqa: F401
+from ._native import AiGuardX509Client  # noqa: F401
 from ._native import BuilderError  # noqa: F401
 from ._native import ConfigurationOrigin  # noqa: F401
 from ._native import ConnectionFailedError  # noqa: F401
