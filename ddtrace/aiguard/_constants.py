@@ -18,13 +18,14 @@ class AI_GUARD(metaclass=Constant_Class):
     REDACTED_TAG: str = TAG + ".redacted"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
     EVENT_TAG: str = TAG + ".event"
-    # OpenAI runs hosted MCP tools itself and does not report whether it reached the server over
-    # streamable HTTP or SSE, so their servers carry the unknown transport.
+    # OpenAI hosted MCP and the Anthropic MCP connector run MCP tools themselves and do not report whether
+    # they reached the server over streamable HTTP or SSE, so their servers carry the unknown transport.
     MCP_TRANSPORT_UNKNOWN: Literal["unknown"] = "unknown"
     MCP_TRANSPORT_STREAMABLE_HTTP: Literal["streamable_http"] = "streamable_http"
     MCP_TRANSPORT_SSE: Literal["sse"] = "sse"
     MCP_TRANSPORT_STDIO: Literal["stdio"] = "stdio"
-    # managed_by of an MCP server whose client is run by the model provider (OpenAI hosted MCP).
+    # managed_by of an MCP server whose client is run by the model provider
+    # (OpenAI hosted MCP, Anthropic MCP connector).
     MCP_MANAGED_BY_PROVIDER: Literal["provider"] = "provider"
 
     # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
