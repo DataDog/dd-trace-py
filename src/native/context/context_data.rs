@@ -1,11 +1,18 @@
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::OnceLock;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use pyo3::{
     exceptions::{PyRuntimeError, PyValueError},
-    types::{PyAny, PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyTuple},
+    intern,
+    types::{
+        PyAny, PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyString,
+        PyStringMethods as _, PyTuple,
+    },
     Bound, IntoPyObject, Py, PyResult, Python,
 };
+
+use crate::profiler_layout::{field_offset, span_types, ContextOffsets, CopyRange};
 
 const ORIGIN_KEY: &str = "_dd.origin";
 const SAMPLING_PRIORITY_KEY: &str = "_sampling_priority_v1";
@@ -13,6 +20,9 @@ const USER_ID_KEY: &str = "_dd.p.usr.id";
 const W3C_TRACEPARENT_KEY: &str = "traceparent";
 const W3C_TRACESTATE_KEY: &str = "tracestate";
 const MAX_UINT_64BITS: u128 = (1u128 << 64) - 1;
+// Keep in sync with ddtrace/internal/datadog/profiling/context_meta.py.
+const PROFILING_LOCAL_ROOT_SPAN_ID_KEY: &str = "_dd.profiling.local_root_span_id";
+const PROFILING_SPAN_TYPE_KEY: &str = "_dd.profiling.span_type";
 
 type ContextState<'py> = (
     Option<u128>,
@@ -66,6 +76,60 @@ fn extract_trace_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
     v.and_then(|v| v.extract::<u128>().ok())
 }
 
+/// The profiler link stored in a `_meta` dict, as typed values.
+///
+/// Mirrors `read_profiler_link` in `ddtrace/internal/datadog/profiling/context_meta.py`: the
+/// local root span id is the hex value of `_dd.profiling.local_root_span_id` (0 when missing,
+/// empty or not hex) and the span type is the id of `_dd.profiling.span_type` (0 when missing
+/// or empty). Ids keep their low 64 bits, as the profiler does.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+struct ProfilerLink {
+    local_root_span_id: u64,
+    span_type_id: u32,
+}
+
+impl ProfilerLink {
+    fn from_meta<'py>(meta: &Bound<'py, PyDict>) -> Self {
+        if meta.is_empty() {
+            return Self::default();
+        }
+        let py = meta.py();
+        let str_item = |key: &Bound<'py, PyString>| -> Option<Bound<'py, PyString>> {
+            meta.get_item(key)
+                .ok()
+                .flatten()
+                .and_then(|v| v.cast_into::<PyString>().ok())
+        };
+        let local_root_span_id = str_item(intern!(py, PROFILING_LOCAL_ROOT_SPAN_ID_KEY))
+            .and_then(|v| v.to_str().ok().and_then(parse_hex_id))
+            .unwrap_or(0);
+        let span_type_id = str_item(intern!(py, PROFILING_SPAN_TYPE_KEY))
+            .and_then(|v| v.to_str().ok().map(span_types::intern))
+            .unwrap_or(span_types::NONE_ID);
+        Self {
+            local_root_span_id,
+            span_type_id,
+        }
+    }
+}
+
+/// Parse a hex span id as `int(value, 16)` does for the values the tracer writes, keeping the
+/// low 64 bits.
+fn parse_hex_id(value: &str) -> Option<u64> {
+    let value = value.trim();
+    let value = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+        .unwrap_or(value);
+    u128::from_str_radix(value, 16).ok().map(|id| id as u64)
+}
+
+/// Low 64 bits of a span id, 0 when absent. This is what the profiler records.
+#[inline(always)]
+fn span_id_mirror(span_id: Option<u128>) -> u64 {
+    span_id.map_or(0, |id| id as u64)
+}
+
 #[inline]
 fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
     let v = v?;
@@ -78,17 +142,28 @@ fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
 }
 
 #[pyo3::pyclass(name = "Context", module = "ddtrace._trace.context", weakref, subclass)]
+// `repr(C)` keeps the fields that the stack profiler reads without the GIL in one contiguous
+// range (`profiler_span_id` through `reactivate`). See `crate::profiler_layout`.
+#[repr(C)]
 pub struct Context {
     pub trace_id: Option<u128>,
-    pub span_id: Option<u128>,
+    /// Write it only through `set_span_id_native`, which keeps `profiler_span_id` in sync.
+    pub(crate) span_id: Option<u128>,
+    // --- Fields read by the stack profiler without the GIL (start) ---
+    /// Low 64 bits of `span_id`, 0 when it is `None`.
+    profiler_span_id: AtomicU64,
+    /// Typed copy of `_dd.profiling.local_root_span_id` in `meta`, 0 when absent.
+    profiler_local_root_span_id: AtomicU64,
+    /// Span type id of `_dd.profiling.span_type` in `meta`, 0 when absent.
+    profiler_span_type_id: AtomicU32,
+    pub reactivate: AtomicBool,
+    // --- Fields read by the stack profiler without the GIL (end) ---
+    #[pyo3(get, set, name = "_is_remote")]
+    pub is_remote: bool,
     meta: Py<PyDict>,
     metrics: Py<PyDict>,
     baggage: Option<Py<PyDict>>,
     span_links: Option<Py<PyList>>,
-    #[pyo3(get, set, name = "_is_remote")]
-    pub is_remote: bool,
-    #[pyo3(get, set, name = "_reactivate")]
-    pub reactivate: bool,
     // Child contexts point the otel_sampling_state_owner at the trace's
     // owning Context. This keeps pending propagation state visible across copies
     // without allocating a holder or storing control data in meta/metrics.
@@ -98,17 +173,26 @@ pub struct Context {
     pub otel_sampling_state_owner: Option<Py<Context>>,
 }
 
+// The profiler copies `profiler_span_id` through `reactivate` in one read. Keep it small.
+const _: () = {
+    use std::mem::offset_of;
+    assert!(offset_of!(Context, reactivate) + 1 - offset_of!(Context, profiler_span_id) <= 32);
+};
+
 impl Default for Context {
     fn default() -> Self {
         Python::attach(|py| Context {
             trace_id: None,
             span_id: None,
+            profiler_span_id: AtomicU64::new(0),
+            profiler_local_root_span_id: AtomicU64::new(0),
+            profiler_span_type_id: AtomicU32::new(span_types::NONE_ID),
             meta: PyDict::new(py).unbind(),
             metrics: PyDict::new(py).unbind(),
             baggage: None,
             span_links: None,
             is_remote: false,
-            reactivate: false,
+            reactivate: AtomicBool::new(false),
             otel_sampling_state_data: None,
             otel_sampling_state_owner: None,
         })
@@ -116,6 +200,58 @@ impl Default for Context {
 }
 
 impl Context {
+    /// Set `span_id` and keep its profiler mirror in sync.
+    #[inline(always)]
+    fn set_span_id_native(&mut self, span_id: Option<u128>) {
+        self.span_id = span_id;
+        self.profiler_span_id
+            .store(span_id_mirror(span_id), Ordering::Release);
+    }
+
+    #[inline(always)]
+    fn profiler_link(&self) -> ProfilerLink {
+        ProfilerLink {
+            local_root_span_id: self.profiler_local_root_span_id.load(Ordering::Relaxed),
+            span_type_id: self.profiler_span_type_id.load(Ordering::Relaxed),
+        }
+    }
+
+    /// Set `meta` and the typed profiler link read from it. Returns the old `meta`, so the
+    /// caller can drop it after releasing its borrow.
+    #[must_use]
+    fn set_meta_native(&mut self, meta: Py<PyDict>, link: ProfilerLink) -> Py<PyDict> {
+        self.profiler_local_root_span_id
+            .store(link.local_root_span_id, Ordering::Release);
+        self.profiler_span_type_id
+            .store(link.span_type_id, Ordering::Release);
+        std::mem::replace(&mut self.meta, meta)
+    }
+
+    /// Byte offsets of the fields the stack profiler reads, measured on a live object.
+    pub(crate) fn profiler_offsets(py: Python<'_>) -> PyResult<ContextOffsets> {
+        let obj = Bound::new(py, Self::default())?;
+        let base = obj.as_ptr();
+        let this = obj.borrow();
+        let span_id = field_offset(base, &this.profiler_span_id);
+        let local_root_span_id = field_offset(base, &this.profiler_local_root_span_id);
+        let span_type_id = field_offset(base, &this.profiler_span_type_id);
+        let reactivate = field_offset(base, &this.reactivate);
+        let range = CopyRange::of(&[
+            (span_id, size_of::<AtomicU64>()),
+            (local_root_span_id, size_of::<AtomicU64>()),
+            (span_type_id, size_of::<AtomicU32>()),
+            (reactivate, size_of::<AtomicBool>()),
+        ]);
+        Ok(ContextOffsets {
+            copy_offset: range.offset,
+            copy_size: range.size,
+            span_id,
+            local_root_span_id,
+            span_type_id,
+            reactivate,
+        })
+    }
+
     fn sampling_priority_f64(&mut self, py: Python<'_>) -> PyResult<Option<f64>> {
         let metrics = self.get_metrics(py);
         match metrics.get_item(SAMPLING_PRIORITY_KEY)? {
@@ -266,6 +402,8 @@ impl Context {
         let mut this = slf.try_borrow_mut()?;
         let meta = this.get_meta(py).unbind();
         let metrics = this.get_metrics(py).unbind();
+        // The copy shares `meta`, so it shares the profiler link read from it.
+        let link = this.profiler_link();
         let baggage = Some(this.get_baggage(py).unbind());
         let otel_sampling_state_owner = Some(match &this.otel_sampling_state_owner {
             Some(owner) => owner.clone_ref(py),
@@ -279,12 +417,15 @@ impl Context {
             Self {
                 trace_id,
                 span_id,
+                profiler_span_id: AtomicU64::new(span_id_mirror(span_id)),
+                profiler_local_root_span_id: AtomicU64::new(link.local_root_span_id),
+                profiler_span_type_id: AtomicU32::new(link.span_type_id),
                 meta,
                 metrics,
                 baggage,
                 span_links,
                 is_remote: false,
-                reactivate: false,
+                reactivate: AtomicBool::new(false),
                 otel_sampling_state_data: None,
                 otel_sampling_state_owner,
             },
@@ -299,12 +440,15 @@ impl Context {
             Self {
                 trace_id: Some(trace_id),
                 span_id: Some(span_id),
+                profiler_span_id: AtomicU64::new(span_id as u64),
+                profiler_local_root_span_id: AtomicU64::new(0),
+                profiler_span_type_id: AtomicU32::new(span_types::NONE_ID),
                 meta: PyDict::new(py).unbind(),
                 metrics: PyDict::new(py).unbind(),
                 baggage: Some(PyDict::new(py).unbind()),
                 span_links: Some(PyList::empty(py).unbind()),
                 is_remote: false,
-                reactivate: false,
+                reactivate: AtomicBool::new(false),
                 otel_sampling_state_data: None,
                 otel_sampling_state_owner: None,
             },
@@ -363,9 +507,18 @@ impl Context {
                 .bind(py)
                 .call1((meta_dict.bind(py),))?;
         }
+        // Only a caller-supplied `meta` can hold a profiler link; skip the lookups otherwise.
+        let link = match meta {
+            Some(_) => ProfilerLink::from_meta(meta_dict.bind(py)),
+            None => ProfilerLink::default(),
+        };
+        let span_id = extract_span_id(span_id);
         Ok(Self {
             trace_id: extract_trace_id(trace_id),
-            span_id: extract_span_id(span_id),
+            span_id,
+            profiler_span_id: AtomicU64::new(span_id_mirror(span_id)),
+            profiler_local_root_span_id: AtomicU64::new(link.local_root_span_id),
+            profiler_span_type_id: AtomicU32::new(link.span_type_id),
             meta: meta_dict,
             metrics: metrics_dict,
             baggage: Some(
@@ -379,7 +532,7 @@ impl Context {
                     .unwrap_or_else(|| PyList::empty(py).unbind()),
             ),
             is_remote,
-            reactivate: false,
+            reactivate: AtomicBool::new(false),
             otel_sampling_state_data: None,
             otel_sampling_state_owner: None,
         })
@@ -414,13 +567,25 @@ impl Context {
     #[inline(always)]
     fn set_span_id(&mut self, value: Option<&Bound<'_, PyAny>>) {
         match value {
-            None => self.span_id = None,
+            None => self.set_span_id_native(None),
             Some(_) => {
                 if let Some(id) = extract_span_id(value) {
-                    self.span_id = Some(id);
+                    self.set_span_id_native(Some(id));
                 }
             }
         }
+    }
+
+    #[getter(_reactivate)]
+    #[inline(always)]
+    fn get_reactivate(&self) -> bool {
+        self.reactivate.load(Ordering::Relaxed)
+    }
+
+    #[setter(_reactivate)]
+    #[inline(always)]
+    fn set_reactivate(&self, value: bool) {
+        self.reactivate.store(value, Ordering::Release);
     }
 
     #[getter(_meta)]
@@ -431,8 +596,14 @@ impl Context {
 
     #[setter(_meta)]
     #[inline(always)]
-    fn set_meta(&mut self, value: &Bound<'_, PyDict>) {
-        self.meta = value.clone().unbind();
+    fn set_meta(slf: &Bound<'_, Self>, value: &Bound<'_, PyDict>) {
+        // Read the dict before borrowing: a key's __eq__ can run Python code.
+        let link = ProfilerLink::from_meta(value);
+        let old = slf
+            .borrow_mut()
+            .set_meta_native(value.clone().unbind(), link);
+        // Dropping the old dict can run finalizers; do it after releasing the borrow.
+        drop(old);
     }
 
     #[getter(_metrics)]
@@ -822,20 +993,24 @@ impl Context {
             this.get_span_links(py),
             this.get_baggage(py),
             this.is_remote,
-            this.reactivate,
+            this.reactivate.load(Ordering::Relaxed),
             otel_sampling_state,
         )
     }
 
     fn __setstate__(&mut self, _py: Python<'_>, state: &Bound<'_, PyTuple>) -> PyResult<()> {
         self.trace_id = state.get_item(0)?.extract()?;
-        self.span_id = state.get_item(1)?.extract()?;
-        self.meta = state.get_item(2)?.extract::<Bound<'_, PyDict>>()?.unbind();
+        self.set_span_id_native(state.get_item(1)?.extract()?);
+        // The profiler link is not part of the state: it is read back from `meta`.
+        let meta = state.get_item(2)?.extract::<Bound<'_, PyDict>>()?;
+        let link = ProfilerLink::from_meta(&meta);
+        drop(self.set_meta_native(meta.unbind(), link));
         self.metrics = state.get_item(3)?.extract::<Bound<'_, PyDict>>()?.unbind();
         self.span_links = Some(state.get_item(4)?.extract::<Bound<'_, PyList>>()?.unbind());
         self.baggage = Some(state.get_item(5)?.extract::<Bound<'_, PyDict>>()?.unbind());
         self.is_remote = state.get_item(6)?.extract()?;
-        self.reactivate = state.get_item(7)?.extract()?;
+        self.reactivate
+            .store(state.get_item(7)?.extract()?, Ordering::Release);
         self.otel_sampling_state_data = if state.len()? > 8 {
             state.get_item(8)?.extract()?
         } else {
@@ -862,5 +1037,29 @@ impl Context {
 
     fn __clear__(&mut self) {
         *self = Self::default();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_hex_id_matches_written_values() {
+        assert_eq!(parse_hex_id("0000000000000abc"), Some(0xabc));
+        assert_eq!(parse_hex_id(" ABC "), Some(0xabc));
+        assert_eq!(parse_hex_id("0xff"), Some(0xff));
+        assert_eq!(parse_hex_id("ffffffffffffffff"), Some(u64::MAX));
+        // Ids keep their low 64 bits, as the profiler does.
+        assert_eq!(parse_hex_id("1ffffffffffffffff"), Some(u64::MAX));
+        assert_eq!(parse_hex_id(""), None);
+        assert_eq!(parse_hex_id("not hex"), None);
+    }
+
+    #[test]
+    fn span_id_mirror_keeps_low_bits() {
+        assert_eq!(span_id_mirror(None), 0);
+        assert_eq!(span_id_mirror(Some(7)), 7);
+        assert_eq!(span_id_mirror(Some((1u128 << 64) + 7)), 7);
     }
 }

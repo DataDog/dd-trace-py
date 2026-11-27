@@ -7,6 +7,7 @@
 //! `_parent_context`, and (via `Context`) `_reactivate` as native fields
 //! instead of round-tripping through Python attribute lookups.
 
+use std::sync::atomic::Ordering;
 use std::sync::OnceLock;
 
 use pyo3::{
@@ -27,7 +28,7 @@ static CONTEXTVAR: OnceLock<Py<PyAny>> = OnceLock::new();
 /// Borrows the shared contextvar without touching its refcount -- `Py::bind`
 /// is a pointer cast, not an INCREF, so the common (post-init) path here is
 /// free. Only the one-time init path allocates.
-fn contextvar(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
+pub(crate) fn contextvar(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
     if let Some(v) = CONTEXTVAR.get() {
         return Ok(v.bind(py));
     }
@@ -268,7 +269,7 @@ impl DefaultContextProvider {
             };
             if parent.is_none() {
                 if let Some(parent_context) = parent_context {
-                    if parent_context.borrow().reactivate {
+                    if parent_context.borrow().reactivate.load(Ordering::Relaxed) {
                         let parent_context = parent_context.into_any();
                         call_activate(slf, py, Some(parent_context.clone()))?;
                         return Ok(Some(parent_context.unbind()));

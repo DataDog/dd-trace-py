@@ -918,6 +918,7 @@ profiling_native:
         # Rust source (build_standalone.sh compiles Rust first; CMake links
         # against generated FFI headers from src/native/target/.../include/)
         - src/native/**/*.rs
+        - src/native/**/*.h
         - src/native/**/*.toml
         - src/native/**/*.txt
         - src/native/**/Cargo.lock

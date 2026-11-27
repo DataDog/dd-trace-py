@@ -23,6 +23,7 @@ mod log;
 mod otel_thread_ctx;
 mod packages;
 mod process_metrics;
+mod profiler_layout;
 mod py_string;
 mod rand;
 mod rc_shm;
@@ -85,6 +86,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     contextvar::register_contextvar(m)?;
     context::register_context(m)?;
     context_provider::register_context_provider(m)?;
+    profiler_layout::register(m)?;
     rand::register_rand(m)?;
     process_metrics::register_process_metrics(m)?;
     packages::register_packages(m)?;
