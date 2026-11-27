@@ -11,6 +11,7 @@ import socket
 import time
 from typing import Any
 from unittest import mock
+import uuid
 
 import pytest
 
@@ -150,6 +151,13 @@ class TestLogsIntakeWriter:
         oversized = {"message": "\x00" * (1024 * 1024)}
         with mock.patch("ddtrace.internal.logs.logger") as mock_logger:
             packs = writer._encode_packs([oversized, {"message": "kept"}])
+        assert packs == [(b'[{"message": "kept"}]', 1)]
+        mock_logger.warning.assert_called_once()
+
+    def test_packs_drop_event_that_cannot_be_serialized(self):
+        writer = _make_writer()
+        with mock.patch("ddtrace.internal.logs.logger") as mock_logger:
+            packs = writer._encode_packs([{"message": object()}, {"message": "kept"}])
         assert packs == [(b'[{"message": "kept"}]', 1)]
         mock_logger.warning.assert_called_once()
 
@@ -317,6 +325,13 @@ class TestAgentlessLogsHandler:
         (event,) = mock_writer.enqueue.call_args[0]
         assert event["dd.trace_id"] == "123"
         assert event["dd.span_id"] == "456"
+
+    def test_correlation_attributes_from_extra_are_strings(self, handler, mock_writer):
+        trace_id = uuid.uuid4()
+        logging.getLogger("test.app").warning("m", extra={LOG_ATTR_TRACE_ID: trace_id, LOG_ATTR_SPAN_ID: 42})
+        (event,) = mock_writer.enqueue.call_args[0]
+        assert event["dd.trace_id"] == str(trace_id)
+        assert event["dd.span_id"] == "42"
 
     def test_excludes_ddtrace_loggers(self, handler, mock_writer):
         self._log(logger_name="ddtrace")

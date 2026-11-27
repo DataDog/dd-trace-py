@@ -116,8 +116,13 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
         size = 2  # the enclosing brackets
         dropped = 0
         for event in events:
-            # Plain UTF-8 rather than \uXXXX escapes, which take 6 bytes per non-ASCII character.
-            encoded = json.dumps(event, ensure_ascii=False).encode("utf-8", "replace")
+            try:
+                # Plain UTF-8 rather than \uXXXX escapes, which take 6 bytes per non-ASCII character.
+                encoded = json.dumps(event, ensure_ascii=False).encode("utf-8", "replace")
+            except (TypeError, ValueError):
+                # Raising would end the periodic thread, and with it every later send.
+                logger.warning("dropping log event that cannot be serialized", exc_info=True)
+                continue
             if len(encoded) + 2 > self._MAX_REQUEST_BYTES:
                 # Possible despite message truncation when JSON escapes expand it (control characters).
                 dropped += 1
@@ -236,9 +241,10 @@ class LogsIntakeHandler(logging.Handler):
                     "message": message,
                     "service": self._service,
                     "status": record.levelname.lower(),
-                    # Injected by the logging integration when the record is created (DD_LOGS_INJECTION).
-                    LOG_ATTR_TRACE_ID: getattr(record, LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO),
-                    LOG_ATTR_SPAN_ID: getattr(record, LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO),
+                    # Injected by the logging integration when the record is created (DD_LOGS_INJECTION),
+                    # but an application can also pass them, as any object, through `extra`.
+                    LOG_ATTR_TRACE_ID: str(getattr(record, LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO)),
+                    LOG_ATTR_SPAN_ID: str(getattr(record, LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO)),
                 }
             )
         except Exception:
