@@ -26,7 +26,6 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace.aiguard._api_client import _SKIPPED_REASON
 from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import ContentPart
@@ -40,10 +39,6 @@ from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._common import wrap_abort_error
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
-from ddtrace.aiguard.integrations._anthropic_mcp import attach_mcp
-from ddtrace.aiguard.integrations._anthropic_mcp import mark_evaluated
-from ddtrace.aiguard.integrations._anthropic_mcp import request_mcp_tools
-from ddtrace.aiguard.integrations._anthropic_mcp import start_request
 from ddtrace.aiguard.integrations._mcp import mcp_reference
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import referenced_mcp_servers
@@ -176,7 +171,12 @@ def _reference_connector_server(tool_call: ToolCall, block: Any, mcp_servers: di
         server = mcp_servers.get(server_name)
         if server is None:
             # A server that this request does not declare is identified by its name alone.
-            server = mcp_server(AI_GUARD.MCP_MANAGED_BY_PROVIDER, AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=server_name)
+            server = mcp_server(
+                AI_GUARD.MCP_MANAGED_BY_PROVIDER,
+                AI_GUARD.MCP_TRANSPORT_UNKNOWN,
+                name=server_name,
+                server_id=f"mcp_{len(mcp_servers) + 1}",
+            )
             if server is None:
                 return
             mcp_servers[server_name] = server
@@ -594,9 +594,9 @@ def _sent_param(kwargs: dict[str, Any], key: str) -> Any:
 
 
 def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServer]]:
-    """Map each server name of the request mcp_servers (MCP connector) to its entry; None when the flag is off.
+    """Map each server name of the request mcp_servers (MCP connector) to its entry, numbered in order.
 
-    Only name and url are read, never authorization_token.
+    None when the flag is off. Only name and url are read, never authorization_token.
     """
     if not aiguard_config._ai_guard_mcp_enabled:
         return None
@@ -614,6 +614,7 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
                 AI_GUARD.MCP_TRANSPORT_UNKNOWN,
                 name=name,
                 url=url if isinstance(url, str) else None,
+                server_id=f"mcp_{len(servers) + 1}",
             )
             if server is not None:
                 servers[name] = server
@@ -623,33 +624,15 @@ def _connector_mcp_servers(kwargs: dict[str, Any]) -> Optional[dict[str, MCPServ
         return None
 
 
-def _connector_call_ids(resp: Any) -> set[str]:
-    """IDs of the mcp_tool_use calls of a response: the provider already ran them."""
+def _connector_payload(
+    messages: list[Message], connector_servers: Optional[dict[str, MCPServer]]
+) -> Optional[list[MCPServer]]:
+    """The connector servers that the tool calls of messages reference; fails open without MCP metadata."""
     try:
-        content = _get(resp, "content")
-        ids = (_get(block, "id") for block in content if _get(block, "type") == "mcp_tool_use")
-        return {call_id for call_id in ids if isinstance(call_id, str)}
-    except Exception:
-        logger.debug("AI Guard anthropic: failed to read the MCP connector calls of a response", exc_info=True)
-        return set()
-
-
-def _attach_mcp_servers(
-    messages: list[Message], kwargs: dict[str, Any], connector_servers: Optional[dict[str, MCPServer]] = None
-) -> tuple[Optional[list[MCPServer]], dict[str, Any]]:
-    """Reference the client-managed MCP tools of this request in messages and return the mcp_servers payload.
-
-    The payload adds the connector servers that messages reference; fails open without MCP metadata.
-    """
-    try:
-        mcp_tools = request_mcp_tools(_sent_param(kwargs, "tools"))
-        servers = attach_mcp(messages, mcp_tools)
-        if connector_servers:
-            servers = referenced_mcp_servers(messages, (servers or []) + list(connector_servers.values()))
-        return servers, mcp_tools
+        return referenced_mcp_servers(messages, connector_servers.values()) if connector_servers else None
     except Exception:
         logger.debug("AI Guard anthropic: failed to attach MCP metadata", exc_info=True)
-        return None, {}
+        return None
 
 
 def _list_iterable_params(kwargs: dict[str, Any]) -> None:
@@ -721,10 +704,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         return None
 
     logger.debug("AI Guard anthropic before-hook evaluating %d message(s)", len(ai_guard_messages))
-    mcp_servers, mcp_tools = _attach_mcp_servers(ai_guard_messages, kwargs, connector_servers)
-    if mcp_tools:
-        # A new request with MCP tools starts a new turn: no earlier response spares its calls.
-        start_request()
+    mcp_servers = _connector_payload(ai_guard_messages, connector_servers)
     try:
         evaluate_auto(client, ai_guard_messages, AI_GUARD.INTEGRATION_ANTHROPIC, mcp_servers)
     except AIGuardAbortError as e:
@@ -767,20 +747,12 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
         logger.debug("AI Guard anthropic after-hook skipped: request converter failed")
         return None
     all_messages = request_messages + response_messages
-    mcp_servers, mcp_tools = _attach_mcp_servers(all_messages, kwargs, connector_servers)
+    mcp_servers = _connector_payload(all_messages, connector_servers)
 
-    evaluated: list[Message] = []
     try:
-        evaluation = evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_ANTHROPIC, mcp_servers)
-        # A middleware-skipped evaluation checked nothing, so it must not spare the tool calls their check.
-        if evaluation["reason"] != _SKIPPED_REASON:
-            evaluated = response_messages
+        evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_ANTHROPIC, mcp_servers)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate Anthropic messages response", exc_info=True)
-    finally:
-        # Requests without MCP tools leave the marks alone; with them, a block or skip clears them.
-        if mcp_tools:
-            mark_evaluated(evaluated, mcp_tools, _connector_call_ids(resp))
     return None

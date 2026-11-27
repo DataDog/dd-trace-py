@@ -12,7 +12,6 @@ from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_a
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 from ddtrace.aiguard.integrations._anthropic import _convert_anthropic_messages
 from ddtrace.aiguard.integrations._anthropic import _convert_anthropic_response
-from ddtrace.aiguard.integrations._mcp import mcp_server_id
 from tests.aiguard.anthropic.conftest import MessagesTransport
 from tests.aiguard.anthropic.conftest import async_client
 from tests.aiguard.anthropic.conftest import payloads
@@ -39,14 +38,15 @@ CONNECTOR = {
     "url": "https://u53r:pa55w0rd@MCP.DeepWiki.com:443/mcp/s/path-t0k3n/mcp?key=query-k3y#fr4g",
     "authorization_token": "oauth-t0k3n",
 }
-SECRETS = ("u53r", "pa55w0rd", "path-t0k3n", "query-k3y", "fr4g", "oauth-t0k3n")
-DEEPWIKI_ID = mcp_server_id(url="https://mcp.deepwiki.com")
+# The URL path is sent as configured; userinfo, query, fragment and the authorization token never are.
+SECRETS = ("u53r", "pa55w0rd", "query-k3y", "fr4g", "oauth-t0k3n")
+DEEPWIKI_ID = "mcp_1"
 DEEPWIKI_SERVER = {
     "id": DEEPWIKI_ID,
     "managed_by": "provider",
     "transport": "unknown",
     "name": "deepwiki",
-    "url": "https://mcp.deepwiki.com",
+    "url": "https://mcp.deepwiki.com/mcp/s/path-t0k3n/mcp",
     "tools": {"ask_question": "ask_question"},
 }
 USER = [{"role": "user", "content": "Ask deepwiki about dd-trace-py"}]
@@ -175,7 +175,7 @@ def test_undeclared_server_is_identified_by_its_name(mock_execute_request):
     _anthropic_messages_create_before(new_ai_guard_client(), kwargs)
 
     (attributes,) = payloads(mock_execute_request)
-    server_id = mcp_server_id(name="deepwiki")
+    server_id = "mcp_1"
     assert attributes["messages"][1]["tool_calls"][0]["mcp"] == {"server_id": server_id}
     assert attributes["mcp_servers"] == [
         {
@@ -189,7 +189,7 @@ def test_undeclared_server_is_identified_by_its_name(mock_execute_request):
 
 
 @patch(EXECUTE_REQUEST)
-def test_names_of_one_server_share_the_entry_of_the_first(mock_execute_request):
+def test_names_on_one_origin_are_separate_entries(mock_execute_request):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     alias = {"type": "url", "name": "wiki", "url": "https://mcp.deepwiki.com/sse"}
     alias_call = dict(CALL, id="mcptoolu_2", name="read_wiki", server_name="wiki")
@@ -200,9 +200,19 @@ def test_names_of_one_server_share_the_entry_of_the_first(mock_execute_request):
     )
 
     (attributes,) = payloads(mock_execute_request)
-    tools = {"ask_question": "ask_question", "read_wiki": "read_wiki"}
-    assert attributes["mcp_servers"] == [dict(DEEPWIKI_SERVER, tools=tools)]
-    assert [call["mcp"] for call in attributes["messages"][-1]["tool_calls"]] == [{"server_id": DEEPWIKI_ID}] * 2
+    wiki = {
+        "id": "mcp_2",
+        "managed_by": "provider",
+        "transport": "unknown",
+        "name": "wiki",
+        "url": "https://mcp.deepwiki.com/sse",
+        "tools": {"read_wiki": "read_wiki"},
+    }
+    assert attributes["mcp_servers"] == [DEEPWIKI_SERVER, wiki]
+    assert [call["mcp"] for call in attributes["messages"][-1]["tool_calls"]] == [
+        {"server_id": "mcp_1"},
+        {"server_id": "mcp_2"},
+    ]
 
 
 @patch(EXECUTE_REQUEST)

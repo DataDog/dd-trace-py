@@ -39,7 +39,7 @@ class _MCPServerRequired(TypedDict):
 class MCPServer(_MCPServerRequired, total=False):
     """MCP server referenced by tool calls; tools maps function.name to the original MCP tool name.
 
-    Unknown name, url, command and args are omitted; url is only scheme://host[:port].
+    Unknown name, url, command and args are omitted; url never has userinfo, a query or a fragment.
     """
 
     name: str
