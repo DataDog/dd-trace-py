@@ -5,6 +5,7 @@ import stat
 import sys
 from typing import Optional
 
+from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
@@ -99,9 +100,10 @@ def _resolved_directory(path_str: str) -> str:
 
 
 def is_file_level_coverage_enabled() -> bool:
-    # Python 3.12+ instruments with sys.monitoring, where file-level coverage (PY_START events) is the default and
-    # avoids the cost of LINE events. Older versions default to line-level coverage.
-    if sys.version_info >= (3, 12) and asbool(env.get("_DD_COVERAGE_NATIVE_LINES", "false")):
+    # Python 3.12+ instruments with sys.monitoring. Native line collection reports lines where it can run; elsewhere
+    # file-level coverage (PY_START events) is the default and avoids the cost of LINE events in Python callbacks.
+    # Older versions default to line-level coverage.
+    if native_lines.requested():
         return False
     default = "true" if sys.version_info >= (3, 12) else "false"
     return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", default))

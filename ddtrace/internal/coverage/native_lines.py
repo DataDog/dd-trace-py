@@ -11,7 +11,8 @@ and the blocks that dominate it. Block probes fire fewer events but cost more to
 faster on any repository measured. They also need PY_UNWIND events, and switch off for good once
 greenlet is imported.
 
-Enabled with _DD_COVERAGE_NATIVE_LINES=true, which also selects line-level coverage.
+On by default where it can run (CPython 3.12+ builds with the GIL and this extension), and then coverage is
+line-level. _DD_COVERAGE_NATIVE_LINES=false turns it off.
 """
 
 import builtins
@@ -46,7 +47,7 @@ ctx_native: ContextVar[t.Optional[t.Any]] = ContextVar("ddtrace_coverage_native_
 # sys.monitoring exists on 3.12+ only.
 _monitoring: t.Any = getattr(sys, "monitoring", None)
 
-_requested: bool = sys.version_info >= (3, 12) and asbool(env.get("_DD_COVERAGE_NATIVE_LINES", "false"))
+_requested: bool = sys.version_info >= (3, 12) and asbool(env.get("_DD_COVERAGE_NATIVE_LINES", "true"))
 _enabled: bool = False
 _report_root: t.Optional[str] = None
 _file_ids: dict[str, int] = {}
