@@ -3,6 +3,9 @@ import os
 import subprocess
 import sys
 import textwrap
+import threading
+import time
+import types
 
 import pytest
 
@@ -442,3 +445,149 @@ def test_aliases_and_sensitivity_are_empty_before_registration():
         {},
     )
     assert out == "done"
+
+
+class _FakeDist:
+    def __init__(self, name):
+        self.metadata = {"Name": name}
+
+
+class _FakeEntryPoint:
+    group = ""
+
+    def __init__(self, name, value, module=None):
+        self.name = name
+        self.value = value
+        self.module = module
+        self.loaded = 0
+
+    def load(self):
+        self.loaded += 1
+        return self.module
+
+
+def _registry_module(canonical, legacy):
+    return types.SimpleNamespace(
+        SUPPORTED_CONFIGURATIONS=frozenset({canonical, "DD_API_KEY"}),
+        CONFIGURATION_ALIASES={canonical: [legacy]},
+        DEPRECATED_CONFIGURATIONS=frozenset(),
+        SENSITIVE_CONFIGURATIONS=frozenset({"DD_API_KEY"}),
+    )
+
+
+@pytest.fixture
+def unregistered_env(monkeypatch):
+    """Reset the module state as if no registry had been resolved yet; restore it afterwards."""
+    monkeypatch.setattr(env_module, "_resolved", False)
+    monkeypatch.setattr(env_module, "_resolving_thread", None)
+    monkeypatch.setattr(env_module, "_SUPPORTED_CONFIGURATIONS", None)
+    monkeypatch.setattr(env_module, "_DEPRECATED_CONFIGURATIONS", frozenset())
+    monkeypatch.setattr(env_module, "_CONFIGURATION_ALIASES", {})
+    monkeypatch.setattr(env_module, "_ALIAS_TARGETS", frozenset())
+    monkeypatch.setattr(env_module, "_SENSITIVE_CONFIGURATIONS", frozenset())
+    yield
+
+
+def _declare_providers(monkeypatch, providers):
+    """Make env resolve the registry from the given (entry point, distribution) pairs."""
+    from ddtrace.internal.utils import entry_points as entry_points_utils
+
+    monkeypatch.setattr(entry_points_utils, "entry_points_with_distributions", lambda group: providers)
+
+
+def test_untrusted_provider_is_skipped_and_the_next_one_loads(monkeypatch, unregistered_env, caplog):
+    # Fixed names: the real registry's aliases are not available (the fixture cleared them).
+    canonical, legacy = "DD_SERVICE_FAKE", "DD_SERVICE_FAKE_LEGACY"
+
+    class _Exploding(_FakeEntryPoint):
+        def load(self):
+            raise AssertionError("an untrusted provider must not be loaded")
+
+    untrusted = _Exploding("evil", "evil_module._supported_configurations")
+    trusted = _FakeEntryPoint(
+        "ddtrace",
+        "ddtrace.internal.settings._supported_configurations",
+        module=_registry_module(canonical, legacy),
+    )
+    _declare_providers(monkeypatch, [(untrusted, _FakeDist("evil")), (trusted, _FakeDist("ddtrace"))])
+
+    with caplog.at_level(logging.WARNING, logger=ENV_LOGGER):
+        assert env_module.get_aliases(canonical) == [legacy]
+
+    assert trusted.loaded == 1
+    assert any("untrusted distribution 'evil'" in record.getMessage() for record in caplog.records)
+
+
+def test_only_untrusted_providers_means_unregistered(monkeypatch, unregistered_env, caplog):
+    untrusted = _FakeEntryPoint("evil", "evil_module._supported_configurations")
+    _declare_providers(monkeypatch, [(untrusted, _FakeDist("evil"))])
+
+    with caplog.at_level(logging.WARNING, logger=ENV_LOGGER):
+        assert env_module.get_aliases("DD_SERVICE") == ()
+        assert not env_module.is_sensitive("DD_API_KEY")
+
+    assert env_module._resolved
+    assert env_module._SUPPORTED_CONFIGURATIONS is None
+    assert any("untrusted distribution 'evil'" in record.getMessage() for record in caplog.records)
+
+
+def test_concurrent_first_lookup_waits_for_the_installed_registry(monkeypatch, unregistered_env):
+    """A lookup that starts while another thread is resolving must see the full registry, not defaults."""
+    canonical, legacy = "DD_SERVICE_FAKE", "DD_SERVICE_FAKE_LEGACY"
+    monkeypatch.delenv(canonical, raising=False)
+    monkeypatch.setenv(legacy, "from-legacy")
+
+    resolving = threading.Event()
+    release = threading.Event()
+
+    def slow_load(group):
+        resolving.set()
+        assert release.wait(timeout=10), "the test never released the loader"
+        return _registry_module(canonical, legacy)
+
+    monkeypatch.setattr(env_module, "_load_entry_point_module", slow_load)
+
+    resolver = threading.Thread(target=env_module._resolve)
+    resolver.start()
+    assert resolving.wait(timeout=10), "the resolver never started loading"
+
+    results = {}
+
+    def concurrent_lookup():
+        try:
+            results["value"] = env_module.dd_environ[canonical]
+        except Exception as exc:  # noqa: BLE001 -- recorded and asserted below
+            results["error"] = exc
+
+    reader = threading.Thread(target=concurrent_lookup)
+    reader.start()
+    time.sleep(0.05)  # let the reader reach the resolution lock while the registry is still loading
+    release.set()
+    reader.join(timeout=10)
+    resolver.join(timeout=10)
+
+    assert "error" not in results
+    assert results["value"] == "from-legacy"  # the concurrent lookup saw the installed aliases
+
+
+def test_reentrant_lookup_during_the_load_does_not_deadlock(monkeypatch, unregistered_env):
+    """An env lookup made by the registry module while it loads proceeds unregistered instead of recursing."""
+    canonical, legacy = "DD_SERVICE_FAKE", "DD_SERVICE_FAKE_LEGACY"
+    observed = {}
+
+    def load(group):
+        observed["resolving_thread"] = env_module._resolving_thread
+        observed["resolved_during_load"] = env_module._resolved
+        # The registry module reads a configuration while it imports: re-entry, same thread.
+        observed["nested_value"] = env_module.dd_environ.get("DD_NOT_IN_THIS_FAKE_REGISTRY")
+        return _registry_module(canonical, legacy)
+
+    monkeypatch.setattr(env_module, "_load_entry_point_module", load)
+
+    assert env_module.is_sensitive("DD_API_KEY")  # triggers the load, which re-enters above
+
+    assert observed["resolving_thread"] == threading.get_ident()
+    assert observed["resolved_during_load"] is False
+    assert observed["nested_value"] is None
+    assert env_module._resolved and env_module._SUPPORTED_CONFIGURATIONS is not None
+    assert env_module.get_aliases(canonical) == [legacy]
