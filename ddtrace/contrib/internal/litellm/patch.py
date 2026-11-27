@@ -3,6 +3,7 @@ import sys
 import litellm
 
 from ddtrace import config
+from ddtrace.contrib._events.litellm import LiteLLMCallEvent
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.litellm._constants import COMPONENT
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
@@ -91,58 +92,58 @@ def _handle_router_stream_response(resp, ctx, is_async=False):
 
 def traced_completion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
-    # Listeners of these events share the state of one call. A listener can stop the call with a
-    # DDBlockException, which dispatch always propagates.
-    state = {}
-    name = f"litellm.{event.operation}"
-    if not kwargs.get("stream", False):
+    # Products subscribe to LiteLLMCallEvent to act on the call. A subscriber can stop the call
+    # with a DDBlockException, which dispatch always propagates.
+    stream = bool(kwargs.get("stream", False))
+    call_event = LiteLLMCallEvent(
+        operation=event.operation,
+        request_args=args,
+        request_kwargs=kwargs,
+        stream=stream,
+    )
+    if not stream:
         with core.context_with_event(event) as ctx:
-            try:
-                core.dispatch(f"{name}.before", (state, args, kwargs))
+            with core.context_with_event(call_event):
                 with fallback_dispatch(ctx):
                     event.response = func(*args, **kwargs)
-                core.dispatch(f"{name}.after", (state, args, kwargs, event.response))
-                return event.response
-            finally:
-                core.dispatch(f"{name}.finally", (state,))
+                call_event.response = event.response
+            return event.response
     # The stream handler dispatches the ended event once the stream is consumed or closed.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            core.dispatch(f"{name}.before", (state, args, kwargs))
-            with fallback_dispatch(ctx):
-                resp = func(*args, **kwargs)
+            with core.context_with_event(call_event):
+                with fallback_dispatch(ctx):
+                    resp = func(*args, **kwargs)
         except (Exception, DDBlockException):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        finally:
-            core.dispatch(f"{name}.finally", (state,))
         return make_traced_stream(resp, LiteLLMStreamHandler(ctx))
 
 
 async def traced_acompletion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
-    state = {}
-    name = f"litellm.{event.operation}"
-    if not kwargs.get("stream", False):
+    stream = bool(kwargs.get("stream", False))
+    call_event = LiteLLMCallEvent(
+        operation=event.operation,
+        request_args=args,
+        request_kwargs=kwargs,
+        stream=stream,
+    )
+    if not stream:
         with core.context_with_event(event) as ctx:
-            try:
-                core.dispatch(f"{name}.before", (state, args, kwargs))
+            with core.context_with_event(call_event):
                 with fallback_dispatch(ctx):
                     event.response = await func(*args, **kwargs)
-                core.dispatch(f"{name}.after", (state, args, kwargs, event.response))
-                return event.response
-            finally:
-                core.dispatch(f"{name}.finally", (state,))
+                call_event.response = event.response
+            return event.response
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            core.dispatch(f"{name}.before", (state, args, kwargs))
-            with fallback_dispatch(ctx):
-                resp = await func(*args, **kwargs)
+            with core.context_with_event(call_event):
+                with fallback_dispatch(ctx):
+                    resp = await func(*args, **kwargs)
         except (Exception, DDBlockException):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        finally:
-            core.dispatch(f"{name}.finally", (state,))
         return make_traced_stream(resp, LiteLLMAsyncStreamHandler(ctx))
 
 

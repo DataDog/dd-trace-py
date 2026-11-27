@@ -230,24 +230,30 @@ class ExecutionContext(Generic[ContextEventType_co]):
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:
-        if self._dispatch_end_event and not self._end_event_dispatched:
-            # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
-            dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
-            self._end_event_dispatched = True
-            self._event = None
         try:
-            if self._token is not None:
-                _CURRENT_CONTEXT.reset(self._token)
-        except ValueError:
-            log.debug(
-                "Encountered ValueError during core contextvar reset() call. "
-                "This can happen when a span holding an executioncontext is "
-                "finished in a Context other than the one that started it."
-            )
-        except LookupError:
-            log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
+            if self._dispatch_end_event and not self._end_event_dispatched:
+                # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
+                try:
+                    dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
+                finally:
+                    self._end_event_dispatched = True
+                    self._event = None
         finally:
-            self._token = None
+            try:
+                if self._token is not None:
+                    _CURRENT_CONTEXT.reset(self._token)
+            except ValueError:
+                log.debug(
+                    "Encountered ValueError during core contextvar reset() call. "
+                    "This can happen when a span holding an executioncontext is "
+                    "finished in a Context other than the one that started it."
+                )
+            except LookupError:
+                log.debug(
+                    "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
+                )
+            finally:
+                self._token = None
         return (
             True
             if exc_type is None
@@ -266,9 +272,11 @@ class ExecutionContext(Generic[ContextEventType_co]):
         """
         if self._end_event_dispatched:
             return
-        dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
-        self._end_event_dispatched = True
-        self._event = None
+        try:
+            dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
+        finally:
+            self._end_event_dispatched = True
+            self._event = None
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""

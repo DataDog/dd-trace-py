@@ -1,8 +1,10 @@
 import pytest
 
+from ddtrace.contrib._events.litellm import LiteLLMCallEvent
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
@@ -324,26 +326,30 @@ class _StopCall(DDBlockException):
 async def test_litellm_call_events(litellm, request_vcr, stream):
     calls = []
 
-    def before(state, args, kwargs):
-        state["seen"] = True
-        calls.append(("before", kwargs.get("model")))
+    class CallSubscriber(ContextSubscriber[LiteLLMCallEvent]):
+        event_names = (LiteLLMCallEvent.event_name,)
 
-    def after(state, args, kwargs, response):
-        calls.append(("after", state.get("seen"), response is not None))
+        @classmethod
+        def on_started(cls, ctx):
+            assert isinstance(ctx.event, LiteLLMCallEvent)
+            ctx.set_item("seen", True)
+            calls.append(("started", ctx.event.operation, ctx.event.request_kwargs.get("model"), ctx.event.stream))
 
-    def finally_(state):
-        calls.append(("finally", state.get("seen")))
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            assert isinstance(ctx.event, LiteLLMCallEvent)
+            assert exc_info == (None, None, None)
+            calls.append(
+                (
+                    "ended",
+                    ctx.event.operation,
+                    ctx.get_item("seen"),
+                    ctx.event.stream,
+                    ctx.event.response is not None,
+                )
+            )
 
-    listeners = [
-        ("litellm.completion.before", before),
-        ("litellm.completion.after", after),
-        ("litellm.completion.finally", finally_),
-        ("litellm.acompletion.before", before),
-        ("litellm.acompletion.after", after),
-        ("litellm.acompletion.finally", finally_),
-    ]
-    for event_id, listener in listeners:
-        core.on(event_id, listener)
+    CallSubscriber.register()
     try:
         messages = [{"content": "Hey, what is up?", "role": "user"}]
         with request_vcr.use_cassette(get_cassette_name(stream, 1)):
@@ -357,23 +363,30 @@ async def test_litellm_call_events(litellm, request_vcr, stream):
                 async for _ in resp:
                     pass
     finally:
-        for event_id, listener in listeners:
-            core.reset_listeners(event_id, listener)
+        CallSubscriber.unregister()
 
-    # A streamed call dispatches no after event: its answer arrives later, chunk by chunk.
-    one_call = [("before", "gpt-3.5-turbo")] + ([] if stream else [("after", True, True)]) + [("finally", True)]
-    assert calls == one_call * 2
+    # A streamed call leaves response as None on ended: its answer arrives later, chunk by chunk.
+    expected = [
+        ("started", "completion", "gpt-3.5-turbo", stream),
+        ("ended", "completion", True, stream, not stream),
+        ("started", "acompletion", "gpt-3.5-turbo", stream),
+        ("ended", "acompletion", True, stream, not stream),
+    ]
+    assert calls == expected
 
 
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("use_router", [False, True])
 async def test_litellm_stream_base_exception_finishes_span(litellm, router, test_spans, use_router, is_async):
-    def stop(state, args, kwargs):
-        raise _StopCall()
+    class BlockingSubscriber(ContextSubscriber[LiteLLMCallEvent]):
+        event_names = (LiteLLMCallEvent.event_name,)
 
-    event_id = "litellm.acompletion.before" if is_async else "litellm.completion.before"
+        @classmethod
+        def on_started(cls, ctx):
+            raise _StopCall()
+
     target = router if use_router else litellm
-    core.on(event_id, stop)
+    BlockingSubscriber.register()
     try:
         messages = [{"content": "Hey, what is up?", "role": "user"}]
         with pytest.raises(_StopCall):
@@ -382,8 +395,39 @@ async def test_litellm_stream_base_exception_finishes_span(litellm, router, test
             else:
                 target.completion(model="gpt-3.5-turbo", messages=messages, stream=True)
     finally:
-        core.reset_listeners(event_id, stop)
+        BlockingSubscriber.unregister()
 
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert spans, "The call should have created a span"
+    for span in spans:
+        assert span.duration is not None, f"{span.resource} span should be finished"
+        assert span.error == 1
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_litellm_ended_base_exception_finishes_span(litellm, request_vcr, test_spans, is_async):
+    class BlockingResponseSubscriber(ContextSubscriber[LiteLLMCallEvent]):
+        event_names = (LiteLLMCallEvent.event_name,)
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            assert ctx.event.response is not None
+            raise _StopCall()
+
+    context_before = core.current
+    BlockingResponseSubscriber.register()
+    try:
+        messages = [{"content": "Hey, what is up?", "role": "user"}]
+        with request_vcr.use_cassette(get_cassette_name(False, 1)):
+            with pytest.raises(_StopCall):
+                if is_async:
+                    await litellm.acompletion(model="gpt-3.5-turbo", messages=messages, stream=False)
+                else:
+                    litellm.completion(model="gpt-3.5-turbo", messages=messages, stream=False)
+    finally:
+        BlockingResponseSubscriber.unregister()
+
+    assert core.current is context_before
     spans = [span for trace in test_spans.pop_traces() for span in trace]
     assert spans, "The call should have created a span"
     for span in spans:
