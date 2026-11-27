@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from collections import defaultdict
 from copy import deepcopy
+from importlib.machinery import SOURCE_SUFFIXES
 from inspect import getmodule
 import os
 from pathlib import Path
@@ -65,6 +66,10 @@ def _is_site_packages_path(path: Path) -> bool:
 
 # Hosts that fold case in paths compare them through pathlib, which folds per component.
 _CASE_INSENSITIVE_PATHS = os.path.normcase("A") != "A"
+
+# Native line collection records Python source files only. Template engines such as Jinja compile
+# code named after the template file, whose line numbers are those of the generated code.
+_PYTHON_SOURCE_SUFFIXES = tuple(SOURCE_SUFFIXES)
 
 
 def _is_under(path: str, root: str) -> bool:
@@ -673,6 +678,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         filename = code.co_filename
         if filename in self._rejected_files:
+            return code
+        if native_lines.enabled() and not filename.endswith(_PYTHON_SOURCE_SUFFIXES):
+            self._rejected_files.add(filename)
             return code
         # The same memoized realpath as instrument_module's, so a module's file is resolved once.
         if not self._is_instrumentable_file(resolved_path(filename)):
