@@ -149,6 +149,49 @@ def _patch_executor_submit(module) -> None:
     executor.submit = submit_in_native_context
 
 
+def _carry_native_context_into(context) -> None:
+    # A task created with an explicit context runs in that context, not in a copy of its creator's, so it
+    # would run for no test. The creator's native context is written into it, unless it names one already.
+    # Copies made of it later, for the tasks and callbacks it starts, carry it too.
+    native_context = native_lines.ctx_native.get()
+    if native_context is None or not isinstance(context, contextvars.Context):
+        return
+    if context.get(native_lines.ctx_native) is None:
+        try:
+            context.run(native_lines.ctx_native.set, native_context)
+        except RuntimeError:
+            # The context is entered already, here or on another thread.
+            pass
+
+
+def _patch_create_task(loop_type) -> None:
+    create_task = loop_type.create_task
+    if getattr(create_task, DD_PATCH_ATTR, False):
+        return
+
+    # Arguments pass through as given: from Python 3.14 create_task hands every keyword to the task factory,
+    # which need not accept a context=None the caller left out.
+    def create_task_in_native_context(self, coro, *args, **kwargs):
+        context = kwargs.get("context")
+        if context is not None:
+            _carry_native_context_into(context)
+        return create_task(self, coro, *args, **kwargs)
+
+    setattr(create_task_in_native_context, DD_PATCH_ATTR, True)
+    loop_type.create_task = create_task_in_native_context
+
+
+def _patch_asyncio_create_task(module) -> None:
+    # asyncio.create_task() and TaskGroup.create_task() call the loop's create_task.
+    _patch_create_task(module.BaseEventLoop)
+
+
+def _patch_uvloop_create_task(module) -> None:
+    loop_type = getattr(module, "Loop", None)
+    if loop_type is not None:
+        _patch_create_task(loop_type)
+
+
 def _patch_threading():
     threading.Thread.__init__ = CoverageCollectingThread.__init__
     threading.Thread._bootstrap_inner = CoverageCollectingThread._bootstrap_inner
@@ -156,3 +199,6 @@ def _patch_threading():
     if native_lines.requested():
         # Work items carry the submitter's native context (per unit of work, not per worker thread).
         ModuleWatchdog.after_module_imported("concurrent.futures.thread")(_patch_executor_submit)
+        # So do event loop tasks created with an explicit context.
+        ModuleWatchdog.after_module_imported("asyncio.base_events")(_patch_asyncio_create_task)
+        ModuleWatchdog.after_module_imported("uvloop")(_patch_uvloop_create_task)
