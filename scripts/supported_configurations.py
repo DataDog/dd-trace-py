@@ -8,7 +8,8 @@ Reads the JSON registry and produces a Python module with:
 - SENSITIVE_CONFIGURATIONS: frozenset of env var names whose value is excluded
   from configuration telemetry (marked ``"sensitive": true`` in the registry)
 
-Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered.
+Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered. The sources of the
+packages split out of ddtrace (see SPLIT_PACKAGES) are scanned too when they are installed.
 
 Usage:
     python scripts/supported_configurations.py           # generate + verify registry
@@ -19,10 +20,14 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable
+from collections.abc import Sequence
+import functools
+import importlib.util
 import json
 from pathlib import Path
 import re
 import sys
+from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -37,6 +42,9 @@ IGNORED_ENVIRONMENT_VARIABLES = [
     "_DD_CONTEXTVAR",
     "_DD_DIRECT_SUBMISSION_ENABLED",
 ]
+# Top-level packages that hold code (and therefore env var reads) moved out of ddtrace/. They are
+# scanned from wherever they are installed so that the registry stays complete after a move.
+SPLIT_PACKAGES = ("_ddtrace_internal", "_ddtrace_coverage", "_ddtrace_native")
 INTEGRATIONS_WITHOUT_SERVICE_CONFIG = {"anyio", "trio"}
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
@@ -47,7 +55,7 @@ HEADER = """\
 """
 
 
-def generate_module(data: dict) -> str:
+def generate_module(data: dict[str, Any]) -> str:
     configs = data["supportedConfigurations"]
     all_names = sorted(configs.keys())
 
@@ -153,13 +161,32 @@ def _collect_string_constants(module: ast.Module) -> dict[str, str]:
     return constants
 
 
+@functools.cache
+def _package_source_roots() -> tuple[Path, ...]:
+    """Directories of the installed split packages; packages that are not installed are skipped."""
+    roots: list[Path] = []
+    for name in SPLIT_PACKAGES:
+        try:
+            spec = importlib.util.find_spec(name)
+        except (ImportError, ValueError):
+            continue
+        if spec is None or spec.submodule_search_locations is None:
+            continue
+        roots.extend(Path(location) for location in spec.submodule_search_locations)
+    return tuple(roots)
+
+
 def _module_path(module_name: str) -> Path | None:
-    module = REPO_ROOT.joinpath(*module_name.split("."))
-    module_file = module.with_suffix(".py")
-    if module_file.exists():
-        return module_file
-    package_file = module / "__init__.py"
-    return package_file if package_file.exists() else None
+    # Constants imported from a split package (``from _ddtrace_internal.x import Y``) live outside REPO_ROOT.
+    for base in (REPO_ROOT, *(root.parent for root in _package_source_roots())):
+        module = base.joinpath(*module_name.split("."))
+        module_file = module.with_suffix(".py")
+        if module_file.exists():
+            return module_file
+        package_file = module / "__init__.py"
+        if package_file.exists():
+            return package_file
+    return None
 
 
 def _string_constants_for_module(module_name: str) -> dict[str, str]:
@@ -299,7 +326,7 @@ def _walk_envier_class(
     leading-underscore env var name.
     """
     for stmt in class_node.body:
-        if isinstance(stmt, ast.Assign) and _is_envier_var_call(stmt.value):
+        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call) and _is_envier_var_call(stmt.value):
             args = stmt.value.args
             env_name = resolve_env_name_arg(args[1]) if len(args) >= 2 else None
             if env_name is not None:
@@ -371,8 +398,31 @@ def _scan_envier_module(
         )
 
 
-def check_registry(data: dict) -> int:
-    """Verify every DD_*/_DD_*/OTEL_*/DATADOG_* var referenced in ddtrace/ is in the registry."""
+def _patch_modules() -> tuple[list[str], set[str]]:
+    """Return the integrations in ``ddtrace/_monkey.py``'s PATCH_MODULES and those not patchable via env var."""
+    assigns = {
+        node.targets[0].id: node.value
+        for node in ast.walk(ast.parse((REPO_ROOT / "ddtrace" / "_monkey.py").read_text()))
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in ("PATCH_MODULES", "_NOT_PATCHABLE_VIA_ENVVAR")
+    }
+    pm_node = assigns["PATCH_MODULES"]
+    assert isinstance(pm_node, ast.Dict)  # nosec B101
+    patch_modules = [k.value for k in pm_node.keys if isinstance(k, ast.Constant)]
+
+    np_node = assigns["_NOT_PATCHABLE_VIA_ENVVAR"]
+    assert isinstance(np_node, (ast.Set, ast.List, ast.Tuple))  # nosec B101
+    not_patchable = {e.value for e in np_node.elts if isinstance(e, ast.Constant)}
+    return patch_modules, not_patchable
+
+
+def check_registry(data: dict[str, Any], scan_roots: Sequence[Path] | None = None) -> int:
+    """Verify every DD_*/_DD_*/OTEL_*/DATADOG_* var referenced in the scanned sources is in the registry.
+
+    ``scan_roots`` defaults to ``ddtrace/`` plus the installed split packages.
+    """
     configs = data["supportedConfigurations"]
     all_known: set[str] = set(configs.keys()) | {
         alias for entries in configs.values() for entry in entries for alias in entry.get("aliases", [])
@@ -382,12 +432,16 @@ def check_registry(data: dict) -> int:
     envier_vars: set[str] = set()
     private_registry_mismatches: dict[str, str] = {}
 
-    # Single pass over ddtrace/ Python files: (1) regex-scan the source text for any quoted
+    if scan_roots is None:
+        scan_roots = [REPO_ROOT / "ddtrace", *_package_source_roots()]
+    print("Scanning for env vars in: " + ", ".join(str(root) for root in scan_roots))
+
+    # Single pass over the Python files of each scan root: (1) regex-scan the source text for any quoted
     # DD_*/_DD_*/OTEL_*/DATADOG_* literal, then (2) AST-scan for envier-declared vars whose
     # full name is built from DDConfig.v/var calls. The generated registry module is skipped
     # to avoid self-referential matches.
     pattern = re.compile(r'["\']((DD_|_DD_|OTEL_|DATADOG_)[A-Z][A-Z0-9_]*)["\']')
-    for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
+    for path in (path for root in scan_roots for path in root.rglob("*.py")):
         if path == OUTPUT_FILE:
             continue
         try:
@@ -408,21 +462,7 @@ def check_registry(data: dict) -> int:
                 _scan_envier_module(module, envier_vars, private_registry_mismatches)
 
     # Dynamic vars from PATCH_MODULES: DD_TRACE_{NAME}_ENABLED, DD_{NAME}_SERVICE[_NAME]
-    assigns = {
-        node.targets[0].id: node.value
-        for node in ast.walk(ast.parse((REPO_ROOT / "ddtrace" / "_monkey.py").read_text()))
-        if isinstance(node, ast.Assign)
-        and len(node.targets) == 1
-        and isinstance(node.targets[0], ast.Name)
-        and node.targets[0].id in ("PATCH_MODULES", "_NOT_PATCHABLE_VIA_ENVVAR")
-    }
-    pm_node = assigns["PATCH_MODULES"]
-    assert isinstance(pm_node, ast.Dict)  # nosec B101
-    patch_modules = [k.value for k in pm_node.keys if isinstance(k, ast.Constant)]
-
-    np_node = assigns["_NOT_PATCHABLE_VIA_ENVVAR"]
-    assert isinstance(np_node, (ast.Set, ast.List, ast.Tuple))  # nosec B101
-    not_patchable = {e.value for e in np_node.elts if isinstance(e, ast.Constant)}
+    patch_modules, not_patchable = _patch_modules()
 
     for name in patch_modules:
         n = name.upper()
@@ -457,7 +497,7 @@ def check_registry(data: dict) -> int:
     if missing:
         has_errors = True
         print(
-            f"ERROR: {len(missing)} var(s) found in ddtrace/ but missing from {INPUT_FILE.name}.\n"
+            f"ERROR: {len(missing)} var(s) found in the scanned sources but missing from {INPUT_FILE.name}.\n"
             f"\n"
             f"To fix:\n"
             f"  1. Add the missing var(s) to supported-configurations.json\n"
