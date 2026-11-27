@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an issue where modules imported through a loader shared by several modules, such as a ``zipimporter`` used by zip applications or bundled deployments, could be instrumented or transformed using the wrong module. Import hooks and code transformations are now applied to each module that is imported.
