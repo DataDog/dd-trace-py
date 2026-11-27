@@ -19,6 +19,7 @@ ENV_ANALYZE_STREAM_RESPONSES_ENABLED = "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENA
 ENV_OPENAI_ENABLED = "DD_AI_GUARD_OPENAI_ENABLED"
 ENV_ANTHROPIC_ENABLED = "DD_AI_GUARD_ANTHROPIC_ENABLED"
 ENV_LANGCHAIN_ENABLED = "DD_AI_GUARD_LANGCHAIN_ENABLED"
+ENV_LITELLM_ENABLED = "DD_AI_GUARD_LITELLM_ENABLED"
 # Adds MCP server metadata to evaluations and evaluates MCP approval requests. On by default;
 # false keeps MCP tool calls evaluated as ordinary tool calls.
 ENV_MCP_ENABLED = "DD_AI_GUARD_MCP_ENABLED"
@@ -55,6 +56,7 @@ class AIGuardConfig(DDConfig):
     _ai_guard_openai_enabled = DDConfig.var(bool, ENV_OPENAI_ENABLED, default=True)
     _ai_guard_anthropic_enabled = DDConfig.var(bool, ENV_ANTHROPIC_ENABLED, default=True)
     _ai_guard_langchain_enabled = DDConfig.var(bool, ENV_LANGCHAIN_ENABLED, default=True)
+    _ai_guard_litellm_enabled = DDConfig.var(bool, ENV_LITELLM_ENABLED, default=True)
     _ai_guard_mcp_enabled = DDConfig.var(bool, ENV_MCP_ENABLED, default=True)
 
     # for tests purposes
@@ -70,6 +72,7 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_openai_enabled",
         "_ai_guard_anthropic_enabled",
         "_ai_guard_langchain_enabled",
+        "_ai_guard_litellm_enabled",
         "_ai_guard_mcp_enabled",
     ]
 

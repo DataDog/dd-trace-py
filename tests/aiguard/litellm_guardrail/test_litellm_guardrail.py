@@ -19,6 +19,7 @@ from ddtrace.aiguard._api_client import ImageURL
 from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._context import aiguard_context
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations.litellm import _READING_STREAM
 from ddtrace.aiguard.integrations.litellm import _REQUEST_CLAIM
@@ -2133,3 +2134,30 @@ class TestConversionErrors:
             return result, is_aiguard_context_active()
 
         assert asyncio.run(request()) == (None, False)
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+class TestCallClaimedByAnotherIntegration:
+    """Outside the proxy, the integration that claimed a call evaluates it, for example the LiteLLM SDK hook."""
+
+    async def test_sdk_call_is_not_evaluated(self, mock_req, guardrail):
+        data = make_request_data(messages=[user_msg("Hello")])
+
+        with aiguard_context():
+            assert await _pre_call(guardrail, data) is data
+            assert await _post_call_success(guardrail, data) is None
+            # The claim of the other integration stays.
+            assert is_aiguard_context_active()
+
+        mock_req.assert_not_called()
+
+    async def test_proxy_request_is_still_evaluated(self, mock_req, guardrail_monitor):
+        mock_req.return_value = mock_evaluate_response("ALLOW", block=False)
+        data = _proxy_request_data()
+
+        with aiguard_context():
+            await _pre_call(guardrail_monitor, data)
+            await _post_call_success(guardrail_monitor, data)
+            assert is_aiguard_context_active()
+
+        assert mock_req.call_count == 2

@@ -35,6 +35,7 @@ from ddtrace.aiguard.integrations._langchain import _langchain_patch
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
+from ddtrace.aiguard.integrations._litellm import LiteLLMCallSubscriber
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_invoke_tool_before
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
@@ -64,6 +65,7 @@ _anthropic_wrapped_targets: list[tuple[Any, str]] = []
 def ai_guard_listen() -> None:
     client = new_ai_guard_client()
     _langchain_listen(client)
+    _litellm_listen(client)
     _openai_listen(client)
     _openai_agents_listen(client)
     _anthropic_listen(client)
@@ -116,6 +118,17 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.chatmodel.stream.finally", _langchain_stream_finally)
     core.on("langchain.llm.stream.finally", _langchain_stream_finally)
+
+
+def _litellm_listen(client: AIGuardClient) -> None:
+    # Kill switch of the LiteLLM SDK hook (DD_AI_GUARD_LITELLM_ENABLED, true by default).
+    # The guardrail of the LiteLLM proxy does not depend on these listeners.
+    if not aiguard_config._ai_guard_litellm_enabled:
+        logger.debug("AI Guard LiteLLM auto-instrumentation disabled via DD_AI_GUARD_LITELLM_ENABLED=false")
+        return
+
+    LiteLLMCallSubscriber.client = client
+    LiteLLMCallSubscriber.register()
 
 
 def _openai_listen(client: AIGuardClient) -> None:

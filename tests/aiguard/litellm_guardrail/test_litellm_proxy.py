@@ -1,6 +1,6 @@
 """These tests send requests through the LiteLLM proxy app, which runs in this process.
 
-The tests patch the OpenAI integration and send the model calls of LiteLLM to an offline stub.
+The tests patch the OpenAI and LiteLLM integrations and send the model calls of LiteLLM to an offline stub.
 """
 
 import asyncio
@@ -17,9 +17,13 @@ from litellm.proxy import proxy_server
 import openai
 import pytest
 
+from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.aiguard.integrations.litellm import GUARDRAIL_NAME
 from ddtrace.aiguard.integrations.litellm import DatadogAIGuardGuardrail
+from ddtrace.contrib.internal.litellm.patch import patch as patch_litellm
+from ddtrace.contrib.internal.litellm.patch import unpatch as unpatch_litellm
 from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from tests.aiguard.litellm_guardrail.conftest import _AI_GUARD_CONFIG
@@ -210,10 +214,12 @@ def evaluations(verdicts, evaluated_messages, evaluated_payloads):
 
 @pytest.fixture
 def openai_stub():
-    """Patch the OpenAI integration, and send the model calls of LiteLLM to the stub."""
+    """Patch the OpenAI and LiteLLM integrations, and send the model calls of LiteLLM to the stub."""
     stub = OpenAIStub()
-    session = litellm.aclient_session
+    sessions = litellm.client_session, litellm.aclient_session
     patch_openai()
+    patch_litellm()
+    litellm.client_session = httpx.Client(transport=httpx.MockTransport(stub))
     litellm.aclient_session = httpx.AsyncClient(transport=httpx.MockTransport(stub))
     litellm.in_memory_llm_clients_cache.flush_cache()
     # LiteLLM sends the Responses API and the Anthropic calls with its own HTTP client, not with the SDKs.
@@ -223,7 +229,8 @@ def openai_stub():
             yield stub
     finally:
         litellm.in_memory_llm_clients_cache.flush_cache()
-        litellm.aclient_session = session
+        litellm.client_session, litellm.aclient_session = sessions
+        unpatch_litellm()
         unpatch_openai()
 
 
@@ -819,7 +826,8 @@ async def test_during_call_evaluates_the_prompt(
     response = await _post(path, body)
 
     assert response.status_code == 200, response.text
-    assert ("litellm", "prompt") in evaluations
+    # The during_call hook runs beside the model call, so the order of the evaluations can change.
+    assert sorted(evaluations) == [("litellm", "prompt"), ("openai", "prompt")]
     assert evaluated_messages[evaluations.index(("litellm", "prompt"))] == [{"role": "user", "content": PROMPT}]
     assert not is_aiguard_context_active()
 
@@ -862,3 +870,73 @@ async def test_plain_openai_calls_outside_the_proxy(openai_stub, evaluations):
         ("openai", "prompt"),
         ("openai", "answer"),
     ]
+
+
+SDK_ARGS = dict(
+    model=f"openai/{MODEL}", api_key="sk-test", api_base="http://openai.test/v1", guardrails=[GUARDRAIL_NAME]
+)
+MESSAGES = [{"role": "user", "content": PROMPT}]
+
+
+@pytest.fixture
+def sdk_guardrail(openai_stub, evaluations):
+    """Add the guardrail to the litellm callbacks for the SDK guardrails argument, and record its evaluations."""
+    saved_lists = {name: list(getattr(litellm, name)) for name in _CALLBACK_LISTS if hasattr(litellm, name)}
+    with override_ai_guard_config(_AI_GUARD_CONFIG):
+        litellm.callbacks.append(DatadogAIGuardGuardrail(block=True, event_hook=["pre_call", "post_call"]))
+    checks = []
+    check = DatadogAIGuardGuardrail._run_ai_guard_check
+
+    async def spy(self: DatadogAIGuardGuardrail, messages: list[Any], *args: Any, **kwargs: Any) -> bool:
+        checks.append(messages)
+        return await check(self, messages, *args, **kwargs)
+
+    try:
+        with patch.object(DatadogAIGuardGuardrail, "_run_ai_guard_check", spy):
+            yield checks
+    finally:
+        for name, saved in saved_lists.items():
+            setattr(litellm, name, saved)
+
+
+async def _sdk_call(call: str) -> Any:
+    if call == "completion":
+        return litellm.completion(messages=MESSAGES, **SDK_ARGS)
+    if call == "atext_completion":
+        return await litellm.atext_completion(prompt=PROMPT, **SDK_ARGS)
+    if call == "acompletion_stream":
+        return [chunk async for chunk in await litellm.acompletion(messages=MESSAGES, stream=True, **SDK_ARGS)]
+    return await litellm.acompletion(messages=MESSAGES, **SDK_ARGS)
+
+
+@pytest.mark.parametrize(
+    "call, expected",
+    [
+        ("acompletion", ONE_PROMPT_AND_ONE_ANSWER),
+        ("completion", ONE_PROMPT_AND_ONE_ANSWER),
+        ("atext_completion", ONE_PROMPT_AND_ONE_ANSWER),
+        # Only the prompt of a streamed call is evaluated.
+        ("acompletion_stream", [("litellm", "prompt")]),
+    ],
+)
+async def test_sdk_guardrails_evaluate_each_direction_once(sdk_guardrail, openai_stub, evaluations, call, expected):
+    assert await _sdk_call(call)
+
+    # The LiteLLM integration claims the call and evaluates it, so the guardrail and the OpenAI listeners skip it.
+    assert evaluations == expected
+    assert sdk_guardrail == []
+    assert len(openai_stub.requests) == 1
+    assert not is_aiguard_context_active()
+
+
+async def test_sdk_guardrails_block_raises_ai_guard_abort_error(sdk_guardrail, openai_stub, evaluations, verdicts):
+    verdicts["prompt"] = "DENY"
+
+    with pytest.raises(AIGuardAbortError) as exc_info:
+        await _sdk_call("acompletion")
+
+    assert type(exc_info.value) is AIGuardAbortError
+    assert evaluations == [("litellm", "prompt")]
+    assert sdk_guardrail == []
+    assert openai_stub.requests == []
+    assert not is_aiguard_context_active()

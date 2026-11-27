@@ -79,6 +79,11 @@ def _release_request() -> None:
     reset_aiguard_context_active(_REQUEST_CLAIM.get())
 
 
+def _claimed_by_another_integration(data: dict[str, Any]) -> bool:
+    # Outside the proxy, the guardrail never claims, so an active claim belongs to another integration.
+    return "proxy_server_request" not in data and is_aiguard_context_active()
+
+
 def _call_type_from_route(data: dict[str, Any]) -> Optional[CallTypesLiteral]:
     """Get the call type from the proxy route of the request."""
     path = urlparse(str((data.get("proxy_server_request") or {}).get("url") or "")).path.rstrip("/")
@@ -538,6 +543,11 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         event_type: GuardrailEventHooks = GuardrailEventHooks.pre_call
         if not self.should_run_guardrail(data=data, event_type=event_type):
             return data
+        if _claimed_by_another_integration(data):
+            verbose_proxy_logger.debug(
+                "Datadog AI Guard: not running guardrail. Another integration evaluates the call"
+            )
+            return data
         # Claim only proxy requests whose answer the post-call hooks also evaluate.
         # Other callers run this hook in their own task, where a claim stays.
         claim = (
@@ -564,6 +574,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
             event_type: GuardrailEventHooks = GuardrailEventHooks.post_call
             if not self.should_run_guardrail(data=data, event_type=event_type):
                 # The proxy uses a return value that is not None as the new response.
+                return None
+            if _claimed_by_another_integration(data):
                 return None
             if _READING_STREAM.get():
                 # The streaming hook reads the model stream now, and it evaluates this answer itself.

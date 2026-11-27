@@ -129,8 +129,10 @@ suites:
     paths:
       - '@bootstrap'
       - '@ai_guard'
+      - '@litellm'
       - '@openai'
       - tests/aiguard/litellm_guardrail/*
+      - tests/aiguard/litellm/*
       - tests/aiguard/utils.py
       - tests/aiguard/suitespec.yml
     retry: 2
@@ -147,3 +149,17 @@ suites:
         - name: ai_guard_litellm_guardrail
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'litellm[proxy]==1.82.6']
+        # The LiteLLM SDK hook with plain litellm, without the proxy extras. One suite for both keeps the pipeline
+        # under its job limit. The pinned rows keep openai 2.x, like the guardrail locks.
+        - name: ai_guard_litellm
+          python: ['3.10', '3.14']
+          dependencies: [pytest-asyncio, 'litellm==1.78.5', 'openai<3']
+          command: pytest {cmdargs} tests/aiguard/litellm/
+        - name: ai_guard_litellm
+          python: ['3.10', '3.14']
+          dependencies: [pytest-asyncio, 'litellm==1.82.6', 'openai<3']
+          command: pytest {cmdargs} tests/aiguard/litellm/
+        - name: ai_guard_litellm
+          python: ['3.10', '3.14']
+          dependencies: [pytest-asyncio, litellm]
+          command: pytest {cmdargs} tests/aiguard/litellm/
