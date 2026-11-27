@@ -41,6 +41,12 @@
  * active, and the unowned lines once its window has closed. A multiprocessing child forked from
  * this process calls forget() and then records as such a child does.
  *
+ * Owner lookup: PyContextVar_Get() first reads a one-value cache that CPython keeps in the context
+ * variable, valid while the thread that filled it runs the same context. The callbacks read that
+ * cache themselves and call PyContextVar_Get() when it does not hold the value, which saves a call
+ * per event. A self-test at init compares both in temporary contexts and keeps the call if they
+ * ever disagree.
+ *
  * The callbacks never raise into the monitored code: an internal error is counted and the line
  * stays armed. All state is guarded by the GIL. Free-threaded builds are not supported.
  */
@@ -68,6 +74,32 @@
 #define DD_LINECOV_FREE_THREADED 1
 #else
 #define DD_LINECOV_FREE_THREADED 0
+#endif
+
+#if PY_VERSION_HEX >= 0x030D0000
+#define DD_THREAD_STATE() PyThreadState_GetUnchecked()
+#else
+#define DD_THREAD_STATE() _PyThreadState_UncheckedGet()
+#endif
+
+/* ------------------------------------------------------------------------------------------------
+ * CPython's context variable object, as Include/internal/pycore_context.h declares it in 3.12 to
+ * 3.14. Free-threaded builds have no value cache. The init self-test turns the cache read off if
+ * the layout or the cache rules differ.
+ */
+#if !DD_LINECOV_FREE_THREADED && PY_VERSION_HEX < 0x030F0000
+#define DD_HAVE_CACHED_OWNER 1
+typedef struct
+{
+    PyObject_HEAD PyObject* var_name;
+    PyObject* var_default;
+    PyObject* var_cached; /* borrowed from the context that holds it */
+    uint64_t var_cached_tsid;
+    uint64_t var_cached_tsver;
+    Py_hash_t var_hash;
+} dd_context_var;
+#else
+#define DD_HAVE_CACHED_OWNER 0
 #endif
 
 /* Keeps rarely run code, such as the per-code-object setup, out of the event callbacks. */
@@ -109,14 +141,17 @@ typedef struct
     uint8_t* per_instruction_tools;
 } dd_monitoring;
 #define DD_ORIGINAL_OPCODE_PTR(m, i) (&(m)->lines->data[(i) * (m)->lines->bytes_per_entry])
+#define DD_ORIGINAL_OPCODE_STRIDE(m) ((Py_ssize_t)(m)->lines->bytes_per_entry)
 #elif PY_VERSION_HEX >= 0x030D0000 && PY_VERSION_HEX < 0x030E0000
 #define DD_HAVE_INTERNAL_REARM 1
 typedef _PyCoMonitoringData dd_monitoring;
 #define DD_ORIGINAL_OPCODE_PTR(m, i) (&(m)->lines->data[(i) * (m)->lines->bytes_per_entry])
+#define DD_ORIGINAL_OPCODE_STRIDE(m) ((Py_ssize_t)(m)->lines->bytes_per_entry)
 #elif PY_VERSION_HEX >= 0x030C0000 && PY_VERSION_HEX < 0x030D0000
 #define DD_HAVE_INTERNAL_REARM 1
 typedef _PyCoMonitoringData dd_monitoring;
 #define DD_ORIGINAL_OPCODE_PTR(m, i) (&(m)->lines[(i)].original_opcode)
+#define DD_ORIGINAL_OPCODE_STRIDE(m) ((Py_ssize_t)sizeof((m)->lines[0]))
 #else
 #define DD_HAVE_INTERNAL_REARM 0
 #endif
@@ -258,6 +293,8 @@ typedef struct
     int32_t n_starts; /* line-start code unit indices, computed on the first internal re-arm */
     int32_t* starts;
     int32_t* start_lines; /* the line of each start, for INSTRUCTION probes */
+    int32_t n_units;      /* code units in line_at */
+    int32_t* line_at;     /* INSTRUCTION probes: the line of the start at each code unit, 0 elsewhere */
 #if DD_HAVE_BLOCK_PROBES
     BlockInfo* blocks;     /* set while probes is PROBES_BLOCK */
     Py_ssize_t block_slot; /* position in g_block_codes while probes is PROBES_BLOCK */
@@ -308,6 +345,7 @@ codeinfo_free(void* p)
 #endif
     PyMem_RawFree(ci->starts);
     PyMem_RawFree(ci->start_lines);
+    PyMem_RawFree(ci->line_at);
     PyMem_RawFree(ci);
 }
 
@@ -400,6 +438,7 @@ static PyObject* g_tool_id_object = NULL;   /* tool id, as set_local_events take
 static PyObject* g_line_mask_object = NULL; /* LINE event set, as set_local_events takes it */
 static PyObject* g_generic_scope_prefix = NULL;
 static PyObject* g_ctxvar = NULL;
+static int g_cached_owner = 0; /* the callbacks read the context variable's cache */
 static int g_internal_rearm = 0;
 static uint8_t g_deopt[256];
 static int g_instrumented_line = -1;
@@ -415,8 +454,7 @@ static int g_block_tables = 0;       /* init() was given the two tables below */
 static uint8_t g_block_kind[256];    /* BK_* of each base opcode */
 static uint8_t g_cache_entries[256]; /* inline cache entries after each base opcode */
 
-/* Counters, for profiling and tests. */
-static unsigned long long g_events = 0;
+/* Counters, for profiling and tests. Owned line events have none: the count would cost every event. */
 static unsigned long long g_events_init = 0;
 static unsigned long long g_events_unowned = 0;
 static unsigned long long g_events_kept = 0;
@@ -573,22 +611,28 @@ internal_rearm_possible(PyCodeObject* co)
     return 1;
 }
 
+/* Lists the code units with a LINE event. One pass, into a buffer sized for every code unit and then
+   trimmed: it runs once per code object, over all of its bytecode. */
 static DD_COLD int
 compute_starts(CodeInfo* ci, PyCodeObject* co)
 {
     dd_monitoring* m = (dd_monitoring*)co->_co_monitoring;
-    Py_ssize_t n = Py_SIZE(co);
-    int32_t count = 0;
-    for (Py_ssize_t i = co->_co_firsttraceable; i < n; i++)
-        if (*DD_ORIGINAL_OPCODE_PTR(m, i) != 0)
-            count++;
-    int32_t* starts = PyMem_RawMalloc(sizeof(int32_t) * (size_t)(count ? count : 1));
+    const Py_ssize_t first = co->_co_firsttraceable;
+    const Py_ssize_t n = Py_SIZE(co);
+    int32_t* starts = PyMem_RawMalloc(sizeof(int32_t) * (size_t)(n > first ? n - first : 1));
     if (starts == NULL)
         return -1;
-    int32_t k = 0;
-    for (Py_ssize_t i = co->_co_firsttraceable; i < n; i++)
-        if (*DD_ORIGINAL_OPCODE_PTR(m, i) != 0)
-            starts[k++] = (int32_t)i;
+    int32_t count = 0;
+    const uint8_t* original = DD_ORIGINAL_OPCODE_PTR(m, 0);
+    const Py_ssize_t stride = DD_ORIGINAL_OPCODE_STRIDE(m);
+    for (Py_ssize_t i = first; i < n; i++)
+        if (original[i * stride] != 0)
+            starts[count++] = (int32_t)i;
+    if (count < n - first) {
+        int32_t* trimmed = PyMem_RawRealloc(starts, sizeof(int32_t) * (size_t)(count ? count : 1));
+        if (trimmed != NULL)
+            starts = trimmed;
+    }
     ci->starts = starts;
     ci->n_starts = count;
     return 0;
@@ -615,15 +659,23 @@ rearm_internal(CodeInfo* ci, PyCodeObject* co)
                 return 1;
         }
     }
+    /* Locals: the byte stores below may alias any global or field, which would be read again at each
+       start otherwise. */
     uint8_t* line_tools = m->line_tools;
-    for (int32_t k = 0; k < ci->n_starts; k++) {
-        int32_t i = ci->starts[k];
+    uint8_t* original = DD_ORIGINAL_OPCODE_PTR(m, 0);
+    const Py_ssize_t stride = DD_ORIGINAL_OPCODE_STRIDE(m);
+    const int32_t* starts = ci->starts;
+    const int32_t n_starts = ci->n_starts;
+    const uint8_t tool_bit = g_tool_bit;
+    const uint8_t instrumented_line = (uint8_t)g_instrumented_line;
+    for (int32_t k = 0; k < n_starts; k++) {
+        int32_t i = starts[k];
         if (line_tools != NULL)
-            line_tools[i] |= g_tool_bit;
+            line_tools[i] |= tool_bit;
         uint8_t op = bytecode[2 * i];
-        if (op != g_instrumented_line) {
-            *DD_ORIGINAL_OPCODE_PTR(m, i) = g_deopt[op];
-            bytecode[2 * i] = (uint8_t)g_instrumented_line;
+        if (op != instrumented_line) {
+            original[i * stride] = g_deopt[op];
+            bytecode[2 * i] = instrumented_line;
         }
     }
     g_rearm_internal++;
@@ -673,6 +725,23 @@ compute_start_lines(CodeInfo* ci, PyCodeObject* co)
     }
     PyMem_RawFree(ci->start_lines);
     ci->start_lines = lines;
+    return 0;
+}
+
+/* The line of the start at each code unit, and 0 at every other code unit or a start without a line,
+   so an INSTRUCTION event finds its line with one read. ci->starts and ci->start_lines must be set. */
+static DD_COLD int
+compute_line_at(CodeInfo* ci, PyCodeObject* co)
+{
+    const Py_ssize_t n = Py_SIZE(co);
+    int32_t* line_at = PyMem_RawCalloc((size_t)(n ? n : 1), sizeof(int32_t));
+    if (line_at == NULL)
+        return -1;
+    for (int32_t k = 0; k < ci->n_starts; k++)
+        line_at[ci->starts[k]] = ci->start_lines[k] > 0 ? ci->start_lines[k] : 0;
+    PyMem_RawFree(ci->line_at);
+    ci->line_at = line_at;
+    ci->n_units = (int32_t)n;
     return 0;
 }
 
@@ -795,7 +864,7 @@ choose_probes(CodeInfo* ci, PyCodeObject* co)
         return;
     if (ci->starts == NULL && compute_starts(ci, co) < 0)
         return;
-    if (compute_start_lines(ci, co) < 0)
+    if (compute_start_lines(ci, co) < 0 || compute_line_at(ci, co) < 0)
         return;
     if (switch_to_instruction_events(ci, co, ci->starts, ci->n_starts) == 0) {
         ci->probes = PROBES_INSTRUCTION;
@@ -930,10 +999,39 @@ record_init_line(CodeInfo* ci, uint32_t line)
     return Py_NewRef(g_disable);
 }
 
+/* The active context a value of the context variable names, or NULL. */
+static inline Context*
+owner_of(PyObject* value)
+{
+    return value != NULL && Py_IS_TYPE(value, &ContextType) && ((Context*)value)->active ? (Context*)value : NULL;
+}
+
+#if DD_HAVE_CACHED_OWNER
+/* The value of the context variable in the thread's current context, borrowed, when the variable's
+   cache holds it; NULL otherwise. The conditions are PyContextVar_Get()'s for using its cache. */
+static inline PyObject*
+cached_value(PyThreadState* ts)
+{
+    const dd_context_var* var = (const dd_context_var*)g_ctxvar;
+    PyObject* value = var->var_cached;
+    if (value != NULL && ts->context != NULL && var->var_cached_tsid == ts->id &&
+        var->var_cached_tsver == ts->context_ver)
+        return value;
+    return NULL;
+}
+#endif
+
 /* The active context the running thread or task carries, or NULL. */
 static inline Context*
 current_owner(void)
 {
+#if DD_HAVE_CACHED_OWNER
+    if (DD_LIKELY(g_cached_owner)) {
+        PyObject* cached = cached_value(DD_THREAD_STATE());
+        if (DD_LIKELY(cached != NULL))
+            return owner_of(cached);
+    }
+#endif
     PyObject* current = NULL;
     if (DD_UNLIKELY(PyContextVar_Get(g_ctxvar, NULL, &current) < 0)) {
         PyErr_Clear();
@@ -942,25 +1040,17 @@ current_owner(void)
     }
     if (current == NULL)
         return NULL;
-    Context* owner = Py_IS_TYPE(current, &ContextType) && ((Context*)current)->active ? (Context*)current : NULL;
+    Context* owner = owner_of(current);
     /* Borrowed from here on: the context variable keeps the object alive, and no Python code runs
        before the callback returns. */
     Py_DECREF(current);
     return owner;
 }
 
-/* The active context a value of the context variable names, or NULL. */
-static inline Context*
-owner_of(PyObject* value)
-{
-    return value != NULL && Py_IS_TYPE(value, &ContextType) && ((Context*)value)->active ? (Context*)value : NULL;
-}
-
 /* Credits a line of the code object and returns what the callback returns. */
 static inline PyObject*
 record_line(CodeInfo* ci, uint32_t line)
 {
-    g_events++;
     if (DD_UNLIKELY(ci->is_init))
         return record_init_line(ci, line);
     int32_t file_id = ci->file_id;
@@ -970,6 +1060,9 @@ record_line(CodeInfo* ci, uint32_t line)
             g_errors++;
             Py_RETURN_NONE;
         }
+        /* The only active context, which now has the line. */
+        if (DD_LIKELY(g_n_active == 1))
+            return disable_line(ci);
     } else {
         g_events_unowned++;
         if (bitset_set(&g_files[file_id].unowned_lines, line) < 0) {
@@ -992,6 +1085,13 @@ record_line(CodeInfo* ci, uint32_t line)
 static inline long
 event_number(PyObject* arg)
 {
+#if PY_VERSION_HEX < 0x030F0000
+    /* The int CPython passes for every line number and offset below 2**30: positive, one digit. Bit 2
+       of the tag marks small ints on 3.14 and is 0 before. */
+    if (DD_LIKELY(Py_IS_TYPE(arg, &PyLong_Type) &&
+                  (((PyLongObject*)arg)->long_value.lv_tag & ~(uintptr_t)4) == ((uintptr_t)1 << _PyLong_NON_SIZE_BITS)))
+        return (long)((PyLongObject*)arg)->long_value.ob_digit[0];
+#endif
     if (DD_LIKELY(PyLong_CheckExact(arg) && PyUnstable_Long_IsCompact((PyLongObject*)arg)))
         return (long)PyUnstable_Long_CompactValue((PyLongObject*)arg);
     long value = PyLong_AsLong(arg);
@@ -1867,7 +1967,8 @@ convert_to_starts(CodeInfo* ci)
     drop_blocks(ci);
     g_converted++;
     ci->probes = PROBES_INSTRUCTION;
-    if (rearm_instruction_probes(ci, (PyCodeObject*)ci->code) != 0)
+    /* Without the table, every INSTRUCTION event would be taken for a non-start and lose its line. */
+    if (compute_line_at(ci, (PyCodeObject*)ci->code) < 0 || rearm_instruction_probes(ci, (PyCodeObject*)ci->code) != 0)
         revert_to_line_events(ci, ci->code);
 }
 
@@ -2144,19 +2245,13 @@ instruction_event(PyObject* Py_UNUSED(callable), PyObject* const* args, size_t n
 #endif
     if (DD_UNLIKELY(ci->probes != PROBES_INSTRUCTION))
         return Py_NewRef(g_disable);
-    int32_t lo = 0, hi = ci->n_starts;
-    while (lo < hi) {
-        int32_t mid = lo + (hi - lo) / 2;
-        if (ci->starts[mid] < index)
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    /* Not a line start: sys.monitoring.restart_events() re-armed every instruction. */
-    if (lo == ci->n_starts || ci->starts[lo] != index || ci->start_lines[lo] <= 0)
+    /* 0: not a line start, as when sys.monitoring.restart_events() re-armed every instruction. The
+       unsigned compare also turns away an offset too large for an int32_t index. */
+    int32_t line = (uint32_t)index < (uint32_t)ci->n_units ? ci->line_at[index] : 0;
+    if (DD_UNLIKELY(line <= 0))
         return Py_NewRef(g_disable);
     g_events_instruction++;
-    return record_line(ci, (uint32_t)ci->start_lines[lo]);
+    return record_line(ci, (uint32_t)line);
 }
 #endif
 
@@ -2831,6 +2926,90 @@ block_probes_possible(void)
            g_instrumented_instruction > 0 && g_min_instrumented < 256 && g_block_tables;
 }
 
+#if DD_HAVE_CACHED_OWNER
+/* Whether cached_value() agrees with PyContextVar_Get() on the thread now: it must hold the value
+   PyContextVar_Get() returns when expect_hit is set, and nothing otherwise. Read before the call,
+   which fills the cache when it finds a value. */
+static int
+cache_agrees(PyThreadState* ts, int expect_hit)
+{
+    PyObject* cached = cached_value(ts);
+    PyObject* value = NULL;
+    if (PyContextVar_Get(g_ctxvar, NULL, &value) < 0)
+        return 0;
+    int ok = expect_hit ? cached != NULL && cached == value : cached == NULL;
+    Py_XDECREF(value);
+    return ok;
+}
+#endif
+
+/* Checks the mirrored context variable layout and the cache rules against PyContextVar_Get(), in two
+   temporary contexts entered and left on this thread: the context the thread runs, and the values
+   it holds, stay as they were. Returns 1 when the callbacks may read the cache. */
+static int
+cached_owner_self_test(void)
+{
+#if DD_HAVE_CACHED_OWNER
+    if (!PyContextVar_CheckExact(g_ctxvar) || PyContextVar_Type.tp_basicsize != (Py_ssize_t)sizeof(dd_context_var))
+        return 0;
+    const dd_context_var* var = (const dd_context_var*)g_ctxvar;
+    PyThreadState* ts = DD_THREAD_STATE();
+    int ok = 0;
+    int entered = 0; /* 1: in outer, 2: in inner */
+    PyObject* token = NULL;
+    PyObject* value = NULL;
+    PyObject* name = PyObject_GetAttrString(g_ctxvar, "name");
+    Py_hash_t hash = name != NULL ? PyObject_Hash(g_ctxvar) : -1;
+    PyObject* outer = PyContext_New();
+    PyObject* inner = PyContext_New();
+    PyObject* probe = PyObject_CallNoArgs((PyObject*)&PyBaseObject_Type);
+    if (ts == NULL || name == NULL || hash == -1 || outer == NULL || inner == NULL || probe == NULL)
+        goto done;
+    if (name != var->var_name || hash != var->var_hash)
+        goto done;
+    if (PyContext_Enter(outer) < 0)
+        goto done;
+    entered = 1;
+    /* An empty context: the variable has its default, and the cache holds nothing for it. */
+    if (!cache_agrees(ts, 0) || PyContextVar_Get(g_ctxvar, NULL, &value) < 0 || value != var->var_default)
+        goto done;
+    /* Setting the variable fills the cache. */
+    if ((token = PyContextVar_Set(g_ctxvar, probe)) == NULL || !cache_agrees(ts, 1))
+        goto done;
+    /* Another context on the same thread: the cached value is not its value. */
+    if (PyContext_Enter(inner) < 0)
+        goto done;
+    entered = 2;
+    if (!cache_agrees(ts, 0))
+        goto done;
+    entered = 1;
+    if (PyContext_Exit(inner) < 0)
+        goto done;
+    /* Back in the context that holds the value: the cache holds nothing until a lookup fills it. */
+    ok = cache_agrees(ts, 0) && cache_agrees(ts, 1);
+done:
+    if (entered == 2 && PyContext_Exit(inner) < 0)
+        ok = 0;
+    if (entered >= 1) {
+        if (token != NULL && PyContextVar_Reset(g_ctxvar, token) < 0)
+            ok = 0;
+        if (PyContext_Exit(outer) < 0)
+            ok = 0;
+    }
+    if (PyErr_Occurred())
+        PyErr_Clear();
+    Py_XDECREF(value);
+    Py_XDECREF(token);
+    Py_XDECREF(probe);
+    Py_XDECREF(inner);
+    Py_XDECREF(outer);
+    Py_XDECREF(name);
+    return ok;
+#else
+    return 0;
+#endif
+}
+
 static PyObject*
 mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
 {
@@ -2956,6 +3135,7 @@ mod_init(PyObject* Py_UNUSED(self), PyObject* args, PyObject* kwds)
     Py_XSETREF(g_set_local_events, set_local_events);
     Py_INCREF(ctxvar);
     Py_XSETREF(g_ctxvar, ctxvar);
+    g_cached_owner = cached_owner_self_test();
     g_instrumented_line = instrumented_line;
     g_enter_executor = enter_executor;
     g_instrumented_instruction = instrumented_instruction;
@@ -2996,6 +3176,22 @@ mod_set_instruction_probes(PyObject* Py_UNUSED(self), PyObject* arg)
     g_instruction_probes = DD_HAVE_INSTRUCTION_PROBES && on && g_internal_rearm && g_instruction_event_index >= 0 &&
                            g_instrumented_instruction > 0 && g_min_instrumented < 256;
     return PyBool_FromLong(g_instruction_probes);
+}
+
+/* Switches the callbacks between the context variable's cache and PyContextVar_Get(). Switching the
+   cache on runs the self-test again, and stays off if it fails. */
+static PyObject*
+mod_set_cached_owner(PyObject* Py_UNUSED(self), PyObject* arg)
+{
+    int on = PyObject_IsTrue(arg);
+    if (on < 0)
+        return NULL;
+    if (g_ctxvar == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "_linecov.init() was not called");
+        return NULL;
+    }
+    g_cached_owner = on && cached_owner_self_test();
+    return PyBool_FromLong(g_cached_owner);
 }
 
 /* Switches block probes for code objects not decided yet. */
@@ -3419,7 +3615,6 @@ mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
         const char* name;
         unsigned long long value;
     } stats[] = {
-        { "events", g_events },
         { "events_init", g_events_init },
         { "events_unowned", g_events_unowned },
         { "events_kept", g_events_kept },
@@ -3445,6 +3640,7 @@ mod_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
         { "block_codes", (unsigned long long)g_n_block_codes },
 #endif
         { "internal_rearm", (unsigned long long)g_internal_rearm },
+        { "cached_owner", (unsigned long long)g_cached_owner },
         { "instruction_probes", (unsigned long long)g_instruction_probes },
         { "block_probes", (unsigned long long)g_block_probes },
     };
@@ -3902,6 +4098,7 @@ static PyMethodDef module_methods[] = {
     { "set_internal_rearm", mod_set_internal_rearm, METH_O, "Switch the internal re-arm." },
     { "set_instruction_probes", mod_set_instruction_probes, METH_O, "Switch INSTRUCTION probes." },
     { "set_block_probes", mod_set_block_probes, METH_O, "Switch block probes." },
+    { "set_cached_owner", mod_set_cached_owner, METH_O, "Switch the owner lookup's cache read." },
     { "disable_blocks", mod_disable_blocks, METH_NOARGS, "Stop block probes for good." },
     { "blocks", mod_blocks, METH_O, "The block analysis of a code object." },
     { "probes", mod_probes, METH_O, "The kind of probes a code object uses." },
