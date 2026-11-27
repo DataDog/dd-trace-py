@@ -51,7 +51,7 @@ class PeriodicService(service.Service):
                 # failed or was just cancelled. There is nothing to stop or join.
                 self._worker = None
             else:
-                self._worker.stop()
+                self._worker.shut_down()
         super()._stop_service(*args, **kwargs)  # type: ignore[safe-super]
 
     def join(

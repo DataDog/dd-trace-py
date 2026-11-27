@@ -133,6 +133,19 @@ class PeriodicThread(_PeriodicThread):
             else:
                 _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
 
+    def shut_down(self) -> None:
+        """Stop the thread, which then runs its shutdown callback.
+
+        A thread that a fork stopped waits for ThreadRestartTimer, which restarts it only to run the shutdown
+        callback. Restart it now instead, so that callers that join it, e.g. at exit, see the callback run even when
+        the process exits before the timer runs.
+        """
+        self.stop()
+        with _forking_lock:
+            if not _forking and self in _threads_to_restart_after_fork:
+                _threads_to_restart_after_fork.discard(self)
+                self._after_fork(force=True)
+
     def cancel_if_not_started(self) -> bool:
         """Return True if the thread is not running, cancelling any start deferred by a fork so it never runs.
 

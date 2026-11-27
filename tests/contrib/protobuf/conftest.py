@@ -23,9 +23,16 @@ def protobuf(ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
+        # The processor is created when ddtrace is imported, so create it now that data
+        # streams monitoring is enabled.
+        from ddtrace.internal.datastreams import data_streams_processor
+
+        processor = data_streams_processor(reset=True)
+        assert processor is not None
         patch()
         from google import protobuf
 
         yield protobuf
         unpatch()
+        processor.shutdown(timeout=5)
         SchemaSampler.SAMPLE_INTERVAL_MILLIS = 30000

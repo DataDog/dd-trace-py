@@ -46,6 +46,7 @@ from .. import forksafe
 from .. import periodic
 from .. import process_tags
 from .. import service
+from .. import uwsgi
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
@@ -2128,6 +2129,10 @@ def start_writer(writer: TraceWriter) -> None:
     if not isinstance(writer, periodic.PeriodicService) or getattr(writer, "_sync_mode", False):
         return
     if writer.status == service.ServiceStatus.RUNNING:
+        return
+    if uwsgi.will_fork_without_fork_hooks():
+        # A worker forked while a thread of the master holds the GIL hangs. Each worker
+        # rebuilds and starts the writer from the fork hooks that uwsgi runs after the fork.
         return
     try:
         writer.start()

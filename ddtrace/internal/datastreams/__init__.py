@@ -4,6 +4,8 @@ import importlib
 from typing import TYPE_CHECKING
 from typing import Optional
 
+from ddtrace.internal import forksafe
+from ddtrace.internal import uwsgi
 from ddtrace.internal.settings._config import config
 
 from ...internal.utils.importlib import require_modules
@@ -38,11 +40,23 @@ def _create_processor() -> DataStreamsProcessor:
     return processor.DataStreamsProcessor()
 
 
+def _create_processor_in_worker() -> None:
+    global _processor
+
+    _processor = _create_processor()
+    forksafe.unregister(_create_processor_in_worker)
+
+
 if config._data_streams_enabled:
     # Create, and so start, the processor when ddtrace is imported, rather than on the first
     # checkpoint: an application thread must not start ddtrace threads, as it might be holding
     # locks of its own.
-    _processor = _create_processor()
+    if uwsgi.will_fork_without_fork_hooks():
+        # A worker forked while a thread of the master holds the GIL hangs. Create the processor
+        # in each worker instead, from the fork hooks that uwsgi runs after the fork.
+        forksafe.register(_create_processor_in_worker)
+    else:
+        _processor = _create_processor()
 
 
 def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor]:

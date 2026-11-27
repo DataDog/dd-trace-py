@@ -234,6 +234,10 @@ class CIVisibilityWriter(HTTPWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         if self.status != service.ServiceStatus.STOPPED:
             super().stop(timeout=timeout)
+            return
+        # A writer that was never started, e.g. one installed directly rather than created
+        # for use, sends what it holds, as stopping it would.
+        self.flush_queue()
 
     def recreate(
         self,

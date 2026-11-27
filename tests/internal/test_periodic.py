@@ -1788,3 +1788,45 @@ def test_debouncer_touch_while_target_runs_schedules_another_call():
         release.set()
         debouncer.stop()
         debouncer.join()
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_service_stopped_before_its_restart_after_fork_shuts_down_promptly():
+    """Stopping a service right after a fork runs its shutdown callback without waiting for ThreadRestartTimer.
+
+    For example, a process that forks and exits within the restart delay must still flush at exit.
+    """
+    import os
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal import threads
+    from ddtrace.internal._threads import periodic_threads
+
+    # Make the timer too slow to be the one that runs the shutdown callback.
+    threads.ThreadRestartTimer.__timeout__ = int(60e9)
+
+    shutdowns = []
+
+    class Service(periodic.PeriodicService):
+        def periodic(self):
+            pass
+
+        def on_shutdown(self):
+            shutdowns.append(True)
+
+    service = Service(60.0)
+    service.start()
+    worker = service._worker
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+    os.waitpid(pid, 0)
+    assert worker in threads._threads_to_restart_after_fork
+
+    service.stop()
+    service.join(timeout=5)
+    assert shutdowns == [True]
+    assert worker not in threads._threads_to_restart_after_fork
+    assert worker not in periodic_threads.values()
