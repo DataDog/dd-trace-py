@@ -10,6 +10,7 @@ single DependencyTracker instance.
 """
 
 from collections.abc import Iterable
+from functools import lru_cache
 import re
 from typing import Any
 from typing import Optional
@@ -41,6 +42,12 @@ def _normalize_dep_name(name: str) -> str:
     prevents duplicate entries and lookup misses.
     """
     return _NORMALIZE_RE.sub("-", name).lower()
+
+
+@lru_cache(maxsize=4)
+def _library_dep_key(name: str) -> str:
+    """Normalized distribution name of the library, which is not reported as a dependency of itself."""
+    return _normalize_dep_name(name)
 
 
 class DependencyTracker:
@@ -224,8 +231,10 @@ def update_imported_dependencies(
             "update_imported_dependencies: failed to read whether dependency metadata is collected", exc_info=True
         )
         return []
-    library_key = _normalize_dep_name(get_library().name)
 
+    # Resolved on the first package found, not up front: this runs for every module batch and most modules, e.g.
+    # the standard library, belong to no distribution.
+    library_key: Optional[str] = None
     deps: list[dict] = []
     for module_name in new_modules:
         try:
@@ -235,6 +244,8 @@ def update_imported_dependencies(
 
             name, version = dists
             key = _normalize_dep_name(name)
+            if library_key is None:
+                library_key = _library_dep_key(get_library().name)
             if key == library_key or key in already_imported:
                 continue
 

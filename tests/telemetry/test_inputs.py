@@ -33,7 +33,7 @@ class _Provider:
 
 
 def _declared_by(*names):
-    """Entry points declared by distributions ``names``, in path order."""
+    """Entry points declared by distributions names, in path order."""
     return [
         (
             SimpleNamespace(value="provider", load=lambda: _Provider),
@@ -100,6 +100,18 @@ def test_without_an_entry_point_the_library_is_unknown(unresolved, monkeypatch):
     monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: [])
 
     assert inputs.get_library() == ("", "0.0.0", "0.0.0")
+    assert not inputs.is_library_code("/site-packages/ddtrace/internal/x.py")
+    assert inputs.get_integration("/site-packages/ddtrace/contrib/internal/flask/patch.py") is None
+
+
+def test_a_failing_entry_point_lookup_leaves_the_library_unknown(unresolved, monkeypatch):
+    def malformed(group):
+        raise TypeError("malformed entry point metadata")
+
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", malformed)
+
+    assert inputs.get_library() == ("", "0.0.0", "0.0.0")
+    inputs.load_attribution()
     assert not inputs.is_library_code("/site-packages/ddtrace/internal/x.py")
     assert inputs.get_integration("/site-packages/ddtrace/contrib/internal/flask/patch.py") is None
 

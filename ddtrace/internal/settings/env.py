@@ -24,14 +24,19 @@ lookup needs it (validation, aliases or sensitivity), in this order of precedenc
    registration wins; later calls, and the entry point, are ignored.
 2. The module named by the ``ddtrace_internal.supported_configurations`` entry point, which must provide
    ``SUPPORTED_CONFIGURATIONS``, ``CONFIGURATION_ALIASES``, ``DEPRECATED_CONFIGURATIONS`` and
-   ``SENSITIVE_CONFIGURATIONS``. It is looked up once and cached. If it is missing or fails to load, one
-   message is logged and the registry stays unregistered.
+   ``SENSITIVE_CONFIGURATIONS``. It is looked up once and cached. Providers are only loaded when they are
+   declared by a trusted ddtrace distribution and resolve into its module namespaces (the same policy as
+   :func:`ddtrace.internal.entry_points.is_trusted`, which this module cannot import without a cycle); other
+   providers are skipped. If no trusted provider is found, or it fails to load, one message is logged and the
+   registry stays unregistered.
 
 While unregistered, no key is validated (so nothing is logged), no aliases are applied, i.e. reads look up the
 exact key in ``os.environ``, and no configuration is known to be sensitive. Since that does not make them safe to
 report, :func:`is_reportable` fails closed: nothing is reportable without a registry.
 """
 
+from _thread import allocate_lock as _allocate_lock
+from _thread import get_ident as _get_ident
 from collections.abc import Iterable
 from collections.abc import Iterator
 from collections.abc import Mapping
@@ -56,18 +61,59 @@ _SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset()
 _warned_keys: set[str] = set()
 
 ENTRY_POINT_GROUP = "ddtrace_internal.supported_configurations"
+# Only ddtrace's own distributions may provide the registry: loading an entry point executes the provider
+# module, and this resolution can happen during an ordinary `import ddtrace` (logger initialization reads
+# configuration). Mirrors ddtrace.internal.entry_points.is_trusted, which cannot be imported here because
+# it imports the logger, which imports this module.
+_TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless", "ddtrace-internal"})
+_TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace.", "_ddtrace_internal."})
 # Set once the registry has been resolved (from an explicit registration or the entry point), even if that
 # found nothing, so that the entry point is looked up at most once.
 _resolved = False
-_resolving = False
+# Serializes resolution: a concurrent first lookup waits until the registry is fully installed instead of
+# proceeding without aliases. The raw _thread lock (the unpatched C primitive ddtrace.internal.locks also
+# uses) is taken deliberately: this module must not import ddtrace, and gevent's monkey-patched
+# threading.Lock must not be shared with ddtrace's real threads.
+_resolution_lock = _allocate_lock()
+# The thread currently inside _resolve, to tell re-entry (the registry module performing an env lookup while
+# it loads) from a concurrent caller: the former must proceed unregistered, the latter must wait.
+_resolving_thread: Optional[int] = None
+
+
+def _is_resolved() -> bool:
+    """Whether the registry was resolved (registered, or the entry point was consulted and found nothing)."""
+    # Read through a function so type checkers do not narrow the module global at the under-lock re-checks
+    # below: another thread may have resolved it while we waited for the lock.
+    return _resolved
+
+
+def _is_registered() -> bool:
+    """Whether a registry is installed."""
+    # Same as above: the global is re-read under the lock after another thread may have installed one.
+    return _SUPPORTED_CONFIGURATIONS is not None
 
 
 def _load_entry_point_module(group: str) -> Any:
-    """Return the module declared by the first entry point of ``group`` that loads, or None if there is none."""
-    # Imported here: the helper lives under ddtrace, which this module must not import when it is loaded.
-    from ddtrace.internal.utils.entry_points import entry_points_with_distributions
+    """Return the module declared by the first trusted entry point of ``group``, or None if there is none.
 
-    for entry_point, _ in entry_points_with_distributions(group):
+    Providers from any other distribution, or resolving outside ddtrace's module namespaces, are skipped:
+    loading one would execute third-party code during ordinary ddtrace imports.
+    """
+    # Imported here: the helper lives under ddtrace, which this module must not import when it is loaded.
+    from ddtrace.internal.utils.entry_points import distribution_name
+    from ddtrace.internal.utils.entry_points import entry_points_with_distributions
+    from ddtrace.internal.utils.entry_points import is_trusted_entry_point
+
+    for entry_point, dist in entry_points_with_distributions(group):
+        if not is_trusted_entry_point(entry_point, dist, _TRUSTED_DISTRIBUTIONS, _TRUSTED_MODULE_PREFIXES):
+            logger.warning(
+                "Refusing to load %s entry point '%s' from untrusted distribution '%s' (module: %s)",
+                group,
+                entry_point.name,
+                distribution_name(dist),
+                entry_point.value,
+            )
+            continue
         return entry_point.load()
     return None
 
@@ -92,34 +138,42 @@ def _install(
 def _resolve() -> None:
     """Resolve the registry from the entry point, unless one is already registered. Never raises.
 
-    There is no lock: two threads racing here load the same module and install the same values, and the registry
-    marker is assigned last, so a reader never sees a half-installed registry as registered.
+    Concurrent first lookups wait on the lock until the registry is fully installed, so every caller sees
+    complete registry data (aliases, sensitivity). Re-entry from the loader itself — the registry module
+    performing an env lookup while it imports — returns immediately, unregistered, instead of deadlocking;
+    the outer call installs the registry before it returns.
     """
-    global _resolved, _resolving
+    global _resolved, _resolving_thread
 
-    # `_resolving` guards against re-entry (e.g. the load triggers an env lookup).
-    if _resolved or _resolving:
+    if _resolved:
         return
-    _resolving = True
-    try:
-        if _SUPPORTED_CONFIGURATIONS is None:
-            try:
-                module = _load_entry_point_module(ENTRY_POINT_GROUP)
-                if module is not None:
-                    _install(
-                        module.SUPPORTED_CONFIGURATIONS,
-                        module.CONFIGURATION_ALIASES,
-                        module.DEPRECATED_CONFIGURATIONS,
-                        module.SENSITIVE_CONFIGURATIONS,
+    if _resolving_thread == _get_ident():
+        # Re-entry from the load itself (e.g. the load triggers an env lookup).
+        return
+    with _resolution_lock:
+        if _is_resolved():
+            # Another thread resolved the registry while we waited for the lock.
+            return
+        _resolving_thread = _get_ident()
+        try:
+            if _SUPPORTED_CONFIGURATIONS is None:
+                try:
+                    module = _load_entry_point_module(ENTRY_POINT_GROUP)
+                    if module is not None:
+                        _install(
+                            module.SUPPORTED_CONFIGURATIONS,
+                            module.CONFIGURATION_ALIASES,
+                            module.DEPRECATED_CONFIGURATIONS,
+                            module.SENSITIVE_CONFIGURATIONS,
+                        )
+                except Exception:
+                    logger.warning(
+                        "Could not load the supported configurations registry; configurations are not validated",
+                        exc_info=True,
                     )
-            except Exception:
-                logger.warning(
-                    "Could not load the supported configurations registry; configurations are not validated",
-                    exc_info=True,
-                )
-    finally:
-        _resolving = False
-        _resolved = True
+        finally:
+            _resolving_thread = None
+            _resolved = True
 
 
 def register_supported_configurations(
@@ -140,9 +194,16 @@ def register_supported_configurations(
 
     if _SUPPORTED_CONFIGURATIONS is not None:
         return False
-    _install(supported, aliases, deprecated, sensitive)
-    _resolved = True
-    return True
+    if _resolving_thread == _get_ident():
+        # Called from inside the entry-point load: the registry it is installing wins.
+        return False
+    with _resolution_lock:
+        if _is_registered():
+            # Another thread installed a registry while we waited for the lock.
+            return False
+        _install(supported, aliases, deprecated, sensitive)
+        _resolved = True
+        return True
 
 
 def get_aliases(name: str) -> Sequence[str]:
@@ -160,9 +221,9 @@ def is_sensitive(name: str) -> bool:
 
 
 def is_reportable(name: str) -> bool:
-    """Return whether the value of the configuration ``name`` may be reported, e.g. in telemetry.
+    """Return whether the value of the configuration name may be reported, e.g. in telemetry.
 
-    Unlike ``not is_sensitive(name)``, this fails closed: without a registry nothing is known to be safe, so
+    Unlike not is_sensitive(name), this fails closed: without a registry nothing is known to be safe, so
     nothing is reportable.
     """
     if not _resolved:

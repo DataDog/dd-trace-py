@@ -1261,12 +1261,13 @@ MCP_TOOLS = [
     },
     {"type": "function", "name": "lookup"},
 ]
-DEEPWIKI_ID = "mcp_58c928ebb7fc7a85"
+# The only hosted MCP server of the request, with its URL path and without its secrets.
+DEEPWIKI_ID = "mcp_1"
 DEEPWIKI_SERVER = {
     "id": DEEPWIKI_ID,
     "managed_by": "provider",
     "name": "deepwiki",
-    "url": "https://mcp.deepwiki.com",
+    "url": "https://mcp.deepwiki.com/mcp",
     "transport": "unknown",
     "tools": {"ask_question": "ask_question"},
 }
@@ -1940,7 +1941,7 @@ def test_saved_prompt_answer_references_the_echoed_hosted_mcp_servers(mock_req, 
     mock_req.assert_called_once()
     attributes = _evaluated_attributes(mock_req)
     assert attributes["mcp_servers"][0]["id"] == DEEPWIKI_ID
-    assert attributes["mcp_servers"][0]["url"] == "https://mcp.deepwiki.com"
+    assert attributes["mcp_servers"][0]["url"] == "https://mcp.deepwiki.com/mcp"
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

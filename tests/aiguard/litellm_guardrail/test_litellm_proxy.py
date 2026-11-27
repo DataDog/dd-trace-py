@@ -745,12 +745,13 @@ MCP_TOOLS = [
         "headers": {"X-Api-Key": "header-secret"},
     }
 ]
-DEEPWIKI_ID = "mcp_58c928ebb7fc7a85"
+# The only hosted MCP server of the request, with its URL path and without its secrets.
+DEEPWIKI_ID = "mcp_1"
 DEEPWIKI_SERVER = {
     "id": DEEPWIKI_ID,
     "managed_by": "provider",
     "name": "deepwiki",
-    "url": "https://mcp.deepwiki.com",
+    "url": "https://mcp.deepwiki.com/mcp",
     "transport": "unknown",
     "tools": {"ask_question": "ask_question"},
 }

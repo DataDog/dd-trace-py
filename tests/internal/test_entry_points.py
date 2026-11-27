@@ -5,7 +5,9 @@ import pytest
 
 from ddtrace.internal.utils import entry_points
 from ddtrace.internal.utils.entry_points import distribution_name
+from ddtrace.internal.utils.entry_points import entry_point_module_path
 from ddtrace.internal.utils.entry_points import entry_points_with_distributions
+from ddtrace.internal.utils.entry_points import is_trusted_entry_point
 
 
 GROUP = "ddtrace.products"
@@ -41,6 +43,49 @@ def test_distribution_name_without_name():
         metadata = {"Name": None}
 
     assert distribution_name(_Dist()) == ""
+
+
+class _FakeDist:
+    def __init__(self, name):
+        self.metadata = {"Name": name}
+
+
+class _FakeEntryPoint:
+    def __init__(self, name, value):
+        self.name = name
+        self.group = "ddtrace.products"
+        self.value = value
+
+
+@pytest.mark.parametrize("value, expected", [("mod", "mod"), ("mod:obj", "mod"), ("mod:pkg.obj", "mod")])
+def test_entry_point_module_path_strips_the_object(value, expected):
+    assert entry_point_module_path(_FakeEntryPoint("ep", value)) == expected
+
+
+@pytest.mark.parametrize(
+    "dist_name, value, expected",
+    [
+        # ddtrace's own distributions resolving into its module namespaces
+        ("ddtrace", "ddtrace.internal.settings._supported_configurations", True),
+        ("ddtrace", "ddtrace.internal.settings._supported_configurations:REGISTRY", True),
+        ("DDTrace", "ddtrace._product", True),  # dist names are normalized
+        ("ddtrace-internal", "_ddtrace_internal.settings._supported_configurations", True),
+        ("ddtrace-serverless", "ddtrace._product", True),
+        # untrusted: another distribution, or a trusted name pointing outside the namespaces
+        ("evil", "ddtrace.internal.settings._supported_configurations", False),
+        ("ddtrace", "evil_module._supported_configurations", False),
+        ("evil", "evil_module._registry", False),
+        (None, "ddtrace.internal.settings._supported_configurations", False),  # malformed metadata
+    ],
+)
+def test_is_trusted_entry_point(dist_name, value, expected):
+    trusted_dists = frozenset({"ddtrace", "ddtrace-serverless", "ddtrace-internal"})
+    trusted_prefixes = frozenset({"ddtrace.", "_ddtrace_internal."})
+
+    entry_point = _FakeEntryPoint("ep", value)
+    result = is_trusted_entry_point(entry_point, _FakeDist(dist_name), trusted_dists, trusted_prefixes)
+
+    assert result is expected
 
 
 def test_entry_points_come_with_their_declaring_distribution(lookup_path):
