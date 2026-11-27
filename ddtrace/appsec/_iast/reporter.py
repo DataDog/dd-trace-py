@@ -228,6 +228,7 @@ class IastSpanReporter(_report_types.NotNoneDictable):
                 "No request quota or this vulnerability is outside the context"
             )
             return {}
+        all_redacted_sources: set[int] = set()
         for vuln in self.vulnerabilities:
             scrubbing_result = sensitive_handler.scrub_evidence(
                 vuln.type, vuln.evidence, vuln.evidence._ranges, self.sources
@@ -238,10 +239,7 @@ class IastSpanReporter(_report_types.NotNoneDictable):
                 for part in redacted_value_parts:
                     if "value" in part:
                         part["value"] = _truncate_evidence_value(part["value"])
-                redacted_sources = scrubbing_result["redacted_sources"]
-                for i, source in enumerate(self.sources):
-                    if i in redacted_sources:
-                        source.value = None
+                all_redacted_sources.update(scrubbing_result["redacted_sources"])
                 vuln.evidence.valueParts = redacted_value_parts
                 vuln.evidence.value = None
             elif vuln.evidence.value is not None and vuln.type not in EVIDENCES_WITH_NO_SOURCES:
@@ -249,6 +247,9 @@ class IastSpanReporter(_report_types.NotNoneDictable):
                     vuln.evidence.value, vuln.evidence._ranges, self.sources
                 )
                 vuln.evidence.value = None
+        for i in all_redacted_sources:
+            if 0 <= i < len(self.sources):
+                self.sources[i].value = None
         return self._to_dict()
 
     def get_unredacted_value_parts(self, evidence_value: str, ranges: list[dict], sources: list[Any]) -> list[dict]:
