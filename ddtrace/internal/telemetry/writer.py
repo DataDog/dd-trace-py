@@ -29,7 +29,7 @@ from .._runtime_id import get_parent_runtime_id
 from .._runtime_id import get_runtime_id
 from .._runtime_id import on_runtime_identity_refresh
 from .._runtime_id import remove_runtime_identity_refresh
-from ..native.exceptions import is_panic_exception
+from ..native_exceptions import is_panic_exception
 from ..periodic import PeriodicService
 from ..serverless import in_aws_lambda_microvm
 from ..utils.formats import get_test_session_token

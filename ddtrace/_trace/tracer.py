@@ -55,7 +55,7 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
-from ddtrace.internal.native.exceptions import is_panic_exception
+from ddtrace.internal.native_exceptions import is_panic_exception
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import in_aws_lambda_microvm
