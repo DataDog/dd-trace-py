@@ -78,6 +78,12 @@ try:
 except ImportError:
     StashKey = None
 
+try:
+    from _pytest.nodeid import NodeId
+except ImportError:
+    # pytest < 9.2 has no structured node ids
+    NodeId = None
+
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
@@ -655,7 +661,13 @@ def pytest_collection_modifyitems(session, config, items):
         name_base = item.name
         nodeid_base = item.nodeid
 
-        item._nodeid = f"{nodeid_base}[{py_tag}]"
+        suffixed_nodeid = f"{nodeid_base}[{py_tag}]"
+        if NodeId is not None:
+            # pytest >= 9.2 derives Node.nodeid from the structured Node._id, so assigning
+            # Node._nodeid no longer has any effect.
+            item._id = NodeId.parse(suffixed_nodeid)
+        else:
+            item._nodeid = suffixed_nodeid
 
         cls = getattr(item, "cls", None)
         is_unittest = isinstance(cls, type) and issubclass(cls, TestCase)

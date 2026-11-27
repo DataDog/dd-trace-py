@@ -50,13 +50,15 @@ Give every reviewer the same frozen evidence. Security must also inspect commit 
 | Codebase conventions | [codebase-conventions.md](references/codebase-conventions.md) |
 | Cross-SDK consistency | [cross-sdk-consistency.md](references/cross-sdk-consistency.md) |
 
-Each lens file lists rules with IDs (e.g. `PERF-1.3`, meaning section 1, rule 3). Cite the rule ID in each finding that matches a rule, and respect each file's `Not when:` lines and "Don't flag" section where present.
+Each lens file lists rules with IDs (e.g. `PERF-2.3`, meaning section 2, rule 3). Cite the rule ID in each finding that matches a rule, and respect each file's `Not when:` lines and "Don't flag" section where present.
 
-Run each lens as its own fresh, read-only subagent. Start as many reviewers concurrently as the harness permits and launch pending reviewers as slots free up. Use the `sdk-review-lens` agent type where it exists. Each reviewer reads its lens file before it looks at the diff. If the harness cannot launch any subagents, run the lenses one at a time yourself, read each lens file in turn, and don't carry conclusions from one lens to the next. Do not edit while reviewers run.
+Always run every lens as its own fresh, read-only subagent, however small the diff. Start as many reviewers concurrently as the harness permits and launch pending reviewers as slots free up. Use the `sdk-review-lens` agent type where it exists. The coordinator never reviews the change itself. Each reviewer reads its lens file before it looks at the diff. If the harness cannot launch any subagents, run the lenses one at a time yourself, read each lens file in turn, and don't carry conclusions from one lens to the next. Do not edit while reviewers run.
 
 Each reviewer reads every changed hunk in its scope, not a sample. For a large diff (roughly 1,000 or more changed lines), split the changed files into groups of about 500 changed lines. Keep related files together, such as a class and its test. Give each lens one reviewer per group, and merge each lens's results before reporting. Each reviewer still receives the full file list and commit messages for context. Report any hunk a reviewer did not read as a coverage limitation.
 
-A changed line that clearly matches a rule's `Flag:` line is a finding unless a `Not when:` line or "Don't flag" entry applies. Report it even if the impact is small, at `P3`, rather than dropping it as minor. If you aren't sure the line matches, leave it out. Don't report "borderline" or "plausible" findings. Cite only rule IDs that exist in the lens file.
+A changed line that clearly matches a rule's `Flag:` line is a finding unless a `Not when:` line or "Don't flag" entry applies. A `Not when:` applies only when every condition in it holds, and the finding's evidence must show each one. Report it even if the impact is small, at `P3`, rather than dropping it as minor. If you aren't sure the line matches, leave it out. Don't report "borderline" or "plausible" findings. Cite only rule IDs that exist in the lens file.
+
+An explanation from the author never cancels a matching finding. This includes the PR description, a commit message, a code comment, and the PR's stated design. Report the finding as acknowledged: add an `Acknowledged:` line that quotes the explanation and says where it is. Acknowledged findings are `P3`, unless the code contradicts the explanation or the explanation doesn't address the rule's concern; then keep the usual severity. The human reviewer decides whether the explanation is enough. Add an `Acknowledged:` line only when there is an explanation to quote.
 
 The rules are not exhaustive. Also report a clear problem within the lens's scope that no rule describes, such as a bug, a race or a broken contract, and mark it `no rule`. The same bar applies: report it only if you are sure it is a real problem in the changed code, and never as borderline or plausible.
 
@@ -75,6 +77,10 @@ A missing lens is incomplete coverage, not approval.
 
 Verify findings against the frozen diff and committed context. Remove duplicates, preserve the responsible lens, and order findings by severity. Ignore unrelated pre-existing issues.
 
+Never drop a lens finding that cites a rule, except under the `P3` limit below. You may merge it with a duplicate, keeping every location. When you disagree with it, keep it and add a `Coordinator note:` with your reasoning; the human reviewer decides. Your reasoning might be that the finding is speculative, misreads the rule, concerns unchanged code, or is explained by the author. You may drop a `no rule` finding only when the evidence shows it is wrong. List each such drop under `Dropped`, with the lens and reason.
+
+Report at most three `P3` findings, after merging duplicates. Keep the ones a maintainer is most likely to act on: rule matches before `no rule` findings, then correctness, compatibility and contract issues before style, then the findings you are most confident in. Don't list the other `P3` findings, even briefly; only say how many you left out. This limit doesn't apply to `P0`-`P2` findings or to the `Acknowledged` section. Keep each finding at the severity its lens gave it: never raise a severity, and apply the limit to the lens's rating. You may lower a severity when the evidence shows the impact is smaller.
+
 Before reporting, re-resolve the selected refs and restart the review if they differ from the frozen SHAs.
 
-Report findings first, then the resolved scope, coverage for every lens, excluded working-tree changes, and limitations. If every lens completes with no surviving finding, say `No actionable findings`. If any lens is missing, say `Review incomplete`.
+Report findings first, then an `Acknowledged` section listing each acknowledged finding in one or two lines (rule ID, location, the quoted explanation), then `Dropped`, the resolved scope, coverage for every lens, excluded working-tree changes, and limitations. If every lens completes with no surviving finding, say `No actionable findings`. If any lens is missing, say `Review incomplete`.
