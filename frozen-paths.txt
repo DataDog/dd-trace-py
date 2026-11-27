@@ -9,4 +9,3 @@
 # no separate unfreeze PR is needed. The check reads base rules as well as
 # merge-result rules, so updating a hash in the same PR cannot lift a
 # freeze: only removing the entry can.
-ddtrace/internal/logger/__init__.py=ad2efce7af17d8de18bb368126715a663a516294e109ec498156578aa1f81e64
