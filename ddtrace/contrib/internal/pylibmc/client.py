@@ -1,6 +1,11 @@
 from collections.abc import Iterable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from contextlib import contextmanager
 import random
+from typing import Any
+from typing import Optional
+from typing import cast
 
 import pylibmc
 from wrapt import ObjectProxy
@@ -23,6 +28,8 @@ from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 from ddtrace.trace import tracer
 
 
@@ -36,7 +43,14 @@ log = get_logger(__name__)
 class TracedClient(ObjectProxy):
     """TracedClient is a proxy for a pylibmc.Client that times its network operations."""
 
-    def __init__(self, client=None, service=None, tracer=None, *args, **kwargs):
+    def __init__(
+        self,
+        client: Any = None,
+        service: Optional[str] = None,
+        tracer: Optional[Tracer] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """Create a traced client that wraps the given memcached client."""
         # The client instance/service/tracer attributes are kept for compatibility
         # with the old interface: TracedClient(client=pylibmc.Client(['localhost:11211']))
@@ -57,13 +71,13 @@ class TracedClient(ObjectProxy):
         self._configure_client(client, service)
 
     @classmethod
-    def _from_client(cls, client, service=None):
+    def _from_client(cls, client: Any, service: Optional[str] = None) -> "TracedClient":
         traced_client = cls.__new__(cls)
         ObjectProxy.__init__(traced_client, client)
         traced_client._configure_client(client, service)
         return traced_client
 
-    def _configure_client(self, client, service):
+    def _configure_client(self, client: Any, service: Optional[str]) -> None:
         # for API compatibility, callers can still override the service.
         # When no override is provided, use the integration default service so
         # v0 keeps the integration service while v1 follows DD_SERVICE.
@@ -71,7 +85,7 @@ class TracedClient(ObjectProxy):
             service
             if service is not None
             # TODO: this should be simplified once TracedClient export is removed
-            else getattr(config.pylibmc, "_default_service", schematize_service_name(memcached.SERVICE))
+            else cast(str, getattr(config.pylibmc, "_default_service", schematize_service_name(memcached.SERVICE)))
         )
 
         # attempt to collect the pool of urls this client talks to
@@ -80,54 +94,54 @@ class TracedClient(ObjectProxy):
         except Exception:
             log.debug("error setting addresses", exc_info=True)
 
-    def clone(self, *args, **kwargs):
+    def clone(self, *args: Any, **kwargs: Any) -> "TracedClient":
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
         return self._from_client(cloned, service=self._service)
 
-    def add(self, *args, **kwargs):
+    def add(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("add", *args, **kwargs)
 
-    def get(self, *args, **kwargs):
+    def get(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("get", *args, **kwargs)
 
-    def set(self, *args, **kwargs):
+    def set(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("set", *args, **kwargs)
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("delete", *args, **kwargs)
 
-    def gets(self, *args, **kwargs):
+    def gets(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("gets", *args, **kwargs)
 
-    def touch(self, *args, **kwargs):
+    def touch(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("touch", *args, **kwargs)
 
-    def cas(self, *args, **kwargs):
+    def cas(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("cas", *args, **kwargs)
 
-    def incr(self, *args, **kwargs):
+    def incr(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("incr", *args, **kwargs)
 
-    def decr(self, *args, **kwargs):
+    def decr(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("decr", *args, **kwargs)
 
-    def append(self, *args, **kwargs):
+    def append(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("append", *args, **kwargs)
 
-    def prepend(self, *args, **kwargs):
+    def prepend(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_cmd("prepend", *args, **kwargs)
 
-    def get_multi(self, *args, **kwargs):
+    def get_multi(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_multi_cmd("get_multi", *args, **kwargs)
 
-    def set_multi(self, *args, **kwargs):
+    def set_multi(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_multi_cmd("set_multi", *args, **kwargs)
 
-    def delete_multi(self, *args, **kwargs):
+    def delete_multi(self, *args: Any, **kwargs: Any) -> Any:
         return self._trace_multi_cmd("delete_multi", *args, **kwargs)
 
-    def _trace_cmd(self, method_name, *args, **kwargs):
+    def _trace_cmd(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """trace the execution of the method with the given name and will
         patch the first arg.
         """
@@ -143,12 +157,13 @@ class TracedClient(ObjectProxy):
                 span._set_attribute(db.ROWCOUNT, 1 if result else 0)
             elif method_name == "gets":
                 # returns a tuple object that may be (None, None)
+                get_result = cast(tuple[Any, Any], result)
                 span._set_attribute(
-                    db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0
+                    db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(get_result) > 0 and get_result[0] else 0
                 )
             return result
 
-    def _trace_multi_cmd(self, method_name, *args, **kwargs):
+    def _trace_multi_cmd(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """trace the execution of the multi command with the given name."""
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
@@ -168,10 +183,10 @@ class TracedClient(ObjectProxy):
             return result
 
     @contextmanager
-    def _no_span(self):
+    def _no_span(self) -> Iterator[None]:
         yield None
 
-    def _span(self, cmd_name):
+    def _span(self, cmd_name: str) -> AbstractContextManager[Optional[Span]]:
         """Return a span timing the given command."""
         # TODO: remove when moving to core API
         if not is_tracing_enabled():
@@ -198,11 +213,12 @@ class TracedClient(ObjectProxy):
             log.debug("error tagging span", exc_info=True)
         return span
 
-    def _tag_span(self, span):
+    def _tag_span(self, span: Span) -> None:
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually
         # using, so fallback to randomly choosing one. can we do better?
         if self._addresses:
             _, host, port, _ = random.choice(self._addresses)  # nosec
             span._set_attribute(net.TARGET_HOST, host)
-            span.set_tag(net.TARGET_PORT, port)
+            # set_tag accepts numeric port values at runtime.
+            span.set_tag(net.TARGET_PORT, cast(Any, port))
             span._set_attribute(net.SERVER_ADDRESS, host)
