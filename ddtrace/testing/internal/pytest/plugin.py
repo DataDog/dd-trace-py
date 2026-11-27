@@ -54,7 +54,6 @@ from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.fixture_coverage import install_fixture_tracking
-from ddtrace.testing.internal.pytest.fixture_coverage import link_suite_fixtures_in_closure
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
@@ -928,7 +927,6 @@ class TestOptPlugin(TestOptPluginProtocol):
             with _maybe_collect_coverage(
                 coverage_enabled, test_file=_test_file(item) if needs_test_file else None
             ) as coverage_data:
-                link_suite_fixtures_in_closure(item)
                 yield
 
         if not test.test_runs:
@@ -1021,7 +1019,6 @@ class TestOptPlugin(TestOptPluginProtocol):
         if self._collects_coverage_per_run():
             # Each execution, a retry included, gets its own record. The window nests in the test's.
             with coverage_collection() as coverage_data:
-                link_suite_fixtures_in_closure(item)
                 _carry_coverage_context_into_test_case(item)
                 reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         else:
@@ -1630,7 +1627,6 @@ class TestOptPluginWithProtocol(TestOptPlugin):
             with _maybe_collect_coverage(
                 coverage_enabled, test_file=_test_file(item) if needs_test_file else None
             ) as coverage_data:
-                link_suite_fixtures_in_closure(item)
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
