@@ -305,15 +305,17 @@ experiments:
               - execution_time < 10000 ms
           # tracebuffer (class TraceBuffer) — native trace buffer construction and
           # the write path, including meta_struct packing through _msgpack.packb.
+          # Calibrated from the first CI benchmark run: the bare-metal runners measure
+          # 2-3x the local laptop numbers, so local measurements are not the reference.
           - name: tracebuffer-write
             thresholds:
-              - execution_time < 0.005 ms
+              - execution_time < 0.02 ms
           - name: tracebuffer-write-meta-struct
             thresholds:
-              - execution_time < 0.011 ms
+              - execution_time < 0.03 ms
           - name: tracebuffer-write-many-meta-structs
             thresholds:
-              - execution_time < 0.024 ms
+              - execution_time < 0.07 ms
           - name: tracebuffer-init
             thresholds:
-              - execution_time < 0.20 ms
+              - execution_time < 0.35 ms
