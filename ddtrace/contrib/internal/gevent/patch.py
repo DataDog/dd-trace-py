@@ -8,6 +8,7 @@ from .greenlet import TracedIMap
 from .greenlet import TracedIMapUnordered
 from .greenlet import disable_greenlet_context_switch
 from .greenlet import ensure_greenlet_context_switch
+from .logger import MainHubLogging
 
 
 __Greenlet = gevent.Greenlet
@@ -42,6 +43,8 @@ def patch():
         return
     gevent.__datadog_patch = True
 
+    gevent.__datadog_main_hub_logging = main_hub_logging = MainHubLogging()
+    main_hub_logging.install(gevent.hub)
     if ensure_greenlet_context_switch():
         gevent.hub.Hub.switch = _switch_hub
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
@@ -61,6 +64,8 @@ def unpatch():
     if gevent.hub.Hub.switch is _switch_hub:
         gevent.hub.Hub.switch = __HubSwitch
     disable_greenlet_context_switch()
+    gevent.__datadog_main_hub_logging.uninstall()
+    gevent.__datadog_main_hub_logging = None
 
 
 def _replace(g_class, imap_class, imap_unordered_class):

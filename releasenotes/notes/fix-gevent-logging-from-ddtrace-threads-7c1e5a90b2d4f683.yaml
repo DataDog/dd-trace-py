@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    gevent: Fixes an issue where gevent applications could hang at startup or during fork when ddtrace background
+    threads log.

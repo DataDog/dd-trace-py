@@ -1,10 +1,12 @@
 from _queue import SimpleQueue
 from _thread import get_ident as _get_ident
+import atexit
 import threading as _threading
 from time import monotonic_ns
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal import _threads
 from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
@@ -27,6 +29,7 @@ __all__ = [
     "SimpleQueue",
     "current_thread",
     "is_main_thread",
+    "get_ident",
     "local",
     "original_Event",
     "original_local",
@@ -46,6 +49,10 @@ original_local = _threading.local
 # wherever we are, which could be one of our own threads. Attributes are looked
 # up on each call because patching happens after the module has been imported.
 _app_threading = _threading
+
+# The identifier of the current OS thread. Unlike the one of the application's copy of _thread, it is never
+# monkey-patched, so it is not a greenlet identifier.
+get_ident = _get_ident
 
 # The main thread is the one that loaded ddtrace. On Python < 3.13, the
 # application's copy of threading takes the thread that imports it as the main
@@ -98,6 +105,41 @@ class BoundMethod(t.Protocol):
 # List of threads that have requested to be started while forking. These will
 # be started after the fork is complete.
 _threads_to_start_after_fork: list[BoundMethod] = []
+
+
+class ExitHooks:
+    """The exit sequence of the periodic threads, which replaces the exit hook of the native threads module."""
+
+    def __init__(self) -> None:
+        self._after_threads_stopped: list[t.Callable[[], None]] = []
+
+    def register_after_threads_stopped(self, func: t.Callable[[], None]) -> None:
+        """Register a function to run at exit, right after the periodic threads have been stopped and joined.
+
+        Use it to handle what those threads produced while stopping, which a function registered with
+        ``ddtrace.internal.atexit.register`` runs too early for.
+        """
+        self._after_threads_stopped.append(func)
+
+    def unregister_after_threads_stopped(self, func: t.Callable[[], None]) -> None:
+        try:
+            self._after_threads_stopped.remove(func)
+        except ValueError:
+            pass
+
+    def __call__(self) -> None:
+        _threads._at_exit()  # Stops and joins the periodic threads.
+        for func in list(self._after_threads_stopped):
+            try:
+                func()
+            except Exception:
+                log.debug("failed to run %r after the threads stopped", func, exc_info=True)
+
+
+exit_hooks = ExitHooks()
+# The native module registered its hook when it was first imported. Replace it, so that the order is explicit.
+atexit.unregister(_threads._at_exit)
+atexit.register(exit_hooks)
 
 
 def _safe_restart(start: t.Callable[[], None]) -> t.Optional[Exception]:

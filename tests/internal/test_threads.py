@@ -374,3 +374,12 @@ def test_restart_failures_are_logged_after_releasing_forking_lock(monkeypatch):
         ("failed to restart periodic thread %s after fork: %s", "failing-restart", False),
         ("failed to start periodic thread %s: %s", "failing-start", False),
     ]
+
+
+@pytest.mark.subprocess(out="stopped\nafter threads\n", err=None, timeout=30)
+def test_after_threads_stopped_functions_run_after_the_threads_are_joined():
+    """The exit sequence runs the functions after the periodic threads were stopped and joined."""
+    from ddtrace.internal import threads
+
+    threads.exit_hooks.register_after_threads_stopped(lambda: print("after threads"))
+    threads.PeriodicThread(60, lambda: None, name="after-threads-test", on_shutdown=lambda: print("stopped")).start()

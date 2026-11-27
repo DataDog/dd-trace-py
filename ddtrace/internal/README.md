@@ -555,6 +555,14 @@ Periodic threads are therefore not allowed to synchronize among themselves;
 each thread's lock must be acquired only by that thread and by the fork
 machinery in a well-defined order.
 
+### Logging from ddtrace threads under gevent
+
+Once gevent has patched `threading`, the logging and handler locks are gevent
+locks, so ddtrace threads must not wait on the application's gevent-patched
+logging locks: the main hub that would release them can be waiting for the
+thread itself, e.g. joining it before a fork. The gevent integration handles
+this, see `ddtrace/contrib/internal/gevent/logger.py`.
+
 ### Adding new fork hooks
 
 - Register via `forksafe` — never call `os.register_at_fork()` directly.
