@@ -180,7 +180,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
 
         auto& task_link_map = echion.task_link_map();
-        auto& weak_task_link_map = echion.weak_task_link_map();
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
@@ -191,22 +190,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                        task_link_map.cend(),
                        std::inserter(parent_tasks, parent_tasks.begin()),
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
-
-        // Clean up the weak_task_link_map. Reuse the same all_task_origins set
-        echion.prune_weak_task_links(all_task_origins);
-
-        // Determine the parent tasks from the gather (strong) links.
-        for (auto& link : task_link_map) {
-            auto parent = link.second;
-
-            // Check if the parent is actually the child of another Task
-            auto is_child = weak_task_link_map.find(parent) != weak_task_link_map.end();
-
-            // Only insert if we do not know of a Task that created the current Task
-            if (!is_child) {
-                parent_tasks.insert(parent);
-            }
-        }
     }
 
     for (auto& task : all_tasks) {
@@ -403,20 +386,12 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                 // Check for, e.g., gather links
                 std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
                 auto& task_link_map = echion.task_link_map();
-                auto& weak_task_link_map = echion.weak_task_link_map();
 
                 if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
                     if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
                         current_task = maybe_origin->second;
                         continue;
                     }
-                }
-
-                // Check for weak links
-                if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
-                    continue;
                 }
             }
 

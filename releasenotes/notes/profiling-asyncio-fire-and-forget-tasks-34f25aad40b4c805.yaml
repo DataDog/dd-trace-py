@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes an issue where samples from an asyncio task that is never awaited include the stack of the
+    task that created it. Such tasks now appear as their own root in flame graphs.

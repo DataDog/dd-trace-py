@@ -70,9 +70,9 @@ def test_asyncio_hooks_use_wrap_below_315() -> None:
     assert stack.is_available, stack.failure_msg
     assert _asyncio.ASYNCIO_IMPORTED
 
+    # Fire-and-forget tasks are not linked to their creator, so create_task is not hooked.
     create_task: FunctionType = cast(FunctionType, asyncio.tasks.create_task)
-    assert is_wrapped(create_task), "create_task must be wrap()'d, not monkey-patched"
-    assert create_task.__name__ == "create_task"
+    assert not is_wrapped(create_task)
     assert _asyncio._monitoring_tool_id is None
     assert _asyncio._py_return_handlers == {}
 
@@ -114,19 +114,19 @@ def test_asyncio_task_creation_uses_monitoring_on_315() -> None:
     assert stack.is_available, stack.failure_msg
     assert _asyncio.ASYNCIO_IMPORTED
 
+    # Fire-and-forget tasks are not linked to their creator, so create_task is not hooked.
     create_task: FunctionType = cast(FunctionType, asyncio.tasks.create_task)
-    # A _register_return_hook that always returns False would skip this store
-    # and fall back to wrap().
-    assert create_task.__name__ == "create_task"
     assert not is_wrapped(create_task)
-    assert _asyncio._monitoring_tool_id is not None
-    assert id(create_task.__code__) in _asyncio._py_return_handlers
+    assert id(create_task.__code__) not in _asyncio._py_return_handlers
 
     taskgroups: ModuleType | None = sys.modules.get("asyncio.taskgroups")
     assert taskgroups is not None
     tg_create: FunctionType = cast(FunctionType, taskgroups.TaskGroup.create_task)
+    # A _register_return_hook that always returns False would skip this store
+    # and fall back to wrap().
     assert tg_create.__name__ == "create_task"
     assert not is_wrapped(tg_create)
+    assert _asyncio._monitoring_tool_id is not None
     assert id(tg_create.__code__) in _asyncio._py_return_handlers
 
 

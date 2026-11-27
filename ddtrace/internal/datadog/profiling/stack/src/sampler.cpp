@@ -1029,17 +1029,6 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 }
 
 void
-Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
-{
-    if (!sampler_active_.load(std::memory_order_acquire)) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->weak_link_task(parent, child);
-}
-
-void
 Sampler::track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
