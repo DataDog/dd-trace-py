@@ -932,6 +932,11 @@ AI Guard
        URL are never sent. This setting does not change blocking, which still follows the evaluation
        verdict and DD_AI_GUARD_BLOCK.
 
+       Evaluations of tool calls run by the Anthropic MCP connector (``mcp_servers`` of
+       ``client.beta.messages.create``) identify their MCP server the same way, from its name and URL;
+       its ``authorization_token`` is never sent. Anthropic has already run these calls when the response
+       arrives, so a blocking verdict withholds the response but cannot stop the call.
+
        Tools of MCP servers configured in the OpenAI Agents SDK (MCPServerStdio, MCPServerSse,
        MCPServerStreamableHttp) are evaluated before each call reaches the server, whether the
        agent runs the tool or the application calls ``server.call_tool`` directly; a blocking

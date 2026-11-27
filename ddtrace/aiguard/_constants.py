@@ -21,13 +21,14 @@ class AI_GUARD(metaclass=Constant_Class):
     # The policy that decided a policy evaluation, when the service identifies it.
     POLICY_ID_TAG: str = TAG + ".policy.id"
     POLICY_VERSION_TAG: str = TAG + ".policy.version"
-    # OpenAI runs hosted MCP tools itself and does not report whether it reached the server over
-    # streamable HTTP or SSE, so their servers carry the unknown transport.
+    # OpenAI hosted MCP and the Anthropic MCP connector run MCP tools themselves and do not report whether
+    # they reached the server over streamable HTTP or SSE, so their servers carry the unknown transport.
     MCP_TRANSPORT_UNKNOWN: Literal["unknown"] = "unknown"
     MCP_TRANSPORT_STREAMABLE_HTTP: Literal["streamable_http"] = "streamable_http"
     MCP_TRANSPORT_SSE: Literal["sse"] = "sse"
     MCP_TRANSPORT_STDIO: Literal["stdio"] = "stdio"
-    # managed_by of an MCP server whose client is run by the model provider (OpenAI hosted MCP).
+    # managed_by of an MCP server whose client is run by the model provider
+    # (OpenAI hosted MCP, Anthropic MCP connector).
     MCP_MANAGED_BY_PROVIDER: Literal["provider"] = "provider"
     # Policy evaluations: the target type and MCP server operation of a connection check, and the policy profile.
     TARGET_MCP_SERVER: Literal["mcp_server"] = "mcp_server"
