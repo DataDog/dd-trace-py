@@ -14,6 +14,8 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._processor import LLMObsProcessor
@@ -185,6 +187,47 @@ class TestExportModeKeepsMetaStruct:
             assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
             assert not _get_llmobs_data_metastruct(span)
             llmobs_service.disable()
+
+
+def _finish_experiment_trace(tracer, priority=USER_KEEP):
+    """An experiment root span with one LLM child, as Experiment._run_task builds them."""
+    with tracer.trace("experiment-row", span_type=SpanTypes.LLM) as root:
+        root.context.set_baggage_item(EXPERIMENT_ID_KEY, "exp-123")
+        _annotate_llmobs_span_data(root, kind="experiment")
+        root.context.sampling_priority = priority
+        with tracer.trace("llm-call", span_type=SpanTypes.LLM) as child:
+            _annotate_llm_span(child)
+    return root, child
+
+
+class TestExperimentSpansSkipAPMTrace:
+    def test_experiment_spans_go_to_llmobs_writer_even_when_trace_is_kept(self, llmobs_agent_proxy, tracer):
+        """A kept APM trace no longer carries experiment rows: they ship directly so APM-pipeline
+        limits and drops cannot lose them.
+        """
+        _llmobs, mock_writer = llmobs_agent_proxy
+        root, child = _finish_experiment_trace(tracer)
+        assert mock_writer.enqueue.call_count == 2
+        for span in (root, child):
+            assert span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY) == LLMObsExportMode.LLMOBS_AGENT_PROXY
+            assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+            assert not _get_llmobs_data_metastruct(span)
+
+    def test_export_span_keeps_llmobs_trace_id_after_direct_export(self, llmobs_agent_proxy, tracer):
+        """Evaluations join on the exported context, so it must carry the LLMObs trace ID, not the
+        APM one, even though the processor scrubbed the meta_struct.
+        """
+        llmobs, mock_writer = llmobs_agent_proxy
+        root, _child = _finish_experiment_trace(tracer)
+        sent_trace_ids = {call.args[0]["trace_id"] for call in mock_writer.enqueue.call_args_list}
+        assert llmobs.export_span(root)["trace_id"] in sent_trace_ids
+
+    def test_non_experiment_spans_still_ride_kept_trace(self, llmobs_agent_proxy, tracer):
+        _llmobs, mock_writer = llmobs_agent_proxy
+        span = _finish_with_priority(tracer, USER_KEEP)
+        assert span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY) == LLMObsExportMode.APM_AGENT
+        mock_writer.enqueue.assert_not_called()
+        assert _get_llmobs_data_metastruct(span)
 
 
 class TestRescuePath:

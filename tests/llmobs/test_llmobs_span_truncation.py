@@ -92,13 +92,55 @@ def test_inline_image_at_guard_cap_stays_under_event_limit():
     assert len(safe_json(_llm_event_with_image(LLMOBS_IMAGE_INLINE_MAX_BYTES))) < DEFAULT_EVP_EVENT_SIZE_LIMIT
 
 
-def test_unguarded_inline_image_would_lose_input_and_output():
-    """The failure the guard exists to prevent: an over-cap image pushes the event past the limit, and
-    truncation blanks the input AND the output -- not just the image.
+def test_unguarded_inline_image_loses_only_the_input():
+    """An over-cap image pushes the event past the limit; truncation blanks the input that holds it
+    and keeps the small model response.
     """
     event = _llm_event_with_image(LLMOBS_IMAGE_INLINE_MAX_BYTES * 2)
     assert len(safe_json(event)) >= DEFAULT_EVP_EVENT_SIZE_LIMIT
     truncated = _truncate_span_event(event)
-    assert "messages" not in truncated["meta"]["input"]
-    assert "messages" not in truncated["meta"]["output"]
+    assert truncated["meta"]["input"] == {"value": DROPPED_VALUE_TEXT}
+    assert truncated["meta"]["output"] == {"messages": [{"role": "assistant", "content": "a dog"}]}
     assert truncated["collection_errors"] == [DROPPED_IO_COLLECTION_ERROR]
+    assert len(safe_json(truncated)) < DEFAULT_EVP_EVENT_SIZE_LIMIT
+
+
+def test_truncation_drops_largest_field_first_and_stops_when_under_limit():
+    event = _oversized_workflow_event()
+    event["meta"]["output"] = {"value": "B" * 3_000_000}
+    truncated = _truncate_span_event(event)
+    assert truncated["meta"]["output"] == {"value": DROPPED_VALUE_TEXT}
+    assert truncated["meta"]["input"] == {"value": "A" * 2_600_000}
+    assert len(safe_json(truncated)) < DEFAULT_EVP_EVENT_SIZE_LIMIT
+
+
+def test_truncation_keeps_experiment_expected_output_and_metadata_when_io_is_enough():
+    event = _oversized_workflow_event()
+    event["meta"]["expected_output"] = {"answer": "42"}
+    event["meta"]["metadata"] = {"dataset_record_id": "r1"}
+    truncated = _truncate_span_event(event)
+    assert truncated["meta"]["expected_output"] == {"answer": "42"}
+    assert truncated["meta"]["metadata"] == {"dataset_record_id": "r1"}
+    assert len(safe_json(truncated)) < DEFAULT_EVP_EVENT_SIZE_LIMIT
+
+
+def test_truncation_drops_expected_output_when_io_is_not_enough():
+    event = _oversized_workflow_event()
+    event["meta"]["input"] = {"value": "small"}
+    event["meta"]["output"] = {"value": "small"}
+    event["meta"]["expected_output"] = {"value": "C" * 5_100_000}
+    truncated = _truncate_span_event(event)
+    assert truncated["meta"]["expected_output"] == {"value": DROPPED_VALUE_TEXT}
+    assert len(safe_json(truncated)) < DEFAULT_EVP_EVENT_SIZE_LIMIT
+    assert truncated["collection_errors"] == [DROPPED_IO_COLLECTION_ERROR]
+
+
+def test_truncation_ranks_fields_by_serialized_size():
+    """Escaped characters count: an emoji-heavy input is bigger on the wire than a longer ASCII output."""
+    event = _oversized_workflow_event()
+    event["meta"]["input"] = "\U0001f600" * 450_000
+    event["meta"]["output"] = "A" * 2_000_000
+    assert len(safe_json(event)) >= DEFAULT_EVP_EVENT_SIZE_LIMIT
+    truncated = _truncate_span_event(event)
+    assert truncated["meta"]["input"] == {"value": DROPPED_VALUE_TEXT}
+    assert truncated["meta"]["output"] == "A" * 2_000_000
