@@ -11,6 +11,10 @@ declares an entry point in the ddtrace_internal.library group::
 - The code roots and the integration resolver are the code_roots and integration_of attributes of the
   entry point's object. The object is loaded when the excepthook is installed (see load_attribution).
 
+Only ddtrace's own distributions (ddtrace, ddtrace-serverless, ddtrace-internal and ddtrace-testing) and module
+namespaces may provide the library: other entry points are ignored with a warning, as the module is executed while
+ddtrace imports.
+
 A distribution that only wants to report when no other library is installed declares its entry point in the
 ddtrace_internal.library.fallback group instead. The first entry point of the primary group wins; the fallback
 group is consulted only when that one is empty. register_library() overrides the entry points, for tests and
@@ -25,7 +29,9 @@ from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.entry_points import distribution_name
 from ddtrace.internal.utils.entry_points import entry_points_with_distributions
+from ddtrace.internal.utils.entry_points import is_trusted_entry_point
 
 
 if TYPE_CHECKING:
@@ -36,6 +42,11 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 GROUP = "ddtrace_internal.library"
+# Loading the library's entry point executes its module while ddtrace is importing, so, like the settings
+# registry, only ddtrace's own distributions and module namespaces may provide it: an unrelated installed
+# distribution must not run code merely because ddtrace starts.
+_TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless", "ddtrace-internal", "ddtrace-testing"})
+_TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace.", "_ddtrace_internal."})
 # Entry points of this group are used only when no distribution declares one in GROUP.
 FALLBACK_GROUP = "ddtrace_internal.library.fallback"
 
@@ -105,12 +116,28 @@ def register_library(
         _registered = (Library(name, version, product_version), _Attribution(tuple(code_roots), integration_of))
 
 
+def _trusted_entry_points(group: str) -> list[tuple["EntryPoint", "Distribution"]]:
+    """Return the entry points of group that a trusted distribution declares, in path order."""
+    trusted = []
+    for entry_point, dist in entry_points_with_distributions(group):
+        if is_trusted_entry_point(entry_point, dist, _TRUSTED_DISTRIBUTIONS, _TRUSTED_MODULE_PREFIXES):
+            trusted.append((entry_point, dist))
+        else:
+            log.warning(
+                "Refusing to use the %s entry point %r of the untrusted distribution %r",
+                group,
+                entry_point.value,
+                distribution_name(dist),
+            )
+    return trusted
+
+
 def _find_entry_point() -> Optional[tuple["EntryPoint", "Distribution"]]:
     global _entry_point, _entry_point_looked_up
 
     if not _entry_point_looked_up:
         try:
-            found = entry_points_with_distributions(GROUP) or entry_points_with_distributions(FALLBACK_GROUP)
+            found = _trusted_entry_points(GROUP) or _trusted_entry_points(FALLBACK_GROUP)
         except Exception:
             # Malformed metadata of any installed distribution makes the scan raise; that must not break startup.
             log.debug("Failed to look up the %s entry points", GROUP, exc_info=True)

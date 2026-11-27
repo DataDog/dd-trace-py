@@ -28,11 +28,11 @@ class _Provider:
         return "integration"
 
 
-def _declared_by(*names):
+def _declared_by(*names, module="ddtrace.provider"):
     """Entry points declared by distributions names, in path order."""
     return [
         (
-            SimpleNamespace(value="provider", load=lambda: _Provider),
+            SimpleNamespace(value=module, load=lambda: _Provider),
             SimpleNamespace(metadata={"Name": name}, version="%d.0.0" % i),
         )
         for i, name in enumerate(names, 1)
@@ -58,19 +58,21 @@ def test_resolution_is_cached(unresolved, monkeypatch):
 
 
 def test_reading_the_identity_does_not_load_the_entry_point(unresolved, monkeypatch):
-    found = _declared_by("lib")
+    found = _declared_by("ddtrace-testing")
     monkeypatch.setattr(found[0][0], "load", lambda: pytest.fail("loaded"))
     monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
 
-    assert inputs.get_library() == ("lib", "1.0.0", "1.0.0")
+    assert inputs.get_library() == ("ddtrace-testing", "1.0.0", "1.0.0")
 
 
 @pytest.mark.parametrize(
     "primary,fallback,expected",
     [
-        pytest.param(("first", "second"), (), "first", id="first-on-the-path"),
-        pytest.param(("primary",), ("fallback",), "primary", id="primary-beats-fallback"),
-        pytest.param((), ("fallback", "other"), "fallback", id="fallback-without-primary"),
+        pytest.param(("ddtrace", "ddtrace-serverless"), (), "ddtrace", id="first-on-the-path"),
+        pytest.param(("ddtrace",), ("ddtrace-testing",), "ddtrace", id="primary-beats-fallback"),
+        pytest.param((), ("ddtrace-testing", "ddtrace-internal"), "ddtrace-testing", id="fallback-without-primary"),
+        pytest.param(("evil", "ddtrace"), (), "ddtrace", id="untrusted-primary-is-skipped"),
+        pytest.param(("evil",), ("ddtrace-testing",), "ddtrace-testing", id="untrusted-primary-does-not-hide-fallback"),
     ],
 )
 def test_entry_point_choice(unresolved, monkeypatch, primary, fallback, expected):
@@ -78,6 +80,24 @@ def test_entry_point_choice(unresolved, monkeypatch, primary, fallback, expected
     monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: declared[group])
 
     assert inputs.get_library().name == expected
+
+
+@pytest.mark.parametrize(
+    "dist,module",
+    [
+        pytest.param("evil", "ddtrace.provider", id="untrusted-distribution"),
+        pytest.param("ddtrace", "evil.provider", id="untrusted-module"),
+        pytest.param("ddtrace", "ddtracer.provider", id="module-prefix-needs-the-dot"),
+    ],
+)
+def test_untrusted_entry_points_are_never_loaded(unresolved, monkeypatch, dist, module):
+    found = _declared_by(dist, module=module)
+    monkeypatch.setattr(found[0][0], "load", lambda: pytest.fail("loaded"))
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
+
+    assert inputs.get_library() == ("", "0.0.0", "0.0.0")
+    inputs.load_attribution()
+    assert not inputs.is_library_code("/site-packages/provider/x.py")
 
 
 def test_registration_beats_the_entry_point_and_the_first_wins(unresolved):
@@ -113,12 +133,12 @@ def test_a_failing_entry_point_lookup_leaves_the_library_unknown(unresolved, mon
 
 
 def test_an_entry_point_that_fails_to_load_attributes_nothing(unresolved, monkeypatch):
-    found = _declared_by("lib")
+    found = _declared_by("ddtrace")
     monkeypatch.setattr(found[0][0], "load", lambda: 1 / 0)
     monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
 
-    assert not inputs.is_library_code("/site-packages/lib/x.py")
-    assert inputs.get_integration("/site-packages/lib/x.py") is None
+    assert not inputs.is_library_code("/site-packages/provider/x.py")
+    assert inputs.get_integration("/site-packages/provider/x.py") is None
 
 
 def test_entry_point_lookup_on_python_3_9(monkeypatch):
