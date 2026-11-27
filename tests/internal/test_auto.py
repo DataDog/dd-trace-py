@@ -136,6 +136,32 @@ def test_dataclasses_not_unloaded():
 
 
 @pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_package_modules_not_unloaded():
+    import sys
+    import types
+
+    import ddtrace  # noqa
+
+    # A module of a package extracted from ddtrace, bridged under a ddtrace name, and a third-party module, both
+    # imported after ddtrace, so the cleanup considers them.
+    package = types.ModuleType("_ddtrace_fake")
+    module = types.ModuleType("_ddtrace_fake.module")
+    sys.modules["_ddtrace_fake"] = package
+    sys.modules["_ddtrace_fake.module"] = module
+    sys.modules["ddtrace.internal.fake_module"] = module
+    sys.modules["fake_third_party"] = types.ModuleType("fake_third_party")
+
+    from ddtrace.bootstrap.cloning import cleanup_loaded_modules
+
+    cleanup_loaded_modules()
+
+    assert sys.modules["_ddtrace_fake"] is package
+    assert sys.modules["_ddtrace_fake.module"] is module
+    assert sys.modules["ddtrace.internal.fake_module"] is module
+    assert "fake_third_party" not in sys.modules
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
 def test_warnings_not_unloaded():
     """``logging.captureWarnings()`` must keep working after module cleanup.
 
