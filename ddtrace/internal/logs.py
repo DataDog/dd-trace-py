@@ -10,6 +10,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import time
 from types import ModuleType
 import typing as t
 from urllib.parse import urlsplit
@@ -47,6 +48,10 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
     _MAX_EVENTS_PER_REQUEST = 1000
     _MAX_REQUEST_BYTES = 5 * 1024 * 1024
     _MAX_BUFFER_EVENTS = 10_000
+    # One deadline for the whole exit flush, waiting for a send in progress included. A send to a
+    # reachable intake takes well under a second; without a deadline, a slow or unreachable one would
+    # hold up the exit for the 10s request timeout of every batch.
+    _EXIT_FLUSH_SECONDS = 1.0
 
     def __init__(self, api_key: str, intake_url: str, interval: float = 5.0, timeout: float = 10.0) -> None:
         super().__init__(interval=interval)
@@ -68,14 +73,15 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
         _install_exit_flush()
 
     def flush_and_stop(self) -> None:
-        """Send everything buffered at process exit, after any send already in progress."""
+        """Send what is buffered at process exit, after any send in progress, within _EXIT_FLUSH_SECONDS."""
+        deadline = time.monotonic() + self._EXIT_FLUSH_SECONDS
         try:
             self.stop()
         except ServiceStatusError:
             pass
         else:
-            self.join(self._timeout)
-        self.periodic()
+            self.join(self._EXIT_FLUSH_SECONDS)
+        self._flush(deadline)
 
     def enqueue(self, event: dict[str, t.Any]) -> None:
         with self._lock:
@@ -90,10 +96,19 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
             self._buffer = []
 
     def periodic(self) -> None:
+        self._flush()
+
+    def _flush(self, deadline: t.Optional[float] = None) -> None:
         with self._lock:
             events, self._buffer = self._buffer, []
-        for pack, count in self._encode_packs(events):
-            self._post(pack, count)
+        packs = self._encode_packs(events)
+        for index, (pack, count) in enumerate(packs):
+            timeout = self._timeout if deadline is None else min(self._timeout, deadline - time.monotonic())
+            if timeout <= 0:
+                dropped = sum(count for _, count in packs[index:])
+                logger.warning("dropped %d log(s) not sent before the process exit deadline", dropped)
+                return
+            self._post(pack, count, timeout)
 
     def _encode_packs(self, events: list[dict[str, t.Any]]) -> list[tuple[bytes, int]]:
         packs: list[list[bytes]] = []
@@ -120,8 +135,8 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
             logger.warning("dropped %d log(s) larger than the %d byte request limit", dropped, self._MAX_REQUEST_BYTES)
         return [(b"[" + b",".join(pack) + b"]", len(pack)) for pack in packs]
 
-    def _post(self, pack: bytes, count: int) -> None:
-        conn = get_connection(self._intake_url, self._timeout)
+    def _post(self, pack: bytes, count: int, timeout: float) -> None:
+        conn = get_connection(self._intake_url, timeout)
         try:
             conn.request("POST", self._endpoint, gzip.compress(pack), self._headers)
             resp = conn.getresponse()

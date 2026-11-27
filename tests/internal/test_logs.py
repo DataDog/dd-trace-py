@@ -6,6 +6,8 @@ import contextlib
 import json
 import logging
 import os
+import socket
+import time
 from typing import Any
 from unittest import mock
 
@@ -70,6 +72,18 @@ def restore_logging_state():
     disable_agentless_log_submission()
     root.handlers = handlers
     root.setLevel(level)
+
+
+@contextlib.contextmanager
+def unresponsive_intake():
+    """An intake that accepts connections, through the listen backlog, and never responds."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(("127.0.0.1", 0))
+    server.listen(16)
+    try:
+        yield "http://127.0.0.1:%d" % server.getsockname()[1]
+    finally:
+        server.close()
 
 
 @pytest.fixture
@@ -138,16 +152,36 @@ class TestLogsIntakeWriter:
         assert packs == [(b'[{"message": "kept"}]', 1)]
         mock_logger.warning.assert_called_once()
 
-    def test_flush_and_stop_waits_for_send_in_progress(self):
+    def test_flush_and_stop_waits_for_send_in_progress_within_deadline(self):
         writer = _make_writer()
         calls = mock.Mock()
         with (
             mock.patch.object(writer, "stop", calls.stop),
             mock.patch.object(writer, "join", calls.join),
-            mock.patch.object(writer, "periodic", calls.periodic),
+            mock.patch.object(writer, "_flush", calls.flush),
         ):
+            before = time.monotonic()
             writer.flush_and_stop()
-        assert calls.mock_calls == [mock.call.stop(), mock.call.join(writer._timeout), mock.call.periodic()]
+        assert [call[0] for call in calls.mock_calls] == ["stop", "join", "flush"]
+        assert calls.join.call_args == mock.call(writer._EXIT_FLUSH_SECONDS)
+        (deadline,) = calls.flush.call_args.args
+        assert before + writer._EXIT_FLUSH_SECONDS <= deadline <= time.monotonic() + writer._EXIT_FLUSH_SECONDS
+
+    def test_flush_and_stop_gives_up_on_unresponsive_intake(self):
+        with unresponsive_intake() as url:
+            writer = _make_writer(intake_url=url)
+            # Three requests' worth, each of which would otherwise wait for the 10s request timeout.
+            for _ in range(2500):
+                writer.enqueue({"message": "m"})
+            with mock.patch("ddtrace.internal.logs.logger") as mock_logger:
+                start = time.monotonic()
+                writer.flush_and_stop()
+                elapsed = time.monotonic() - start
+        assert elapsed < writer._EXIT_FLUSH_SECONDS + 0.5, elapsed
+        assert writer._buffer == []
+        mock_logger.warning.assert_called_once_with(
+            "dropped %d log(s) not sent before the process exit deadline", mock.ANY
+        )
 
     def test_periodic_posts_gzipped_batches(self, log_intake_receiver):
         writer = _make_writer(intake_url=log_intake_receiver.url)
