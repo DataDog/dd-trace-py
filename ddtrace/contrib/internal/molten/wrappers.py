@@ -3,9 +3,9 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.events import TracingEvent
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.molten import MoltenRouteEvent
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.utils.importlib import func_name
@@ -14,9 +14,13 @@ from ddtrace.internal.utils.importlib import func_name
 MOLTEN_REQUEST_CONTEXT_KEY = "molten.request.context"
 
 
+def _is_tracing_active() -> bool:
+    # Wrapped app attributes outlive unpatch(), so the wrappers must stop tracing once molten is unpatched.
+    return getattr(molten, "_datadog_patch", False) and is_tracing_enabled()
+
+
 def trace_wrapped(resource, wrapped, *args, **kwargs):
-    pin = Pin.get_from(molten)
-    if not pin or not pin.enabled():
+    if not _is_tracing_active():
         return wrapped(*args, **kwargs)
 
     with core.context_with_event(
@@ -24,7 +28,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
             operation_name=func_name(wrapped),
             component=config.molten.integration_name,
             integration_config=config.molten,
-            service=trace_utils.int_service(pin, config.molten, pin),
+            service=trace_utils.int_service(None, config.molten),
             resource=resource,
             span_type="",  # no SpanType matches
             span_kind=SpanKind.SERVER,
@@ -70,8 +74,7 @@ class WrapperRouter(wrapt.ObjectProxy):
         func = self.__wrapped__.match
         route_and_params = func(*args, **kwargs)
 
-        pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
+        if not _is_tracing_active():
             return route_and_params
 
         if route_and_params is not None:
