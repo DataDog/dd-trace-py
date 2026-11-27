@@ -3,6 +3,7 @@ import sys
 import litellm
 
 from ddtrace import config
+from ddtrace.contrib._events.litellm import LiteLLMCallEvent
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.litellm._constants import COMPONENT
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
@@ -21,6 +22,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal import integration_hooks
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.streaming import make_traced_stream
 
@@ -90,17 +92,29 @@ def _handle_router_stream_response(resp, ctx, is_async=False):
 
 def traced_completion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
-    if not kwargs.get("stream", False):
+    # Products subscribe to LiteLLMCallEvent to act on the call. A subscriber can stop the call
+    # with a DDBlockException, which dispatch always propagates.
+    stream = bool(kwargs.get("stream", False))
+    call_event = LiteLLMCallEvent(
+        operation=event.operation,
+        request_args=args,
+        request_kwargs=kwargs,
+        stream=stream,
+    )
+    if not stream:
         with core.context_with_event(event) as ctx:
-            with fallback_dispatch(ctx):
-                event.response = func(*args, **kwargs)
+            with core.context_with_event(call_event):
+                with fallback_dispatch(ctx):
+                    event.response = func(*args, **kwargs)
+                call_event.response = event.response
             return event.response
     # The stream handler dispatches the ended event once the stream is consumed or closed.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            with fallback_dispatch(ctx):
-                resp = func(*args, **kwargs)
-        except Exception:
+            with core.context_with_event(call_event):
+                with fallback_dispatch(ctx):
+                    resp = func(*args, **kwargs)
+        except (Exception, DDBlockException):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return make_traced_stream(resp, LiteLLMStreamHandler(ctx))
@@ -108,16 +122,26 @@ def traced_completion(func, instance, args, kwargs):
 
 async def traced_acompletion(func, instance, args, kwargs):
     event = _request_event(func.__name__, args, kwargs)
-    if not kwargs.get("stream", False):
+    stream = bool(kwargs.get("stream", False))
+    call_event = LiteLLMCallEvent(
+        operation=event.operation,
+        request_args=args,
+        request_kwargs=kwargs,
+        stream=stream,
+    )
+    if not stream:
         with core.context_with_event(event) as ctx:
-            with fallback_dispatch(ctx):
-                event.response = await func(*args, **kwargs)
+            with core.context_with_event(call_event):
+                with fallback_dispatch(ctx):
+                    event.response = await func(*args, **kwargs)
+                call_event.response = event.response
             return event.response
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            with fallback_dispatch(ctx):
-                resp = await func(*args, **kwargs)
-        except Exception:
+            with core.context_with_event(call_event):
+                with fallback_dispatch(ctx):
+                    resp = await func(*args, **kwargs)
+        except (Exception, DDBlockException):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return make_traced_stream(resp, LiteLLMAsyncStreamHandler(ctx))
@@ -132,7 +156,7 @@ def traced_router_completion(func, instance, args, kwargs):
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
-        except Exception:
+        except (Exception, DDBlockException):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return _handle_router_stream_response(resp, ctx, is_async=False)
@@ -147,7 +171,7 @@ async def traced_router_acompletion(func, instance, args, kwargs):
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
-        except Exception:
+        except (Exception, DDBlockException):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         return _handle_router_stream_response(resp, ctx, is_async=True)

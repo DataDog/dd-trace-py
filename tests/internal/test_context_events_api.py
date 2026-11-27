@@ -367,6 +367,66 @@ class TestContextEventsApi(unittest.TestCase):
             pass
         assert handler.called
 
+    def test_core_context_ended_base_exception_resets_context(self):
+        from dataclasses import dataclass
+
+        from ddtrace.internal._exceptions import DDBlockException
+        from ddtrace.internal.core.events import Event
+
+        class FakeBlock(DDBlockException):
+            pass
+
+        @dataclass
+        class BlockOnEndEvent(Event):
+            event_name = "my.block.on.end"
+
+        def on_ended(_ctx, _exc_info):
+            raise FakeBlock()
+
+        core.on("context.ended.my.block.on.end", on_ended)
+        ctx = None
+        with pytest.raises(FakeBlock):
+            with core.context_with_event(BlockOnEndEvent()) as ctx:
+                assert core.current is ctx
+        assert core.current.identifier == core.ROOT_CONTEXT_ID
+        assert ctx is not None
+        assert ctx._end_event_dispatched is True
+        with pytest.raises(AttributeError):
+            _ = ctx.event
+
+    def test_core_dispatch_ended_event_base_exception_marks_dispatched(self):
+        from dataclasses import dataclass
+
+        from ddtrace.internal._exceptions import DDBlockException
+        from ddtrace.internal.core.events import Event
+
+        class FakeBlock(DDBlockException):
+            pass
+
+        @dataclass
+        class DeferredBlockOnEndEvent(Event):
+            event_name = "my.deferred.block.on.end"
+
+        calls = 0
+
+        def on_ended(_ctx, _exc_info):
+            nonlocal calls
+            calls += 1
+            raise FakeBlock()
+
+        core.on("context.ended.my.deferred.block.on.end", on_ended)
+        with core.context_with_event(DeferredBlockOnEndEvent(), dispatch_end_event=False) as ctx:
+            pass
+
+        with pytest.raises(FakeBlock):
+            ctx.dispatch_ended_event()
+        assert ctx._end_event_dispatched is True
+        with pytest.raises(AttributeError):
+            _ = ctx.event
+        # Second call is a no-op once marked dispatched.
+        ctx.dispatch_ended_event()
+        assert calls == 1
+
     def test_core_root_context(self):
         root_context = core._CURRENT_CONTEXT.get()
         assert isinstance(root_context, core.ExecutionContext)
