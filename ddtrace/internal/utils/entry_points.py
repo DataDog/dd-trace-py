@@ -28,6 +28,31 @@ def distribution_name(dist: "Distribution") -> str:
     return _normalize(dist.metadata["Name"] or "")
 
 
+def entry_point_module_path(entry_point: "EntryPoint") -> str:
+    """Return the module named by ``entry_point``'s value, without its object part (``mod:obj`` → ``mod``)."""
+    return entry_point.value.partition(":")[0]
+
+
+def is_trusted_entry_point(
+    entry_point: "EntryPoint",
+    dist: "Distribution",
+    trusted_distributions: "t.AbstractSet[str]",
+    trusted_module_prefixes: "t.AbstractSet[str]",
+) -> bool:
+    """Return whether ``entry_point`` may be loaded from ``dist``.
+
+    Both the declaring distribution (normalized name in ``trusted_distributions``) and the module the entry
+    point resolves into (under one of ``trusted_module_prefixes``) must be trusted. The module-path check is
+    the stronger guard: a distribution name is self-declared metadata and can be spoofed, while code outside
+    the trusted namespaces cannot be part of those distributions. Use this before ``entry_point.load()``;
+    callers decide how to report the refusal.
+    """
+    module_path = entry_point_module_path(entry_point)
+    return distribution_name(dist) in trusted_distributions and any(
+        module_path.startswith(prefix) for prefix in trusted_module_prefixes
+    )
+
+
 def entry_points_with_distributions(group: str) -> list[tuple["EntryPoint", "Distribution"]]:
     """Return the entry points of ``group`` with their distributions, in ``sys.path`` order.
 

@@ -210,31 +210,29 @@ def _function_tool_call_from_item(item: Any) -> ToolCall:
 
 
 def _hosted_mcp_servers(tools: Any) -> Optional[dict[str, MCPServer]]:
-    """Map each hosted MCP server_label to its mcp_servers entry, or None when the flag is off.
+    """Map each hosted MCP server_label to its mcp_servers entry, numbered in order; None when the flag is off.
 
-    Only label, URL and connector are read. Labels of one server share the entry named by the first.
+    Only the label and the URL are read.
     """
     if not aiguard_config._ai_guard_mcp_enabled:
         return None
     servers: dict[str, MCPServer] = {}
     if not isinstance(tools, (list, tuple)):
         return servers
-    by_id: dict[str, MCPServer] = {}
     for tool in tools:
         label = _get(tool, "server_label")
         if _get(tool, "type") != "mcp" or not isinstance(label, str) or not label or label in servers:
             continue
         url = _get(tool, "server_url")
-        connector_id = _get(tool, "connector_id")
         server = mcp_server(
             AI_GUARD.MCP_MANAGED_BY_PROVIDER,
             AI_GUARD.MCP_TRANSPORT_UNKNOWN,
             name=label,
             url=url if isinstance(url, str) else None,
-            connector_id=connector_id if isinstance(connector_id, str) else None,
+            server_id=f"mcp_{len(servers) + 1}",
         )
         if server is not None:
-            servers[label] = by_id.setdefault(server["id"], server)
+            servers[label] = server
     return servers
 
 
@@ -259,7 +257,12 @@ def _mcp_tool_call(item: Any, call_id: str, mcp_servers: Optional[dict[str, MCPS
     server = mcp_servers.get(label)
     if server is None:
         # A continuation that does not resend tools identifies the server by its label alone.
-        server = mcp_server(AI_GUARD.MCP_MANAGED_BY_PROVIDER, AI_GUARD.MCP_TRANSPORT_UNKNOWN, name=label)
+        server = mcp_server(
+            AI_GUARD.MCP_MANAGED_BY_PROVIDER,
+            AI_GUARD.MCP_TRANSPORT_UNKNOWN,
+            name=label,
+            server_id=f"mcp_{len(mcp_servers) + 1}",
+        )
         if server is None:
             return tool_call
         mcp_servers[label] = server
