@@ -22,7 +22,7 @@ from ddtrace.internal.settings._otel_remapper import is_unset_exporter_list
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._otel_remapper import select_exporter
 from ddtrace.internal.settings.env import get_aliases
-from ddtrace.internal.settings.env import is_sensitive
+from ddtrace.internal.settings.env import is_reportable
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.inputs import get_configurations
@@ -72,8 +72,9 @@ def get_config(
     effective_val = default
     telemetry_name = envs[0]
     # Configurations marked ``sensitive: true`` in the registry are excluded from
-    # configuration telemetry, regardless of which source supplies the value.
-    if is_sensitive(telemetry_name):
+    # configuration telemetry, regardless of which source supplies the value. Without a registry nothing is
+    # known to be safe, so nothing is reported.
+    if not is_reportable(telemetry_name):
         report_telemetry = False
     if report_telemetry:
         telemetry_writer.add_configuration(telemetry_name, default, "default")
@@ -159,8 +160,8 @@ def report_configuration(config: DDConfig) -> None:
         env_name = e.full_name
 
         # Configurations marked ``sensitive: true`` in the registry are excluded
-        # from configuration telemetry.
-        if is_sensitive(env_name):
+        # from configuration telemetry, and so is everything when there is no registry.
+        if not is_reportable(env_name):
             continue
 
         # Get the item value recursively

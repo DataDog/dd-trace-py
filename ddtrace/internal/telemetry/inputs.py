@@ -10,12 +10,13 @@ distributions that declare entry points. Two kinds of input reach it.
     ddtrace = "ddtrace._error_attribution"
 
 - The name and version are the declaring distribution's, read from its metadata without importing anything.
-- The code roots and the integration resolver are the ``code_roots`` and ``integration_of`` attributes of the
-  entry point's object, loaded only when an error needs attributing.
+- The code roots and the integration resolver are the code_roots and integration_of attributes of the
+  entry point's object. The object is loaded when the excepthook is installed (see load_attribution).
 
-If several distributions declare one, any distribution other than ``ddtrace-testing`` wins, so a standalone
-ddtrace-testing reports ``ddtrace`` when dd-trace-py is installed. ``register_library()`` overrides the entry
-point, for tests and for callers that know their identity better than their metadata does.
+A distribution that only wants to report when no other library is installed declares its entry point in the
+ddtrace_internal.library.fallback group instead. The first entry point of the primary group wins; the fallback
+group is consulted only when that one is empty. register_library() overrides the entry points, for tests and
+for callers that know their identity better than their metadata does.
 
 **Providers**, declared in the ``ddtrace_internal.telemetry_providers`` group, e.g.
 ``appsec = "ddtrace.internal.settings.appsec_telemetry:provider"``. A provider is an object with optional hooks:
@@ -34,7 +35,6 @@ from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.entry_points import distribution_name
 from ddtrace.internal.utils.entry_points import entry_points_with_distributions
 
 
@@ -47,8 +47,8 @@ log = get_logger(__name__)
 
 GROUP = "ddtrace_internal.library"
 PROVIDERS_GROUP = "ddtrace_internal.telemetry_providers"
-# Reports for ddtrace-testing only when no other library declares an identity.
-_FALLBACK_DISTRIBUTION = "ddtrace-testing"
+# Entry points of this group are used only when no distribution declares one in GROUP.
+FALLBACK_GROUP = "ddtrace_internal.library.fallback"
 
 
 def _no_integration(filename: str) -> Optional[str]:
@@ -56,9 +56,9 @@ def _no_integration(filename: str) -> Optional[str]:
 
 
 def _semver(version: str) -> str:
-    """Format a PEP 440 version as the SemVer the Agent expects, e.g. ``1.7.1rc2`` as ``1.7.1-rc2``.
+    """Format a PEP 440 version as the SemVer the Agent expects, e.g. 1.7.1rc2 as 1.7.1-rc2.
 
-    The same formatting as ``ddtrace.internal.utils.version``, which telemetry can't import.
+    The same formatting as ddtrace.internal.utils.version, which telemetry can't import.
     """
     if "rc" in version and "-rc" not in version:
         return version.replace("rc", "-rc", 1)
@@ -120,10 +120,8 @@ def _find_entry_point() -> Optional[tuple["EntryPoint", "Distribution"]]:
     global _entry_point, _entry_point_looked_up
 
     if not _entry_point_looked_up:
-        found = entry_points_with_distributions(GROUP)
-        preferred = [ep for ep in found if distribution_name(ep[1]) != _FALLBACK_DISTRIBUTION]
-        candidates = preferred or found
-        _entry_point = candidates[0] if candidates else None
+        found = entry_points_with_distributions(GROUP) or entry_points_with_distributions(FALLBACK_GROUP)
+        _entry_point = found[0] if found else None
         _entry_point_looked_up = True
         if _entry_point is None:
             log.debug("No distribution declares a %s entry point: telemetry reports an unknown library", GROUP)
@@ -167,13 +165,23 @@ def _get_attribution() -> _Attribution:
     return _attribution
 
 
+def load_attribution() -> None:
+    """Load what the library declares about its code now, instead of when an error first needs attributing.
+
+    Called as the excepthook is installed, while the library is still importing. If the library's own import
+    fails, Python drops it from sys.modules, and loading its entry point afterwards would import it again, fail
+    the same way and attribute nothing. Loaded early, the module stays in sys.modules and is found there.
+    """
+    _get_attribution()
+
+
 def is_library_code(filename: str) -> bool:
-    """Return whether ``filename`` is in the code the library declares as its own."""
+    """Return whether filename is in the code the library declares as its own."""
     return any(root in filename for root in _get_attribution().code_roots)
 
 
 def get_integration(filename: str) -> Optional[str]:
-    """Return the name of the integration the library says ``filename`` belongs to, or None."""
+    """Return the name of the integration the library says filename belongs to, or None."""
     return _get_attribution().integration_of(filename)
 
 

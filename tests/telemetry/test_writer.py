@@ -2339,6 +2339,31 @@ def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writ
     assert sensitive_name not in reported
 
 
+def test_nothing_is_reported_without_a_registry(telemetry_writer, test_agent_session, monkeypatch):
+    """Without the registry, nothing is known to be sensitive, so get_config() and report_configuration() report
+    no configuration at all, instead of leaking values such as OTLP authentication headers.
+    """
+    headers_name = "OTEL_EXPORTER_OTLP_HEADERS"
+    monkeypatch.setenv(headers_name, "authorization=secret-token")
+    monkeypatch.setenv("DD_TEST_SYNTHETIC_PUBLIC_SETTING", "from_env")
+    synthetic_config = _SyntheticDDConfig()
+
+    # The registry is resolved lazily: resolve it before patching, so the resolution doesn't replace the patch.
+    env_module.is_sensitive("")
+    with (
+        mock.patch.object(env_module, "_SUPPORTED_CONFIGURATIONS", None),
+        mock.patch.object(env_module, "_SENSITIVE_CONFIGURATIONS", frozenset()),
+    ):
+        # The value is still returned to the caller; it just isn't reported.
+        assert ddtrace.internal.telemetry.get_config(headers_name, "default_value") == "authorization=secret-token"
+        ddtrace.internal.telemetry.report_configuration(synthetic_config)
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = {c["name"] for c in test_agent_session.get_configurations(remove_seq_id=True)}
+    assert headers_name not in reported
+    assert "DD_TEST_SYNTHETIC_PUBLIC_SETTING" not in reported
+
+
 # err=None: with telemetry debug enabled the native worker logs its actions to stderr, which is
 # expected here, so the default "no stderr" check must be relaxed.
 @pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"}, err=None)

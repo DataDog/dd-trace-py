@@ -1,8 +1,8 @@
 """Where dd-trace-py's code is, so telemetry can tell which unhandled exceptions it caused.
 
 Telemetry lives in a package that knows nothing about where dd-trace-py keeps its code. It loads this module through
-the ``ddtrace_internal.library`` entry point in ``pyproject.toml``, only when an error needs attributing (see
-``ddtrace.internal.telemetry.inputs``).
+the ddtrace_internal.library entry point in pyproject.toml, when its excepthook is installed (see
+ddtrace.internal.telemetry.inputs).
 """
 
 import os

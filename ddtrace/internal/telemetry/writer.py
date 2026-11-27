@@ -25,6 +25,7 @@ from ddtrace.internal.telemetry.inputs import endpoint_collection_limit
 from ddtrace.internal.telemetry.inputs import get_integration
 from ddtrace.internal.telemetry.inputs import get_library
 from ddtrace.internal.telemetry.inputs import is_library_code
+from ddtrace.internal.telemetry.inputs import load_attribution
 
 from ...internal import atexit
 from ...internal import excepthook
@@ -1257,6 +1258,8 @@ class TelemetryWriter:
 
     def install_excepthook(self) -> None:
         """Register a hook that intercepts unhandled exceptions and sends metrics about them."""
+        # Before any error can happen: see load_attribution.
+        load_attribution()
         excepthook.register(self._telemetry_excepthook)
 
     def uninstall_excepthook(self) -> None:
