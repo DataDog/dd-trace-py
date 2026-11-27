@@ -197,6 +197,28 @@ def test_recursivity(iast_context_defaults):
     check_taint(tainted_dict)
 
 
+def test_lazy_taint_in_place_operators(iast_context_defaults):
+    origins = (OriginType.PARAMETER, OriginType.PARAMETER)
+
+    tainted_list = LazyTaintList(["".join(("first", ""))], origins=origins)
+    original_list = tainted_list
+    tainted_list += ["".join(("second", ""))]
+    assert tainted_list is original_list
+    assert tainted_list == ["first", "second"]
+    assert is_pyobject_tainted(tainted_list[1])
+
+    tainted_list *= 2
+    assert tainted_list is original_list
+    assert tainted_list == ["first", "second", "first", "second"]
+
+    tainted_dict = LazyTaintDict({"first": "".join(("value", ""))}, origins=origins)
+    original_dict = tainted_dict
+    tainted_dict |= {"second": "".join(("other", ""))}
+    assert tainted_dict is original_dict
+    assert tainted_dict == {"first": "value", "second": "other"}
+    assert is_pyobject_tainted(tainted_dict["second"])
+
+
 @pytest.mark.usefixtures("lazy_taint_json_patch")
 def test_json_encode_dict(iast_context_defaults):
     import json
