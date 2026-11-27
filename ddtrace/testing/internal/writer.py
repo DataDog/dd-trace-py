@@ -30,6 +30,11 @@ log = logging.getLogger(__name__)
 
 Event = dict[str, t.Any]
 
+# A coverage event, or one already packed as msgpack.
+CoverageEvent = t.Union[Event, bytes]
+
+TEvent = t.TypeVar("TEvent")
+
 TSerializable = t.TypeVar("TSerializable", bound=TestItem[t.Any, t.Any])
 
 EventSerializer = t.Callable[[TSerializable], Event]
@@ -99,7 +104,36 @@ def _truncate_events_meta(events: list[Event]) -> list[Event]:
     return events if truncated_events is None else truncated_events
 
 
-class BaseWriter(ABC):
+# {"version": 2, "coverages": [...]} packed up to the array header.
+_COVERAGE_PAYLOAD_PREFIX = b"\x82\xa7version\x02\xa9coverages"
+
+
+def _pack_id(value: t.Optional[int]) -> bytes:
+    """An id as msgpack_packb() packs it: an unsigned integer in its shortest form, or nil."""
+    if value is None:
+        return b"\xc0"
+    if value < 0x80:
+        return bytes((value,)) if value >= 0 else msgpack_packb(value)
+    if value <= 0xFF:
+        return b"\xcc" + value.to_bytes(1, "big")
+    if value <= 0xFFFF:
+        return b"\xcd" + value.to_bytes(2, "big")
+    if value <= 0xFFFFFFFF:
+        return b"\xce" + value.to_bytes(4, "big")
+    if value <= 0xFFFFFFFFFFFFFFFF:
+        return b"\xcf" + value.to_bytes(8, "big")
+    return msgpack_packb(value)
+
+
+def _pack_array_header(size: int) -> bytes:
+    if size <= 15:
+        return bytes((0x90 | size,))
+    if size <= 0xFFFF:
+        return b"\xdc" + size.to_bytes(2, "big")
+    return b"\xdd" + size.to_bytes(4, "big")
+
+
+class BaseWriter(ABC, t.Generic[TEvent]):
     # After this many consecutive failed flushes (each already retried internally),
     # stop sending and drop events until the backend recovers.
     _MAX_CONSECUTIVE_FAILURES = 3
@@ -117,7 +151,7 @@ class BaseWriter(ABC):
         self.min_flush_events = min_flush_events
         self.max_buffer_events = max_buffer_events
         self.async_flush_events = async_flush_events
-        self.events: list[Event] = []
+        self.events: list[TEvent] = []
         self._consecutive_failures = 0
         self._dropped_events = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
@@ -127,7 +161,7 @@ class BaseWriter(ABC):
         # the thread-local clients of each BackendConnector.
         self._connectors: list[t.Any] = []
 
-    def put_event(self, event: Event) -> None:
+    def put_event(self, event: TEvent) -> None:
         with self.lock:
             if self.max_buffer_events is not None and len(self.events) >= self.max_buffer_events:
                 self._dropped_events += 1
@@ -150,7 +184,7 @@ class BaseWriter(ABC):
         elif self.async_flush_events is not None and buffer_len >= self.async_flush_events:
             self._flush_now.set()
 
-    def pop_events(self) -> list[Event]:
+    def pop_events(self) -> list[TEvent]:
         with self.lock:
             events = self.events
             self.events = []
@@ -273,15 +307,15 @@ class BaseWriter(ABC):
                 )
 
     @abstractmethod
-    def _send_events(self, events: list[Event]) -> bool:
+    def _send_events(self, events: list[TEvent]) -> bool:
         """Send events to the backend. Return True if all events were sent successfully."""
         pass
 
     @abstractmethod
-    def _encode_events(self, events: list[Event]) -> bytes:
+    def _encode_events(self, events: list[TEvent]) -> bytes:
         pass
 
-    def _split_pack_events(self, events: list[Event]) -> list[bytes]:
+    def _split_pack_events(self, events: list[TEvent]) -> list[bytes]:
         pack = self._encode_events(events)
 
         if len(pack) > self.max_payload_size and len(events) > 1:
@@ -347,7 +381,7 @@ def _get_async_flush_events(selected_tests_count: t.Optional[int] = None) -> t.O
     return _calculate_async_flush_events(selected_tests_count)
 
 
-class TestOptWriter(BaseWriter):
+class TestOptWriter(BaseWriter[Event]):
     __test__ = False
 
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
@@ -451,8 +485,13 @@ class PayloadFileTestOptWriter(TestOptWriter):
         return True
 
 
-class TestCoverageWriter(BaseWriter):
+class TestCoverageWriter(BaseWriter[CoverageEvent]):
     __test__ = False
+
+    # The keys of a file entry in a coverage event.
+    FILE_KEYS = ("filename", "bitmap")
+    # Whether put_packed_coverage() can be used.
+    accepts_packed_files = True
 
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         super().__init__(min_flush_events=_get_min_flush_events(), async_flush_events=_get_async_flush_events())
@@ -473,6 +512,31 @@ class TestCoverageWriter(BaseWriter):
             test_suite_id=test_run.suite.item_id,
             span_id=test_run.span_id,
             files=files,
+        )
+        self.put_event(event)
+
+    def put_packed_coverage(self, test_run: TestRun, count: int, packed_files: bytes) -> None:
+        """put_coverage() for files already packed: a msgpack array of count maps with FILE_KEYS.
+
+        The event is packed here too, so the payload takes it as it is.
+        """
+        TelemetryAPI.get().record_coverage_files(count)
+
+        if not count:
+            TelemetryAPI.get().record_coverage_is_empty()
+            return
+
+        event = b"".join(
+            (
+                b"\x84\xaftest_session_id",
+                _pack_id(test_run.session.item_id),
+                b"\xadtest_suite_id",
+                _pack_id(test_run.suite.item_id),
+                b"\xa7span_id",
+                _pack_id(test_run.span_id),
+                b"\xa5files",
+                packed_files,
+            )
         )
         self.put_event(event)
 
@@ -510,10 +574,15 @@ class TestCoverageWriter(BaseWriter):
             return
         self.put_event({"test_session_id": session.item_id, "shared": part, "files": files})
 
-    def _encode_events(self, events: list[Event]) -> bytes:
-        return msgpack_packb({"version": 2, "coverages": events})
+    def _encode_events(self, events: list[CoverageEvent]) -> bytes:
+        if not any(type(event) is bytes for event in events):
+            return msgpack_packb({"version": 2, "coverages": events})
+        # msgpack concatenates: the payload's map up to its array of events, then each event.
+        parts = [_COVERAGE_PAYLOAD_PREFIX, _pack_array_header(len(events))]
+        parts.extend(event if type(event) is bytes else msgpack_packb(event) for event in events)
+        return b"".join(parts)
 
-    def _send_events(self, events: list[Event]) -> bool:
+    def _send_events(self, events: list[CoverageEvent]) -> bool:
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -560,13 +629,19 @@ class PayloadFileCoverageWriter(TestCoverageWriter):
 
     __test__ = False
 
+    # JSON payload files need the events as data.
+    accepts_packed_files = False
+
     def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
         super().__init__(connector_setup)
         self._output_dir = output_dir
 
-    def _send_events(self, events: list[Event]) -> bool:
+    def _send_events(self, events: list[CoverageEvent]) -> bool:
         encoded_events = []
         for event in events:
+            if isinstance(event, bytes):
+                log.warning("Dropping a packed coverage event: payload files need unpacked events")
+                continue
             event_copy = dict(event)
             if "files" in event_copy:
                 event_copy["files"] = [

@@ -635,6 +635,17 @@ class TestOptPlugin(TestOptPluginProtocol):
             cleanup_xdist_manifest(self.xdist_manifest, self.manager.env_tags)
             self.xdist_manifest = None
 
+    def _put_test_coverage(self, test_run: TestRun, coverage_data: CoverageData) -> None:
+        writer = self.manager.coverage_writer
+        workspace = self.manager.workspace_path
+        # Native collection packs the files itself, which saves building them as Python objects.
+        if native_line_coverage_enabled() and writer.accepts_packed_files:
+            packed = coverage_data.get_packed_files(workspace, writer.FILE_KEYS)
+            if packed is not None:
+                writer.put_packed_coverage(test_run, *packed)
+                return
+        writer.put_coverage(test_run, coverage_data.get_coverage_bitmaps(relative_to=workspace))
+
     def _put_shared_coverage(self) -> None:
         """Send, once per process, the lines that ran outside every test."""
         try:
@@ -924,9 +935,7 @@ class TestOptPlugin(TestOptPluginProtocol):
                 test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
             )
         else:
-            self.manager.coverage_writer.put_coverage(
-                test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-            )
+            self._put_test_coverage(test.last_test_run, coverage_data)
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
@@ -1557,9 +1566,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         test.finish()
 
-        self.manager.coverage_writer.put_coverage(
-            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-        )
+        self._put_test_coverage(test.last_test_run, coverage_data)
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)

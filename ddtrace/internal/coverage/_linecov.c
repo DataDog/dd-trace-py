@@ -1083,31 +1083,48 @@ collect_contexts(Context* c, Context*** out, Py_ssize_t* n, Py_ssize_t* cap)
     return 0;
 }
 
-/* bitmaps(include_init=True) -> list of (report_path, bytes) for files in the workspace: the
-   context's lines, the lines of the fixture contexts it depends on, and, with include_init, the
-   initialiser lines of every file any of them touched. */
-static PyObject*
-Context_bitmaps(Context* c, PyObject* const* args, Py_ssize_t nargs)
+/* The files a record covers: the context's, those of the fixture contexts it depends on, each once,
+   in first-touch order. Files outside the workspace are left out. */
+typedef struct
 {
-    int include_init = 1;
-    if (nargs > 0 && (include_init = PyObject_IsTrue(args[0])) < 0)
-        return NULL;
-    Context** ctxs = NULL;
-    Py_ssize_t n_ctxs = 0, cap_ctxs = 0;
-    uint8_t* seen = NULL;
-    PyObject* result = NULL;
-    if (collect_contexts(c, &ctxs, &n_ctxs, &cap_ctxs) < 0)
-        goto done;
-    seen = PyMem_RawCalloc(g_n_files > 0 ? (size_t)g_n_files : 1, 1);
-    if (seen == NULL) {
+    Context** ctxs;
+    Py_ssize_t n_ctxs;
+    int32_t* files;
+    uint32_t* sizes; /* merged bitmap size of each file, in bytes */
+    Py_ssize_t n_files;
+    int include_init;
+} Record;
+
+static void
+record_free(Record* r)
+{
+    PyMem_RawFree(r->ctxs);
+    PyMem_RawFree(r->files);
+    PyMem_RawFree(r->sizes);
+}
+
+static int
+record_collect(Record* r, Context* c, int include_init)
+{
+    memset(r, 0, sizeof(*r));
+    r->include_init = include_init;
+    Py_ssize_t cap_ctxs = 0;
+    if (collect_contexts(c, &r->ctxs, &r->n_ctxs, &cap_ctxs) < 0)
+        return -1;
+    Py_ssize_t touched = 0;
+    for (Py_ssize_t j = 0; j < r->n_ctxs; j++)
+        touched += r->ctxs[j]->n_touched;
+    size_t count = touched > 0 ? (size_t)touched : 1;
+    uint8_t* seen = PyMem_RawCalloc(g_n_files > 0 ? (size_t)g_n_files : 1, 1);
+    r->files = PyMem_RawMalloc(sizeof(int32_t) * count);
+    r->sizes = PyMem_RawMalloc(sizeof(uint32_t) * count);
+    if (seen == NULL || r->files == NULL || r->sizes == NULL) {
+        PyMem_RawFree(seen);
         PyErr_NoMemory();
-        goto done;
+        return -1;
     }
-    result = PyList_New(0);
-    if (result == NULL)
-        goto done;
-    for (Py_ssize_t j = 0; j < n_ctxs; j++) {
-        Context* source = ctxs[j];
+    for (Py_ssize_t j = 0; j < r->n_ctxs; j++) {
+        Context* source = r->ctxs[j];
         for (int32_t k = 0; k < source->n_touched; k++) {
             int32_t f = source->touched[k];
             if (seen[f])
@@ -1117,46 +1134,188 @@ Context_bitmaps(Context* c, PyObject* const* args, Py_ssize_t nargs)
             if (fi->report_path == Py_None)
                 continue;
             uint32_t n = include_init ? bitset_used(&fi->init_lines) : 0;
-            for (Py_ssize_t i = 0; i < n_ctxs; i++) {
-                if (f < ctxs[i]->cap_files) {
-                    uint32_t used = bitset_used(&ctxs[i]->files[f]);
+            for (Py_ssize_t i = 0; i < r->n_ctxs; i++) {
+                if (f < r->ctxs[i]->cap_files) {
+                    uint32_t used = bitset_used(&r->ctxs[i]->files[f]);
                     if (used > n)
                         n = used;
                 }
             }
-            PyObject* bytes = PyBytes_FromStringAndSize(NULL, n);
-            if (bytes == NULL)
-                goto error;
-            uint8_t* out = (uint8_t*)PyBytes_AS_STRING(bytes);
-            memset(out, 0, n);
-            if (include_init) {
-                uint32_t used = bitset_used(&fi->init_lines);
-                for (uint32_t b = 0; b < used; b++)
-                    out[b] |= fi->init_lines.bits[b];
-            }
-            for (Py_ssize_t i = 0; i < n_ctxs; i++) {
-                if (f >= ctxs[i]->cap_files)
-                    continue;
-                const Bitset* bits = &ctxs[i]->files[f];
-                uint32_t used = bitset_used(bits);
-                for (uint32_t b = 0; b < used; b++)
-                    out[b] |= bits->bits[b];
-            }
-            PyObject* item = PyTuple_Pack(2, fi->report_path, bytes);
-            Py_DECREF(bytes);
-            if (item == NULL || PyList_Append(result, item) < 0) {
-                Py_XDECREF(item);
-                goto error;
-            }
-            Py_DECREF(item);
+            r->files[r->n_files] = f;
+            r->sizes[r->n_files] = n;
+            r->n_files++;
         }
     }
-    goto done;
-error:
-    Py_CLEAR(result);
-done:
-    PyMem_RawFree(ctxs);
     PyMem_RawFree(seen);
+    return 0;
+}
+
+/* Writes the merged bitmap of the record's k-th file to out, which holds its size. */
+static void
+record_merge(const Record* r, Py_ssize_t k, uint8_t* out)
+{
+    int32_t f = r->files[k];
+    memset(out, 0, r->sizes[k]);
+    if (r->include_init) {
+        const Bitset* init = &g_files[f].init_lines;
+        for (uint32_t b = 0; b < init->used; b++)
+            out[b] |= init->bits[b];
+    }
+    for (Py_ssize_t i = 0; i < r->n_ctxs; i++) {
+        if (f >= r->ctxs[i]->cap_files)
+            continue;
+        const Bitset* bits = &r->ctxs[i]->files[f];
+        for (uint32_t b = 0; b < bits->used; b++)
+            out[b] |= bits->bits[b];
+    }
+}
+
+/* bitmaps(include_init=True) -> list of (report_path, bytes) for files in the workspace: the
+   context's lines, the lines of the fixture contexts it depends on, and, with include_init, the
+   initialiser lines of every file any of them touched. */
+static PyObject*
+Context_bitmaps(Context* c, PyObject* const* args, Py_ssize_t nargs)
+{
+    int include_init = 1;
+    if (nargs > 0 && (include_init = PyObject_IsTrue(args[0])) < 0)
+        return NULL;
+    Record r;
+    if (record_collect(&r, c, include_init) < 0) {
+        record_free(&r);
+        return NULL;
+    }
+    PyObject* result = PyList_New(r.n_files);
+    for (Py_ssize_t k = 0; result != NULL && k < r.n_files; k++) {
+        PyObject* bytes = PyBytes_FromStringAndSize(NULL, r.sizes[k]);
+        if (bytes == NULL) {
+            Py_CLEAR(result);
+            break;
+        }
+        record_merge(&r, k, (uint8_t*)PyBytes_AS_STRING(bytes));
+        PyObject* item = PyTuple_Pack(2, g_files[r.files[k]].report_path, bytes);
+        Py_DECREF(bytes);
+        if (item == NULL) {
+            Py_CLEAR(result);
+            break;
+        }
+        PyList_SET_ITEM(result, k, item);
+    }
+    record_free(&r);
+    return result;
+}
+
+/* msgpack headers, the shortest form for each length, as the tracer's own packer writes them. */
+static inline size_t
+msgpack_str_header_size(size_t n)
+{
+    return n <= 31 ? 1 : n <= 0xff ? 2 : n <= 0xffff ? 3 : 5;
+}
+
+static inline size_t
+msgpack_bin_header_size(size_t n)
+{
+    return n <= 0xff ? 2 : n <= 0xffff ? 3 : 5;
+}
+
+static inline size_t
+msgpack_array_header_size(size_t n)
+{
+    return n <= 15 ? 1 : n <= 0xffff ? 3 : 5;
+}
+
+static inline uint8_t*
+msgpack_put_length(uint8_t* p, uint8_t tag8, uint8_t tag16, uint8_t tag32, size_t n)
+{
+    if (n <= 0xff && tag8 != 0) {
+        *p++ = tag8;
+        *p++ = (uint8_t)n;
+    } else if (n <= 0xffff) {
+        *p++ = tag16;
+        *p++ = (uint8_t)(n >> 8);
+        *p++ = (uint8_t)n;
+    } else {
+        *p++ = tag32;
+        *p++ = (uint8_t)(n >> 24);
+        *p++ = (uint8_t)(n >> 16);
+        *p++ = (uint8_t)(n >> 8);
+        *p++ = (uint8_t)n;
+    }
+    return p;
+}
+
+static inline uint8_t*
+msgpack_put_str(uint8_t* p, const char* s, size_t n)
+{
+    if (n <= 31)
+        *p++ = (uint8_t)(0xa0 | n);
+    else
+        p = msgpack_put_length(p, 0xd9, 0xda, 0xdb, n);
+    memcpy(p, s, n);
+    return p + n;
+}
+
+/* pack(path_key, bitmap_key) -> (count, bytes): the files bitmaps(True) returns, as a msgpack
+   array of count maps {path_key: report path, bitmap_key: bitmap}. A record is packed per test,
+   so this builds no Python object per file. */
+static PyObject*
+Context_pack(Context* c, PyObject* const* args, Py_ssize_t nargs)
+{
+    if (nargs != 2 || !PyUnicode_Check(args[0]) || !PyUnicode_Check(args[1])) {
+        PyErr_SetString(PyExc_TypeError, "pack() takes two str keys");
+        return NULL;
+    }
+    Py_ssize_t path_key_size, bitmap_key_size;
+    const char* path_key = PyUnicode_AsUTF8AndSize(args[0], &path_key_size);
+    const char* bitmap_key = PyUnicode_AsUTF8AndSize(args[1], &bitmap_key_size);
+    if (path_key == NULL || bitmap_key == NULL)
+        return NULL;
+    Record r;
+    if (record_collect(&r, c, 1) < 0) {
+        record_free(&r);
+        return NULL;
+    }
+    PyObject* result = NULL;
+    PyObject* bytes = NULL;
+    uint8_t* p = NULL;
+    size_t slots = (size_t)(r.n_files > 0 ? r.n_files : 1);
+    const char** paths = PyMem_RawMalloc(sizeof(char*) * slots);
+    Py_ssize_t* path_sizes = PyMem_RawMalloc(sizeof(Py_ssize_t) * slots);
+    if (paths == NULL || path_sizes == NULL) {
+        PyErr_NoMemory();
+        goto done;
+    }
+    size_t total = msgpack_array_header_size((size_t)r.n_files);
+    size_t entry = 1 + msgpack_str_header_size((size_t)path_key_size) + (size_t)path_key_size +
+                   msgpack_str_header_size((size_t)bitmap_key_size) + (size_t)bitmap_key_size;
+    for (Py_ssize_t k = 0; k < r.n_files; k++) {
+        paths[k] = PyUnicode_AsUTF8AndSize(g_files[r.files[k]].report_path, &path_sizes[k]);
+        if (paths[k] == NULL)
+            goto done;
+        total += entry + msgpack_str_header_size((size_t)path_sizes[k]) + (size_t)path_sizes[k] +
+                 msgpack_bin_header_size(r.sizes[k]) + r.sizes[k];
+    }
+    bytes = PyBytes_FromStringAndSize(NULL, (Py_ssize_t)total);
+    if (bytes == NULL)
+        goto done;
+    p = (uint8_t*)PyBytes_AS_STRING(bytes);
+    if (r.n_files <= 15)
+        *p++ = (uint8_t)(0x90 | r.n_files);
+    else
+        p = msgpack_put_length(p, 0, 0xdc, 0xdd, (size_t)r.n_files);
+    for (Py_ssize_t k = 0; k < r.n_files; k++) {
+        *p++ = 0x82;
+        p = msgpack_put_str(p, path_key, (size_t)path_key_size);
+        p = msgpack_put_str(p, paths[k], (size_t)path_sizes[k]);
+        p = msgpack_put_str(p, bitmap_key, (size_t)bitmap_key_size);
+        p = msgpack_put_length(p, 0xc4, 0xc5, 0xc6, r.sizes[k]);
+        record_merge(&r, k, p);
+        p += r.sizes[k];
+    }
+    result = Py_BuildValue("(nN)", r.n_files, bytes);
+done:
+    PyMem_RawFree(paths);
+    PyMem_RawFree(path_sizes);
+    record_free(&r);
     return result;
 }
 
@@ -1207,6 +1366,7 @@ static PyMethodDef Context_methods[] = {
     { "enter", (PyCFunction)Context_enter, METH_NOARGS, "Push and run in this context; returns the previous one." },
     { "exit", (PyCFunction)Context_exit, METH_O, "Run in the given previous context again, and pop." },
     { "bitmaps", (PyCFunction)(void (*)(void))Context_bitmaps, METH_FASTCALL, "Record bitmaps." },
+    { "pack", (PyCFunction)(void (*)(void))Context_pack, METH_FASTCALL, "Record bitmaps, packed as msgpack." },
     { "covered", (PyCFunction)Context_covered, METH_NOARGS, "Own lines by absolute path." },
     { NULL, NULL, 0, NULL },
 };
