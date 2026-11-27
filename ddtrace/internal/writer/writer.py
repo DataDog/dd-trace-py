@@ -1675,7 +1675,10 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         self._telemetry_worker: Optional[native.TelemetryWorker] = None
         self._telemetry_worker_changed = False
         # Serializes building the buffer on first use, so that two threads cannot both build one.
-        self._buffer_build_lock = forksafe.Lock()
+        # Reentrant because stop() also takes it, and a signal handler that shuts the tracer down
+        # can run stop() on the thread that is building the buffer.
+        self._buffer_build_lock = forksafe.RLock()
+        self._building_buffer = False
         self._buffer_value: Optional[native.TraceBuffer] = None
         # Native workers must not be rebuilt while the child fork hooks run: process managers like
         # Celery close inherited file descriptors after the hooks return. A writer built in a child
@@ -1696,7 +1699,8 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
     def _usable_buffer(self) -> "Optional[native.TraceBuffer]":
         """Return the buffer, building it if this writer was built in a child fork hook.
 
-        Return None while the child fork hooks run, and once the writer is stopped without a buffer.
+        Return None while the child fork hooks run, once the writer is stopped without a buffer, and
+        when the build fails, which the next call retries.
         """
         if (buffer := self._buffer_value) is not None:
             return buffer
@@ -1705,7 +1709,23 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         with self._buffer_build_lock:
             # stop() sets the flag under this lock, so a buffer is never built after it.
             if self._buffer_value is None and not self._stopped:
-                self._install_buffer()
+                self._building_buffer = True
+                try:
+                    self._install_buffer()
+                except BaseException as e:
+                    if not (isinstance(e, Exception) or is_panic_exception(e)):
+                        raise
+                    # The callers are span finishes and flushes, which must not fail on this.
+                    _safelog(
+                        log.warning, "failed to build the native trace buffer, retrying on next use", exc_info=True
+                    )
+                finally:
+                    self._building_buffer = False
+                if self._stopped and (buffer := self._buffer_value) is not None:
+                    # stop() ran on this thread, from a signal handler, during the build. It left
+                    # the shutdown of the buffer to this call.
+                    self._buffer_value = None
+                    self._discard_buffer(buffer)
             return self._buffer_value
 
     def _create_buffer(self) -> "native.TraceBuffer":
@@ -1969,6 +1989,10 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         # Under the build lock, so that a buffer is either built before, and shut down here, or never.
         with self._buffer_build_lock:
             self._stopped = True
+            if self._building_buffer:
+                # Reentered from a signal handler on the building thread: waiting for the build
+                # would never return. The build shuts its buffer down when it resumes.
+                return
             buffer = self._buffer_value
         # A forked child that never rebuilt its writer still holds the buffer of the parent. See
         # _discard_buffer for why that buffer must not shut down here.

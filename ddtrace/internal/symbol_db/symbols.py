@@ -768,6 +768,9 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         self._processed_files_count = 0
 
         self._context = ScopeContext()
+        # Not "is the installed instance": install() makes this uploader the installed one only
+        # after this constructor, which already collects the symbols of loaded modules.
+        self._uninstalled = False
 
         # Installed at startup or by remote configuration, never by an
         # application thread, which only touches the debouncer.
@@ -783,7 +786,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         self._process_unseen_loaded_modules()
 
     def _add_scope(self, scope: Scope) -> None:
-        if type(self)._instance is not self:
+        if self._uninstalled:
             # Uninstalled, e.g. by remote configuration while an import was in flight: this
             # uploader no longer collects symbols, and its final upload has already run.
             return
@@ -863,6 +866,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         instance = t.cast(SymbolDatabaseUploader, cls._instance) if cls.is_installed() else None
         super().uninstall()
         if instance is not None:
+            instance._uninstalled = True
             # Only the installed uploader sets the target. The debouncer goes
             # dormant: upload what it would have.
             if (debouncer := cls._upload_debouncer) is not None:

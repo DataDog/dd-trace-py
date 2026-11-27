@@ -130,9 +130,11 @@ class Debouncer(PeriodicService):
             self._deadline = monotonic() + self._delay
 
     def periodic(self) -> None:
-        if (target := self.target) is None:
-            return
         with self._deadline_lock:
+            # Read with the deadline, so that the call goes to the target that a replacing owner
+            # touched for, not to the one it replaced.
+            if (target := self.target) is None:
+                return
             if (deadline := self._deadline) is None or monotonic() < deadline:
                 return
             self._deadline = None

@@ -319,7 +319,11 @@ class DataStreamsProcessor(PeriodicService):
     @property
     def _current_context(self) -> Any:
         if (storage := self._current_context_storage) is None:
-            storage = self._current_context_storage = local()
+            with self._lock:
+                # Two threads must not each create one: a thread could then lose the context it
+                # set in the storage another thread replaced.
+                if (storage := self._current_context_storage) is None:
+                    storage = self._current_context_storage = local()
         return storage
 
     def shutdown(self, timeout: Optional[float]) -> None:

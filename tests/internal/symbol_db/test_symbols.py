@@ -480,6 +480,43 @@ def test_symbols_uploader_debounces_uploads():
         SymbolDatabaseUploader.uninstall()
 
 
+@pytest.mark.subprocess(timeout=30)
+def test_symbols_uploader_collects_loaded_modules_when_installed():
+    """install() makes the uploader the installed one only after its constructor collects loaded modules."""
+    import sys
+    from types import ModuleType
+    from unittest import mock
+
+    from ddtrace.internal.symbol_db import symbols
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.symbol_db.symbols import ScopeContext
+    from ddtrace.internal.symbol_db.symbols import ScopeType
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    loaded = sys.modules["loaded_before_install"] = ModuleType("loaded_before_install")
+    scope = Scope(
+        scope_type=ScopeType.MODULE,
+        name="loaded_before_install",
+        source_file=__file__,
+        start_line=0,
+        end_line=0,
+        symbols=[],
+        scopes=[],
+    )
+
+    with (
+        mock.patch.object(symbols, "is_module_included", side_effect=lambda m: m is loaded),
+        mock.patch.object(Scope, "from_module", return_value=scope),
+        mock.patch.object(ScopeContext, "upload"),
+        mock.patch.object(ScopeContext, "_send_batch"),
+    ):
+        SymbolDatabaseUploader.install()
+        uploader = SymbolDatabaseUploader._instance
+        assert isinstance(uploader, SymbolDatabaseUploader)
+        assert len(uploader._context) == 1
+        SymbolDatabaseUploader.uninstall()
+
+
 def test_scope_context_upload_metadata():
     """ScopeContext exposes the upload metadata fields on the event envelope,
     and _take_batch_locked populates per-batch fields on both the event and the
