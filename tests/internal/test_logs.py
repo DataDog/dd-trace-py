@@ -6,6 +6,7 @@ import contextlib
 import json
 import logging
 import os
+import signal
 from typing import Any
 from unittest import mock
 
@@ -296,6 +297,34 @@ class TestAgentlessLogsHandler:
             with mock.patch.object(handler, "handleError") as handle_error:
                 handler.handle(record)
             handle_error.assert_called_once()
+
+
+class TestFlushOnSigterm:
+    @pytest.fixture(autouse=True)
+    def restore_sigterm_handler(self):
+        original = signal.getsignal(signal.SIGTERM)
+        yield
+        signal.signal(signal.SIGTERM, original)
+
+    def test_installs_handler_over_the_default(self):
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        agentless_logs._flush_on_sigterm()
+        assert signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL
+
+    def test_keeps_an_existing_handler(self):
+        def application_handler(signum, frame):
+            pass
+
+        signal.signal(signal.SIGTERM, application_handler)
+        agentless_logs._flush_on_sigterm()
+        assert signal.getsignal(signal.SIGTERM) is application_handler
+
+    def test_is_pool_worker(self):
+        import multiprocessing.pool
+
+        assert agentless_logs._is_pool_worker(mock.Mock(_target=multiprocessing.pool.worker))
+        assert not agentless_logs._is_pool_worker(mock.Mock(_target=print))
+        assert not agentless_logs._is_pool_worker(object())
 
 
 class TestEnable:
@@ -596,6 +625,9 @@ if __name__ == "__main__":
     pool.apply(work, ("from pool",))
     pool.close()
     pool.join()
+    # Leaving the block calls terminate(), which ends the worker with SIGTERM.
+    with context.Pool(1) as pool:
+        pool.apply(work, ("from terminated pool",))
 """,
         env=env,
     )
@@ -605,6 +637,7 @@ if __name__ == "__main__":
     assert messages.count("from process") == 1, messages
     assert messages.count("from non-daemon thread") == 1, messages
     assert messages.count("from pool") == 1, messages
+    assert messages.count("from terminated pool") == 1, messages
 
 
 @pytest.mark.usefixtures("log_intake_receiver")
