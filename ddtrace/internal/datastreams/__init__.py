@@ -18,6 +18,7 @@ required_module_to_integration = {
     "botocore": "botocore",
     "kombu": "kombu",
     "aiokafka": "aiokafka",
+    "kafka": "kafka_python",
     "google.cloud.pubsub_v1": "google_cloud_pubsub",
 }
 _processor: Optional[DataStreamsProcessor] = None
