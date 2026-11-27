@@ -119,6 +119,9 @@ ddtrace = "ddtrace.internal.settings._supported_configurations"
 [project.entry-points.'ddtrace_internal.library']
 ddtrace = "ddtrace._error_attribution"
 
+[project.entry-points.'ddtrace_internal.telemetry_providers']
+appsec = "ddtrace.internal.settings.appsec_telemetry:provider"
+
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
 Changelog = "https://github.com/DataDog/dd-trace-py/releases"

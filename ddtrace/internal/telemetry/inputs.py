@@ -1,8 +1,10 @@
-"""The library telemetry reports for: its identity, the code it owns and how its integrations are named.
+"""What telemetry needs from the libraries it reports for, pulled from entry points rather than imported.
 
 Telemetry moves to the ddtrace-internal package, which never imports ddtrace, so it can't read dd-trace-py's
-version or code locations itself. It pulls them instead, the first time it needs them, from the library that
-declares an entry point in the ddtrace_internal.library group::
+version, code locations or product settings itself. It pulls them instead, the first time it needs them, from
+distributions that declare entry points. Two kinds of input reach it.
+
+**The library**, declared in the ``ddtrace_internal.library`` group::
 
     [project.entry-points.'ddtrace_internal.library']
     ddtrace = "ddtrace._error_attribution"
@@ -20,10 +22,19 @@ ddtrace_internal.library.fallback group instead. The first entry point of the pr
 group is consulted only when that one is empty. register_library() overrides the entry points, for tests and
 for callers that know their identity better than their metadata does.
 
+**Providers**, declared in the ``ddtrace_internal.telemetry_providers`` group, e.g.
+``appsec = "ddtrace.internal.settings.appsec_telemetry:provider"``. A provider is an object with optional hooks:
+``configurations()``, ``dependency_metadata_enabled()``, ``endpoint_collection_enabled()`` and
+``endpoint_collection_limit()``. The providers are loaded in entry point name order, and their hooks are resolved with
+them and called on each use, so runtime changes to the settings behind the hooks apply. A missing provider or hook
+means the documented default applies. Only ddtrace's own distributions may declare a provider, and broken installed
+metadata means no provider, like the settings registry.
+
 Importing this module resolves nothing, and everything resolved is cached.
 """
 
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import NamedTuple
 from typing import Optional
@@ -42,9 +53,10 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 GROUP = "ddtrace_internal.library"
-# Loading the library's entry point executes its module while ddtrace is importing, so, like the settings
-# registry, only ddtrace's own distributions and module namespaces may provide it: an unrelated installed
-# distribution must not run code merely because ddtrace starts.
+PROVIDERS_GROUP = "ddtrace_internal.telemetry_providers"
+# Loading the library's entry point or a telemetry provider executes its module while ddtrace is importing, so,
+# like the settings registry, only ddtrace's own distributions and module namespaces may provide either: an
+# unrelated installed distribution must not run code merely because ddtrace starts.
 _TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless", "ddtrace-internal", "ddtrace-testing"})
 _TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace.", "_ddtrace_internal."})
 # Entry points of this group are used only when no distribution declares one in GROUP.
@@ -204,3 +216,85 @@ def is_library_code(filename: str) -> bool:
 def get_integration(filename: str) -> Optional[str]:
     """Return the name of the integration the library says filename belongs to, or None."""
     return _get_attribution().integration_of(filename)
+
+
+_providers: Optional[tuple[Any, ...]] = None
+
+# The hooks of the resolved providers, by name, so the hot paths read a tuple instead of rebuilding the lists.
+_provider_hooks: dict[str, tuple[Callable[[], Any], ...]] = {}
+_HOOK_NAMES = (
+    "configurations",
+    "dependency_metadata_enabled",
+    "endpoint_collection_enabled",
+    "endpoint_collection_limit",
+)
+
+# What telemetry does when no provider says otherwise.
+DEFAULT_ENDPOINT_COLLECTION_LIMIT = 300
+
+
+def get_providers() -> tuple[Any, ...]:
+    """Return the loaded telemetry providers, in entry point name order. Resolved on first call, then cached."""
+    global _providers, _provider_hooks
+
+    # No lock: two threads resolving at once load the same entry points, and the last assignment wins, equal to the
+    # first.
+    if _providers is None:
+        try:
+            declared = _trusted_entry_points(PROVIDERS_GROUP)
+        except Exception:
+            # Broken installed metadata, e.g. a hand-edited or half-written entry_points.txt, must not keep the
+            # library importing telemetry from starting. Degrade the way the settings registry does: no provider,
+            # the documented defaults apply.
+            log.debug("Failed to list the %s entry points: no provider applies", PROVIDERS_GROUP, exc_info=True)
+            declared = []
+        providers = []
+        for entry_point, _ in sorted(declared, key=lambda ep: ep[0].name):
+            try:
+                providers.append(entry_point.load())
+            except Exception:
+                log.debug("Failed to load the %s entry point %s", PROVIDERS_GROUP, entry_point.value, exc_info=True)
+        # The hooks are resolved with the providers and only called afterwards; caching the calls' results instead
+        # would freeze the settings the hooks read on each call.
+        _provider_hooks = {
+            name: tuple(hook for hook in (getattr(provider, name, None) for provider in providers) if callable(hook))
+            for name in _HOOK_NAMES
+        }
+        _providers = tuple(providers)
+    return _providers
+
+
+def _get_hooks(name: str) -> tuple[Callable[[], Any], ...]:
+    """Return the hook ``name`` of every provider that defines it, as resolved with the providers."""
+    if _providers is None:
+        get_providers()
+    return _provider_hooks.get(name, ())
+
+
+def get_configurations() -> tuple[Any, ...]:
+    """Return the configuration objects the providers ask telemetry to report, in provider order. None by default."""
+    return tuple(config for hook in _get_hooks("configurations") for config in hook())
+
+
+def dependency_metadata_enabled() -> bool:
+    """Return whether full dependency metadata is collected, as the first provider that says so decides.
+
+    False if no provider says.
+    """
+    for hook in _get_hooks("dependency_metadata_enabled"):
+        return bool(hook())
+    return False
+
+
+def endpoint_collection_enabled() -> bool:
+    """Return whether API endpoints are collected, as the first provider that says so decides. True if none does."""
+    for hook in _get_hooks("endpoint_collection_enabled"):
+        return bool(hook())
+    return True
+
+
+def endpoint_collection_limit() -> int:
+    """Return the most endpoints to send in a message. ``DEFAULT_ENDPOINT_COLLECTION_LIMIT`` if no provider says."""
+    for hook in _get_hooks("endpoint_collection_limit"):
+        return int(hook())
+    return DEFAULT_ENDPOINT_COLLECTION_LIMIT

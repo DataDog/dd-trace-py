@@ -630,7 +630,7 @@ class TestScaTrackerNameNormalization:
             def SCA_ENABLED(self):
                 raise RuntimeError("config module torn down")
 
-        with patch("ddtrace.internal.telemetry.dependency_tracker.appsec_telemetry_config", BrokenConfig()):
+        with patch("ddtrace.internal.settings.appsec_telemetry.config", BrokenConfig()):
             result = update_imported_dependencies({}, ["requests"])
 
         assert result == []
