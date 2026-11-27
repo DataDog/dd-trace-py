@@ -4,10 +4,12 @@ from avro.io import DatumReader
 from avro.io import DatumWriter
 
 from ddtrace.constants import AUTO_KEEP
+from ddtrace.contrib.internal.avro import schema_iterator as avro_schema_iterator
 from ddtrace.contrib.internal.avro.patch import patch
 from ddtrace.contrib.internal.avro.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.datastreams import data_streams_processor
 
 
 OPENAPI_USER_SCHEMA_DEF = (
@@ -169,3 +171,45 @@ def test_advanced_schema_deserialize(avro, tracer, test_spans):
     assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "deserialization"
     assert tags[SCHEMA_TAGS.SCHEMA_ID] == "16919528191335747635"
     assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
+
+
+def _processor_then_none():
+    """Return the live processor once, then None, like a remote config disable mid-call."""
+    calls = []
+
+    def fake_data_streams_processor():
+        calls.append(None)
+        return data_streams_processor() if len(calls) == 1 else None
+
+    return fake_data_streams_processor
+
+
+def test_serialize_does_not_raise_when_processor_is_cleared_mid_call(avro, tracer, test_spans, monkeypatch):
+    monkeypatch.setattr(avro_schema_iterator, "data_streams_processor", _processor_then_none())
+    writer = DatumWriter()
+
+    with tracer.trace("basic_avro_schema.serialization") as span:
+        span.context.sampling_priority = AUTO_KEEP
+        schema = avro.schema.parse(open("tests/contrib/avro/schemas/user.avsc", "rb").read())
+
+        writer = DataFileWriter(open("tests/contrib/avro/schemas/users.avro", "wb"), writer, schema)
+        writer.append({"name": "Alyssa", "favorite_number": 256})
+        writer.close()
+
+    tags = test_spans.spans[0].get_tags()
+    assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OPENAPI_USER_SCHEMA_DEF
+
+
+def test_serialize_skips_schema_tags_without_processor(avro, tracer, test_spans, monkeypatch):
+    monkeypatch.setattr(avro_schema_iterator, "data_streams_processor", lambda: None)
+    writer = DatumWriter()
+
+    with tracer.trace("basic_avro_schema.serialization") as span:
+        span.context.sampling_priority = AUTO_KEEP
+        schema = avro.schema.parse(open("tests/contrib/avro/schemas/user.avsc", "rb").read())
+
+        writer = DataFileWriter(open("tests/contrib/avro/schemas/users.avro", "wb"), writer, schema)
+        writer.append({"name": "Alyssa", "favorite_number": 256})
+        writer.close()
+
+    assert SCHEMA_TAGS.SCHEMA_TYPE not in test_spans.spans[0].get_tags()

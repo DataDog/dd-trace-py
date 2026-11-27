@@ -1,11 +1,20 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import avro
 from avro.schema import Schema as AvroSchema
 
 from ddtrace.ext import schema as SCHEMA_TAGS
 from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.datastreams.schemas.schema import Schema
 from ddtrace.internal.datastreams.schemas.schema_builder import SchemaBuilder
 from ddtrace.internal.datastreams.schemas.schema_builder import SchemaIterator
 from ddtrace.trace import Span
+
+
+if TYPE_CHECKING:
+    from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
 
 class SchemaExtractor(SchemaIterator):
@@ -75,8 +84,8 @@ class SchemaExtractor(SchemaIterator):
         return True
 
     @staticmethod
-    def extract_schemas(schema: AvroSchema) -> bool:
-        return data_streams_processor().get_schema(schema.fullname, SchemaExtractor(schema))
+    def extract_schemas(schema: AvroSchema, processor: DataStreamsProcessor) -> Schema:
+        return processor.get_schema(schema.fullname, SchemaExtractor(schema))
 
     def iterate_over_schema(self, builder: SchemaBuilder):
         self.extract_schema(self.schema, builder, 0)
@@ -86,22 +95,27 @@ class SchemaExtractor(SchemaIterator):
         if schema is None or span is None:
             return
 
+        # Captured once: a remote config disable can clear the processor mid-call.
+        processor = data_streams_processor()
+        if processor is None:
+            return
+
         span.set_tag(SCHEMA_TAGS.SCHEMA_TYPE, SchemaExtractor.AVRO)
         span.set_tag(SCHEMA_TAGS.SCHEMA_NAME, schema.fullname)
         span.set_tag(SCHEMA_TAGS.SCHEMA_OPERATION, operation)
 
-        if not data_streams_processor().can_sample_schema(operation):
+        if not processor.can_sample_schema(operation):
             return
 
         prio = span.context.sampling_priority
         if prio is None or prio <= 0:
             return
 
-        weight = data_streams_processor().try_sample_schema(operation)
+        weight = processor.try_sample_schema(operation)
         if weight == 0:
             return
 
-        schema_data = SchemaExtractor.extract_schemas(schema)
+        schema_data = SchemaExtractor.extract_schemas(schema, processor)
 
         span.set_tag(SCHEMA_TAGS.SCHEMA_DEFINITION, schema_data.definition)
         span._set_attribute(SCHEMA_TAGS.SCHEMA_WEIGHT, weight)

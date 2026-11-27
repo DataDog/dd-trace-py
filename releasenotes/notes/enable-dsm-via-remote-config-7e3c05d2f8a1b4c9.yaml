@@ -1,0 +1,7 @@
+features:
+  - |
+    Data Streams Monitoring: DSM can now be enabled or disabled at runtime via
+    Remote Configuration (the ``data_streams_enabled`` runtime configuration
+    key), targeted by service name and environment, without restarting the
+    application. ``DD_DATA_STREAMS_ENABLED`` remains the startup default until
+    a remote configuration overrides it.
