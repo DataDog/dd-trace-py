@@ -303,3 +303,17 @@ experiments:
           - name: startup-ddtrace_run_runtime_metrics
             thresholds:
               - execution_time < 10000 ms
+          # tracebuffer (class TraceBuffer) — native trace buffer construction and
+          # the write path, including meta_struct packing through _msgpack.packb.
+          - name: tracebuffer-write
+            thresholds:
+              - execution_time < 0.005 ms
+          - name: tracebuffer-write-meta-struct
+            thresholds:
+              - execution_time < 0.011 ms
+          - name: tracebuffer-write-many-meta-structs
+            thresholds:
+              - execution_time < 0.024 ms
+          - name: tracebuffer-init
+            thresholds:
+              - execution_time < 0.20 ms

@@ -4,6 +4,8 @@ one-trace: &base_variant
   ntags: 0
   ltags: 0
   nmetrics: 0
+  nmetastructs: 0
+  lmetastructs: 0
   dd_origin: false
   encoding: "v0.4"
 many-traces:
@@ -23,6 +25,14 @@ one-metric:
 many-metrics:
   <<: *base_variant
   nmetrics: 48
+one-meta-struct:
+  <<: *base_variant
+  nmetastructs: 1
+  lmetastructs: 16
+many-meta-structs:
+  <<: *base_variant
+  nmetastructs: 10
+  lmetastructs: 16
 one-trace-with-dd-origin:
   <<: *base_variant
   ntags: 10

@@ -149,6 +149,19 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  trace_buffer:
+    # The opt-in native trace buffer: construction and the write path, including the
+    # meta_struct packing that goes through the sibling _msgpack extension.
+    paths:
+      - '@tracing'
+      - ddtrace/internal/native/*
+      - src/native/lib.rs
+      - src/native/data_pipeline/*
+      - src/native/span/*
+      - benchmarks/trace_buffer/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   # events_api:
   #   paths:
   #     - '@bootstrap'
