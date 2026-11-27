@@ -31,6 +31,10 @@ Use ``forksafe.register_before_fork``, ``forksafe.register`` (after in child) an
 It serializes the ddtrace hooks under one lock from before-fork to after-fork, runs them in a
 known order relative to thread stop and restart, isolates exceptions, and also runs the child
 hooks for uWSGI workers forked at the C level, where ``os.register_at_fork`` hooks never run.
+Known exception: the child-process bootstrap of per-test line coverage
+(``ddtrace/internal/coverage/child_bootstrap/_ddtrace_child_coverage.py``) calls
+``os.register_at_fork`` itself. It runs in the Python processes that tests start and imports no
+ddtrace module there, so it has no ddtrace hook or thread to be ordered with.
 
 .. _FS-2:
 

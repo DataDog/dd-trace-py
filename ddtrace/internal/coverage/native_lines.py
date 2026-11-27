@@ -448,7 +448,8 @@ def shared() -> dict[str, list[tuple[str, bytes]]]:
 
 
 # Child processes. The Python processes a context starts run on its behalf, so the lines they run
-# are the context's. See child_bootstrap/_ddtrace_child_coverage.py for the child's side.
+# are the context's, and so are the lines a process forked from this one runs after the fork. See
+# child_bootstrap/_ddtrace_child_coverage.py for the child's side.
 _CHILD_DIR_ENV = "_DD_COVERAGE_CHILD_DIR"
 _CHILD_OWNER_ENV = "_DD_COVERAGE_CHILD_OWNER"
 _BOOTSTRAP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "child_bootstrap")
@@ -532,7 +533,8 @@ def follow_children(include_paths: t.Sequence[str], exclude_paths: t.Sequence[st
         subprocess.Popen._execute_child = _execute_child  # type: ignore[attr-defined]
     _linecov.set_running(ctx_native.get())
     _linecov.set_records_callback(collect_children)
-    forksafe.register(_stop_in_forked_child)
+    forksafe.register(_record_in_forked_child)
+    _child_coverage.wrap_exit()
 
 
 def _child_env(child_env: t.Any) -> t.Any:
@@ -582,13 +584,13 @@ def process_record() -> t.Optional[tuple[str, int]]:
     if _linecov is None:
         return None
     if children is None:
-        # A multiprocessing child forked from the test process: its processes run for its context.
+        # A process forked from the test process: its processes run for its context.
         return _forked_record
     return children.directory, _running_token()
 
 
-# What process_record() returned for this process, when it is a multiprocessing child forked from
-# the test process.
+# The record directory and the token of the context this process runs for, when it is a process
+# forked from the test process.
 _forked_record: t.Optional[tuple[str, int]] = None
 
 
@@ -596,8 +598,8 @@ def run_forked_process(record: tuple[str, int], bootstrap: t.Any, process: t.Any
     """Run BaseProcess._bootstrap in a multiprocessing child forked from this process.
 
     record is what process_record() returned when the process started. The lines the child runs
-    from now on go to a record file for that context, as a child process's do; the lines recorded
-    before the fork are this process's to report.
+    go to a record file for that context, as a child process's do; the lines recorded before the
+    fork are this process's to report.
     """
     global _forked_record
 
@@ -605,14 +607,42 @@ def run_forked_process(record: tuple[str, int], bootstrap: t.Any, process: t.Any
         return bootstrap(process, *args, **kwargs)
     directory, owner = record
     _forked_record = record
-    _linecov.forget()
-    # Following stopped at the fork; the children of this child run for the same context.
+    # The fork hook forgot them, unless it failed.
+    if not _child_coverage.has_forked_record():
+        _linecov.forget()
+    _follow_as_child(directory)
+    return _child_coverage.run_process(_linecov, directory, owner, bootstrap, process, args, kwargs)
+
+
+def _record_in_forked_child() -> None:
+    """A forked process records the lines it runs from now on for the context that ran the fork,
+    as a child process does. It stops following: it would publish its contexts in its parent's
+    state file.
+    """
+    global _forked_record
+
+    if _linecov is None:
+        return
+    token = _running_token()
+    children = _stop_following()
+    if children is not None:
+        _forked_record = (children.directory, token)
+        _follow_as_child(children.directory)
+    # A process forked from a forked process runs for the same context.
+    record = _forked_record
+    if record is not None:
+        _child_coverage.start_forked_record(_linecov, record[0], record[1])
+
+
+def _follow_as_child(directory: str) -> None:
+    """Make the Python processes this forked process starts record for its context, as the
+    children of a child process do.
+    """
     python_path = env.get("PYTHONPATH")
     entries = python_path.split(os.pathsep) if python_path else []
     if _BOOTSTRAP_DIR not in entries:
         env["PYTHONPATH"] = os.pathsep.join([_BOOTSTRAP_DIR] + entries)
     env[_CHILD_DIR_ENV] = directory
-    return _child_coverage.run_process(_linecov, directory, owner, bootstrap, process, args, kwargs)
 
 
 def _execute_child(
@@ -691,7 +721,8 @@ def stop_following_children() -> None:
     if children is not None:
         import shutil
 
-        forksafe.unregister(_stop_in_forked_child)
+        forksafe.unregister(_record_in_forked_child)
+        _child_coverage.unwrap_exit()
         shutil.rmtree(children.directory, ignore_errors=True)
 
 
@@ -715,8 +746,3 @@ def _stop_following() -> t.Optional[_ChildProcesses]:
         _linecov.set_records_callback(None)
         _linecov.unshare_state()
     return children
-
-
-def _stop_in_forked_child() -> None:
-    """A forked process stops following: it would publish its contexts in its parent's state file."""
-    _stop_following()

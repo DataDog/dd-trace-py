@@ -1001,6 +1001,405 @@ def test_spawn_child_terminated_before_its_run_keeps_startup_hook_handler(tmp_pa
     )
 
 
+_FORK_WORK = textwrap.dedent(
+    """\
+    import os
+    import time
+
+
+    def after_fork():
+        return "after"
+
+
+    def in_grandchild():
+        return "grandchild"
+
+
+    def until_signalled(ready_fd):
+        os.write(ready_fd, b"r") and time.sleep(60)
+
+
+    def in_python_child():
+        return "python child"
+
+
+    def late(read_fd):
+        os.read(read_fd, 1)
+        return "late"
+    """
+)
+
+
+def test_forked_processes_run_for_the_test(tmp_path) -> None:
+    """A process forked from the test process, or from a Python child of a test, reports the lines
+    it runs after the fork to the test that ran the fork, however it ends: through os._exit(), a
+    normal exit, SIGTERM or SIGHUP at their default action, or a handler that lets it go on. So do
+    the processes it forks or starts in turn. A forked process that outlives its test reports to
+    the unowned lines.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "pkg" / "work.py").write_text(_FORK_WORK)
+    _run_isolated(
+        f"""
+        import os
+        from pathlib import Path
+        import posix
+        import signal
+        import subprocess
+        import sys
+        import threading
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        # A runner may start this process with SIGHUP ignored (nohup): these cases need the default actions.
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)
+        root = os.path.realpath({str(root)!r})
+        assert os._exit is posix._exit
+        coverage.install_coverage(Path(root))
+        sys.path.insert(0, root)
+        from pkg import work
+
+        assert coverage.native_line_coverage_enabled()
+        # The initialiser lines of work.py, which a test that touches the file gets.
+        init = {{1, 2, 5, 9, 13, 17, 21}}
+
+        def lines(bitmaps):
+            for path, bitmap in bitmaps:
+                if path == "/pkg/work.py":
+                    return {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+            return set()
+
+        def run_test(function, *args):
+            with coverage.coverage_collection() as data:
+                function(*args)
+            return lines(data.get_coverage_bitmaps(Path(root)))
+
+        def exit_code(pid):
+            return os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
+
+        def bare_fork():
+            pid = os.fork()
+            if pid == 0:
+                work.after_fork()
+                os._exit(0)
+            assert exit_code(pid) == 0
+
+        def forkpty():
+            pid, fd = os.forkpty()
+            if pid == 0:
+                work.after_fork()
+                os._exit(0)
+            try:
+                while os.read(fd, 1024):
+                    pass
+            except OSError:
+                pass
+            os.close(fd)
+            assert exit_code(pid) == 0
+
+        def fork_of_a_fork():
+            pid = os.fork()
+            if pid == 0:
+                grandchild = os.fork()
+                if grandchild == 0:
+                    work.in_grandchild()
+                    os._exit(0)
+                os.waitpid(grandchild, 0)
+                work.after_fork()
+                os._exit(0)
+            assert exit_code(pid) == 0
+
+        def fork_from_a_thread():
+            pids = []
+
+            def fork():
+                pid = os.fork()
+                if pid == 0:
+                    work.after_fork()
+                    os._exit(0)
+                pids.append(pid)
+
+            thread = threading.Thread(target=fork)
+            thread.start()
+            thread.join()
+            assert exit_code(pids[0]) == 0
+
+        def signalled(signum):
+            read_fd, write_fd = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                os.close(read_fd)
+                work.after_fork()
+                work.until_signalled(write_fd)
+            os.close(write_fd)
+            assert os.read(read_fd, 1) == b"r"
+            os.close(read_fd)
+            os.kill(pid, signum)
+            assert exit_code(pid) == -signum
+
+        def handler_lets_it_go_on():
+            ready_read, ready_write = os.pipe()
+            go_read, go_write = os.pipe()
+            previous = signal.signal(signal.SIGTERM, lambda signum, frame: None)
+            try:
+                pid = os.fork()
+                if pid == 0:
+                    work.after_fork()
+                    os.write(ready_write, b"r")
+                    # Line 22 waits for the go below, after the signal.
+                    work.late(go_read)
+                    os._exit(0)
+                assert os.read(ready_read, 1) == b"r"
+                os.kill(pid, signal.SIGTERM)
+                os.write(go_write, b"g")
+                assert exit_code(pid) == 0
+            finally:
+                signal.signal(signal.SIGTERM, previous)
+                for fd in (ready_read, ready_write, go_read, go_write):
+                    os.close(fd)
+
+        def fork_in_a_python_child(end):
+            code = (
+                "import os\\nfrom pkg import work\\nwork.in_python_child()\\npid = os.fork()\\n"
+                "if pid == 0:\\n    work.after_fork()\\n    " + end + "\\nos.waitpid(pid, 0)\\n"
+            )
+            subprocess.run([sys.executable, "-c", code], cwd=root, check=True)
+
+        def python_child_of_a_fork():
+            pid = os.fork()
+            if pid == 0:
+                code = "from pkg import work\\nwork.in_python_child()"
+                status = subprocess.run([sys.executable, "-c", code], cwd=root).returncode
+                work.after_fork()
+                os._exit(status)
+            assert exit_code(pid) == 0
+
+        # Lines 6, 10, 14, 18, 22 and 23 run only in the forked processes and their children.
+        assert run_test(bare_fork) == init | {{6}}
+        assert run_test(forkpty) == init | {{6}}
+        assert run_test(fork_of_a_fork) == init | {{6, 10}}
+        assert run_test(fork_from_a_thread) == init | {{6}}
+        assert run_test(signalled, signal.SIGTERM) == init | {{6, 14}}
+        assert run_test(signalled, signal.SIGHUP) == init | {{6, 14}}
+        assert run_test(handler_lets_it_go_on) == init | {{6, 22, 23}}
+        assert run_test(fork_in_a_python_child, "os._exit(0)") == init | {{6, 18}}
+        assert run_test(fork_in_a_python_child, "raise SystemExit(0)") == init | {{6, 18}}
+        assert run_test(python_child_of_a_fork) == init | {{6, 18}}
+
+        # A forked process still running when its test ends reports to the unowned lines.
+        read_fd, write_fd = os.pipe()
+        with coverage.coverage_collection() as data:
+            pid = os.fork()
+            if pid == 0:
+                work.late(read_fd)
+                os._exit(0)
+        os.write(write_fd, b"g")
+        assert exit_code(pid) == 0
+        assert lines(data.get_coverage_bitmaps(Path(root))) == set()
+        assert lines(coverage.get_shared_coverage_bitmaps()["unowned"]) == {{22, 23}}
+
+        coverage.uninstall_coverage()
+        assert os._exit is posix._exit
+        """
+    )
+
+
+_BLOCKED_WORK = textwrap.dedent(
+    """\
+    import os
+    import select
+    import time
+
+
+    def after_fork():
+        return "after"
+
+
+    def in_sleep(ready_fd):
+        os.write(ready_fd, b"r") and time.sleep(60)
+
+
+    def in_select(ready_fd, read_fd):
+        os.write(ready_fd, b"r") and select.select([read_fd], [], [], 60)
+
+
+    def go_on(ready_fd, read_fd):
+        os.write(ready_fd, b"r")
+        os.read(read_fd, 1)
+        return "went on"
+    """
+)
+
+
+def test_forked_process_blocked_in_a_call_ends_on_sighup(tmp_path) -> None:
+    """SIGHUP ends a forked process blocked in a call that a signal interrupts, such as
+    time.sleep() or select(), at once: the process writes its record, then dies of the signal. A
+    forked process in which SIGHUP is ignored, from before its fork or by its own code, goes on.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "pkg" / "work.py").write_text(_BLOCKED_WORK)
+    _run_isolated(
+        f"""
+        import os
+        from pathlib import Path
+        import signal
+        import sys
+        import time
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        # A runner may start this process with SIGHUP ignored (nohup): the first cases need its default action.
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        sys.path.insert(0, root)
+        from pkg import work
+
+        assert coverage.native_line_coverage_enabled()
+        init = {{1, 2, 3, 6, 10, 14, 18}}
+
+        def lines(bitmaps):
+            for path, bitmap in bitmaps:
+                if path == "/pkg/work.py":
+                    return {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+            return set()
+
+        def hang_up(block, ignore_in_child=False):
+            # The forked process's exit code, the seconds from SIGHUP to its end, and the test's lines.
+            ready_read, ready_write = os.pipe()
+            go_read, go_write = os.pipe()
+            with coverage.coverage_collection() as data:
+                pid = os.fork()
+                if pid == 0:
+                    work.after_fork()
+                    if ignore_in_child:
+                        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+                    block(ready_write, go_read)
+                    os._exit(0 if signal.getsignal(signal.SIGHUP) == signal.SIG_IGN else 1)
+                assert os.read(ready_read, 1) == b"r"
+                # Long enough for the process to be in the call; it ends the same way if it is not.
+                time.sleep(0.2)
+                start = time.monotonic()
+                os.kill(pid, signal.SIGHUP)
+                if block is work.go_on:
+                    # An ignored SIGHUP is discarded when sent, so the process reads this after it.
+                    os.write(go_write, b"g")
+                status = os.waitpid(pid, 0)[1]
+                elapsed = time.monotonic() - start
+            for fd in (ready_read, ready_write, go_read, go_write):
+                os.close(fd)
+            return os.waitstatus_to_exitcode(status), elapsed, lines(data.get_coverage_bitmaps(Path(root)))
+
+        def sleep(ready_fd, read_fd):
+            work.in_sleep(ready_fd)
+
+        for block, line in ((sleep, 11), (work.in_select, 15)):
+            code, elapsed, recorded = hang_up(block)
+            assert code == -signal.SIGHUP, code
+            assert elapsed < 1.0, elapsed
+            assert recorded == init | {{7, line}}, recorded
+
+        # The process ignores SIGHUP from its own code.
+        code, _, recorded = hang_up(work.go_on, ignore_in_child=True)
+        assert code == 0, code
+        assert recorded == init | {{7, 19, 20, 21}}, recorded
+
+        # The test process ignores SIGHUP when it forks: so does the forked process.
+        previous = signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        try:
+            code, _, recorded = hang_up(work.go_on)
+        finally:
+            signal.signal(signal.SIGHUP, previous)
+        assert code == 0, code
+        assert recorded == init | {{7, 19, 20, 21}}, recorded
+
+        coverage.uninstall_coverage()
+        """
+    )
+
+
+_EXITING_SOURCE = textwrap.dedent(
+    """\
+    import atexit
+    import os
+    import posix
+    import sys
+
+    marker = sys.argv[1]
+    atexit.register(lambda: open(marker, "w").close())
+    buffered = open(marker + ".buffered", "w")
+    buffered.write("unflushed")
+    print(os._exit is posix._exit, flush=True)
+    sys.stdout.write("unflushed")
+    os._exit(3)
+    """
+)
+
+
+def test_exit_wrapper_is_exit_without_a_forked_record(tmp_path) -> None:
+    """While child processes are followed, os._exit() is a wrapper that first writes the record of
+    a forked process. In a process with no such record, the test process or a Python child that is
+    not forked, it does what os._exit() does: the process ends with the status given, runs no exit
+    handler and flushes no buffer.
+    """
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "first.py").write_text("")
+    (root / "exiting.py").write_text(_EXITING_SOURCE)
+    _run_isolated(
+        f"""
+        import os
+        from pathlib import Path
+        import subprocess
+        import sys
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        root = os.path.realpath({str(root)!r})
+        exiting = os.path.join(root, "exiting.py")
+        # A test that runs exiting.py with the arguments after it. The collector starts at the first
+        # module of the workspace, and following at the first test.
+        test_process = (
+            "import runpy, sys\\n"
+            "from pathlib import Path\\n"
+            "from ddtrace.testing.internal.tracer_api import coverage\\n"
+            "coverage.install_coverage(Path(%r))\\n"
+            "sys.path.insert(0, %r)\\n"
+            "import first\\n"
+            "assert coverage.native_line_coverage_enabled()\\n"
+            "sys.argv = sys.argv[1:]\\n"
+            "with coverage.coverage_collection():\\n"
+            "    runpy.run_path(sys.argv[0], run_name='__main__')\\n" % (root, root)
+        )
+
+        def outcome(name, command):
+            # The exit code, the output, whether the exit handler ran, and what the open file holds.
+            marker = os.path.join(root, name)
+            result = subprocess.run(command + [marker], cwd=root, capture_output=True, text=True, timeout=60)
+            with open(marker + ".buffered") as f:
+                return result.returncode, result.stdout, os.path.exists(marker), f.read()
+
+        assert outcome("plain", [sys.executable, exiting]) == (3, "True\\n", False, "")
+        assert outcome("test", [sys.executable, "-c", test_process, exiting]) == (3, "False\\n", False, "")
+
+        coverage.install_coverage(Path(root))
+        sys.path.insert(0, root)
+        import first  # noqa: F401
+        assert coverage.native_line_coverage_enabled()
+        with coverage.coverage_collection():
+            assert outcome("child", [sys.executable, exiting]) == (3, "False\\n", False, "")
+        coverage.uninstall_coverage()
+        """,
+        # The test process that exits through os._exit() leaves its state directory here.
+        env={"TMPDIR": str(tmp_path)},
+    )
+
+
 def test_exec_wrapper_behaves_like_exec() -> None:
     """The builtins.exec replacement passes module code to the callback, and is otherwise exec():
     same name, signature, documentation and pickling, and the caller's namespace without globals.
