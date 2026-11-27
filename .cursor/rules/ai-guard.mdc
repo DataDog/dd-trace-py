@@ -45,6 +45,7 @@ user code cannot accidentally swallow a block decision.
 The public SDK is `ddtrace/aiguard/__init__.py`; provider listeners are under
 `ddtrace/aiguard/integrations/`. Read current settings in `ddtrace/internal/settings/aiguard.py`
 and public descriptions in `docs/configuration.rst` rather than copying defaults here.
+The OpenAI Chat Completions and Responses stream reconstruction is in `ddtrace/contrib/internal/openai/_streaming.py`.
 
 ```
 ddtrace/aiguard/
@@ -70,9 +71,7 @@ ddtrace/aiguard/
     ├── strands.py          # AIGuardStrandsPlugin / AIGuardStrandsHookProvider
     ├── _openai.py          # OpenAI common helpers (_wrap_abort_error)
     ├── _openai_chat.py     # Chat Completions API converters + listeners
-    ├── _openai_chat_streaming.py      # Chat Completions stream reconstruction
     ├── _openai_responses.py           # Responses API converters + listeners
-    ├── _openai_responses_streaming.py # Responses stream reconstruction
     ├── _openai_errors.py   # OpenAI-compatible abort error class
     ├── _anthropic.py       # Anthropic Messages API converters + listeners
     ├── _anthropic_streaming.py # Anthropic stream reconstruction

@@ -32,7 +32,7 @@ from ddtrace.aiguard.integrations._openai_responses import _mcp_servers_payload
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
 from ddtrace.aiguard.integrations._openai_responses import may_request_mcp_approval
-from ddtrace.aiguard.integrations._openai_responses_streaming import reconstruct_openai_responses
+from ddtrace.contrib.internal.openai._streaming import reconstruct_openai_responses
 from ddtrace.internal.settings.aiguard import AIGuardConfig
 from tests.aiguard.openai._span_helpers import assert_block_emits_both_spans
 from tests.aiguard.utils import mock_evaluate_response

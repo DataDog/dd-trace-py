@@ -18,7 +18,7 @@ import ddtrace.aiguard._initialization as ai_guard_mod
 from ddtrace.aiguard.integrations._openai_chat import _convert_openai_messages
 from ddtrace.aiguard.integrations._openai_chat import _convert_openai_response
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
-from ddtrace.aiguard.integrations._openai_chat_streaming import reconstruct_openai_chat
+from ddtrace.contrib.internal.openai._streaming import reconstruct_openai_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data

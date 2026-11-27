@@ -45,11 +45,11 @@ from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.integrations._anthropic import _safe_convert_messages
 from ddtrace.aiguard.integrations._anthropic import _safe_convert_response
 from ddtrace.aiguard.integrations._openai_chat import _convert_openai_response
-from ddtrace.aiguard.integrations._openai_chat_streaming import reconstruct_openai_chat
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_output
 from ddtrace.aiguard.integrations._openai_responses import _hosted_mcp_servers
 from ddtrace.aiguard.integrations._openai_responses import _mcp_servers_payload
+from ddtrace.contrib.internal.openai._streaming import reconstruct_openai_chat
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils.openai import openai_construct_completion_from_streamed_chunks
 
