@@ -27,6 +27,7 @@ components:
     - ddtrace/llmobs/*
     - ddtrace/contrib/internal/bedrock_inference_profiles.py
     - ddtrace/contrib/internal/stream_handler.py
+    - ddtrace/contrib/internal/_sdk_streams.py
   mcp:
     - ddtrace/contrib/internal/mcp/*
   mistralai:

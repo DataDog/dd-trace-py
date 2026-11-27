@@ -6,6 +6,8 @@ import anthropic
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal._sdk_streams import ANTHROPIC_STREAM_CREATED
+from ddtrace.contrib.internal._sdk_streams import traced_stream_init
 from ddtrace.contrib.internal.anthropic._constants import COMPONENT
 from ddtrace.contrib.internal.anthropic._constants import TAG_MODEL
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
@@ -112,6 +114,10 @@ def patch() -> None:
 
     anthropic._datadog_patch = True
 
+    # Every streamed response is a Stream or AsyncStream: anthropic.stream.created lets products
+    # see its events before any SDK consumer does.
+    wrap("anthropic", "_streaming.Stream.__init__", traced_stream_init(ANTHROPIC_STREAM_CREATED, is_async=False))
+    wrap("anthropic", "_streaming.AsyncStream.__init__", traced_stream_init(ANTHROPIC_STREAM_CREATED, is_async=True))
     # AI Guard mirrors this wrap-target list in
     # ddtrace/appsec/_ai_guard/_listener.py::_install_anthropic_wrappers to
     # install its outermost streaming buffer. If you add/rename a target or
@@ -149,6 +155,8 @@ def unpatch() -> None:
     core.dispatch("anthropic.unpatch", tuple())
     integration_hooks.on_unpatch("anthropic")
 
+    unwrap(anthropic._streaming.Stream, "__init__")
+    unwrap(anthropic._streaming.AsyncStream, "__init__")
     unwrap(anthropic.resources.messages.Messages, "create")
     unwrap(anthropic.resources.messages.Messages, "stream")
     unwrap(anthropic.resources.messages.AsyncMessages, "create")
