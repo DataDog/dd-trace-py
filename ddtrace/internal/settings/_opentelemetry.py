@@ -167,10 +167,10 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     if traces_endpoint := env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
         return traces_endpoint
     protocol = config.TRACES_PROTOCOL
-    # A global HTTP endpoint is a base URL; gRPC uses it as-is.
+    # TCP HTTP endpoints are base URLs; gRPC and Unix socket addresses stay intact.
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
-        if protocol == "grpc":
+        if protocol == "grpc" or global_endpoint.startswith("unix://"):
             return global_endpoint.rstrip("/")
         return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
     return ExporterConfig._get_default_endpoint(protocol, ExporterConfig.TRACES_PATH)
@@ -185,9 +185,11 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
     # Signal-specific endpoint takes precedence (full URL, no path appended).
     if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
         return metrics_endpoint
-    # Global endpoint is a base URL; append the metrics signal path.
+    # Unix socket addresses stay intact; libdatadog selects the signal route.
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
+        if global_endpoint.startswith("unix://"):
+            return global_endpoint
         return global_endpoint.rstrip("/") + ExporterConfig.METRICS_PATH
     # Agentless has no agent OTLP receiver to fall back on.
     if _targets_agentless_intake():

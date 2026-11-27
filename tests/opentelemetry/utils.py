@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import socket
+import socketserver
 from threading import Event
 from threading import Thread
 
@@ -13,7 +14,11 @@ def create_grpc_server(servicer, add_servicer_to_server, instrumented=True, port
     server_factory = grpc.server if instrumented else getattr(grpc.server, "__wrapped__", grpc.server)
     server = server_factory(futures.ThreadPoolExecutor(max_workers=1))
     add_servicer_to_server(servicer, server)
-    assert server.add_insecure_port("[::]:%d" % port) == port
+    address = port if isinstance(port, str) else "[::]:%d" % port
+    bound_port = server.add_insecure_port(address)
+    assert bound_port > 0
+    if isinstance(port, int):
+        assert bound_port == port
     return server
 
 
@@ -136,7 +141,11 @@ def _capture_http_requests(port, request_type=None, include_headers=False):
         def log_message(self, format_string, *args):
             pass
 
-    server = HTTPServer(("127.0.0.1", port), RequestHandler)
+    server = (
+        socketserver.UnixStreamServer(port, RequestHandler)
+        if isinstance(port, str)
+        else HTTPServer(("127.0.0.1", port), RequestHandler)
+    )
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

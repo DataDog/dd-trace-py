@@ -1,0 +1,5 @@
+fixes:
+  - |
+    tracing: Fixes an issue where importing ddtrace fails when OTLP trace export uses
+    gRPC with a Unix socket endpoint. On Unix, traces can be exported to
+    ``unix:///absolute/path/to/socket``.
