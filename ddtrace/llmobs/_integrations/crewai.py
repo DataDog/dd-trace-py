@@ -56,6 +56,9 @@ class CrewAIIntegration(BaseLLMIntegration):
         request_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
         if operation == "crew":
+            # Only LLM Observability reads and clears this bookkeeping, so skip it otherwise.
+            if not self.llmobs_enabled:
+                return
             crew_id = _get_crew_id(span, "crew")
             self._crews_to_task_span_ids[crew_id] = []
             self._crews_to_tasks[crew_id] = {}
@@ -153,7 +156,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         }
         computed_span_links = None
         if task_id:
-            span_links = self._crews_to_tasks[crew_id].get(str(task_id), {}).get("span_links", [])
+            span_links = self._crews_to_tasks.get(crew_id, {}).get(str(task_id), {}).get("span_links", [])
             parent_span = _get_nearest_llmobs_ancestor(span) if self._is_planning_task(span) else None
             if parent_span is not None:
                 span_link = _SpanLink(
