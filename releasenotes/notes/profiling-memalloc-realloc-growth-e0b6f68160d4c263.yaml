@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    profiling: Fixes the memory profiler sampling almost every step of a buffer that CPython grows by many small
+    ``realloc`` calls, such as ``str.translate`` with replacements longer than the replaced character on non-ASCII
+    text. Each ``realloc`` was charged with the buffer's full new size, so one call on a few megabytes of text could
+    take over a million samples, holding the GIL for seconds and reporting terabytes of allocations. A ``realloc``
+    of the block last reallocated is now charged only with what the block grew by, and a sampled block's
+    live sample follows it to its new address.
