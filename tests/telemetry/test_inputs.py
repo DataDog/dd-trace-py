@@ -29,7 +29,7 @@ class _Provider:
 
 
 def _declared_by(*names):
-    """Entry points of the library group declared by distributions ``names``, in path order."""
+    """Entry points declared by distributions ``names``, in path order."""
     return [
         (
             SimpleNamespace(value="provider", load=lambda: _Provider),
@@ -66,15 +66,16 @@ def test_reading_the_identity_does_not_load_the_entry_point(unresolved, monkeypa
 
 
 @pytest.mark.parametrize(
-    "declared,expected",
+    "primary,fallback,expected",
     [
-        pytest.param(("ddtrace-testing", "ddtrace"), "ddtrace", id="prefers-other-than-ddtrace-testing"),
-        pytest.param(("ddtrace_testing",), "ddtrace_testing", id="falls-back-to-ddtrace-testing"),
-        pytest.param(("first", "second"), "first", id="first-on-the-path"),
+        pytest.param(("first", "second"), (), "first", id="first-on-the-path"),
+        pytest.param(("primary",), ("fallback",), "primary", id="primary-beats-fallback"),
+        pytest.param((), ("fallback", "other"), "fallback", id="fallback-without-primary"),
     ],
 )
-def test_entry_point_choice(unresolved, monkeypatch, declared, expected):
-    monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: _declared_by(*declared))
+def test_entry_point_choice(unresolved, monkeypatch, primary, fallback, expected):
+    declared = {inputs.GROUP: _declared_by(*primary), inputs.FALLBACK_GROUP: _declared_by(*fallback)}
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: declared[group])
 
     assert inputs.get_library().name == expected
 
@@ -140,7 +141,7 @@ def test_importing_ddtrace_resolves_no_identity():
 
 
 @pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"})
-def test_enabled_telemetry_reads_the_identity_but_loads_no_attribution():
+def test_enabled_telemetry_loads_the_attribution_with_its_excepthook():
     import sys
 
     import ddtrace
@@ -148,12 +149,31 @@ def test_enabled_telemetry_reads_the_identity_but_loads_no_attribution():
     from ddtrace.internal.utils.version import version
 
     assert inputs._registered is None
-    assert inputs._attribution is None
-    assert "ddtrace._error_attribution" not in sys.modules
-    assert inputs.get_library() == ("ddtrace", ddtrace.__version__, version)
-
-    assert inputs.is_library_code("/site-packages/ddtrace/internal/x.py")
+    assert inputs._attribution is not None
     assert "ddtrace._error_attribution" in sys.modules
+    assert inputs.get_library() == ("ddtrace", ddtrace.__version__, version)
+    assert inputs.is_library_code("/site-packages/ddtrace/internal/x.py")
+
+
+@pytest.mark.subprocess(
+    env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true", "DD_TRACE_RATE_LIMIT": "not-an-int"},
+    err=None,
+)
+def test_errors_raised_while_importing_ddtrace_are_still_attributed():
+    import sys
+
+    try:
+        import ddtrace  # noqa: F401
+    except Exception:
+        pass
+    else:
+        raise AssertionError("importing ddtrace should have failed")
+    assert "ddtrace" not in sys.modules
+
+    from ddtrace.internal.telemetry import inputs
+
+    # What the excepthook asks, once the failed import has dropped ddtrace from sys.modules.
+    assert inputs.is_library_code("/site-packages/ddtrace/internal/settings/_config.py")
 
 
 @pytest.mark.parametrize(
