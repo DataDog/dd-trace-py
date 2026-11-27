@@ -184,20 +184,20 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
-        echion.prune_task_links(all_task_origins);
+        echion.prune_task_links(asyncio_loop, all_task_origins);
 
         // Determine the parent tasks from the gather links.
         std::transform(task_link_map.cbegin(),
                        task_link_map.cend(),
                        std::inserter(parent_tasks, parent_tasks.begin()),
-                       [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
+                       [](const auto& kv) { return kv.second.parent; });
 
         // Clean up the weak_task_link_map. Reuse the same all_task_origins set
-        echion.prune_weak_task_links(all_task_origins);
+        echion.prune_weak_task_links(asyncio_loop, all_task_origins);
 
         // Determine the parent tasks from the gather (strong) links.
         for (auto& link : task_link_map) {
-            auto parent = link.second;
+            auto parent = link.second.parent;
 
             // Check if the parent is actually the child of another Task
             auto is_child = weak_task_link_map.find(parent) != weak_task_link_map.end();
@@ -406,7 +406,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                 auto& weak_task_link_map = echion.weak_task_link_map();
 
                 if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
-                    if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
+                    if (auto maybe_origin = origin_map.find(maybe_parent->second.parent);
+                        maybe_origin != origin_map.end()) {
                         current_task = maybe_origin->second;
                         continue;
                     }
@@ -414,8 +415,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
                 // Check for weak links
                 if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
+                    origin_map.find(weak_task_link_map[task_origin].parent) != origin_map.end()) {
+                    current_task = origin_map.find(weak_task_link_map[task_origin].parent)->second;
                     continue;
                 }
             }

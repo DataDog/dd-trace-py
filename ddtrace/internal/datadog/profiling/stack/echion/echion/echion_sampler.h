@@ -43,9 +43,18 @@ class EchionSampler
     std::unordered_map<uintptr_t, ThreadInfo::Ptr> thread_info_map_;
     std::mutex thread_info_map_lock_;
 
-    // Task Link maps (Task -> Task relationships)
-    std::unordered_map<PyObject*, PyObject*> task_link_map_;
-    std::unordered_map<PyObject*, PyObject*> weak_task_link_map_;
+    struct TaskLink
+    {
+        PyObject* parent;
+        uintptr_t loop;
+        bool missing = false;
+        bool loop_missing = false;
+    };
+    using TaskLinkMap = std::unordered_map<PyObject*, TaskLink>;
+
+    // Task and loop pointers are borrowed addresses, never dereferenced. Guarded by task_link_map_lock_.
+    TaskLinkMap task_link_map_;
+    TaskLinkMap weak_task_link_map_;
     std::mutex task_link_map_lock_;
 
     // Greenlet maps
@@ -65,10 +74,6 @@ class EchionSampler
     // Task unwinding state
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
     std::optional<BoundaryFrame> uvloop_boundary_frame_;
-    // Linked children that were missing from the last Task snapshot. Always a subset of the keys of
-    // task_link_map_ and weak_task_link_map_ respectively. Guarded by task_link_map_lock_.
-    std::unordered_set<PyObject*> missing_link_children_;
-    std::unordered_set<PyObject*> missing_weak_link_children_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
     // (Sampler::sampling_thread) touches this. unwind_frame clears it on
@@ -146,62 +151,79 @@ class EchionSampler
     std::unordered_map<uintptr_t, ThreadInfo::Ptr>& thread_info_map() { return thread_info_map_; }
     std::mutex& thread_info_map_lock() { return thread_info_map_lock_; }
 
-    std::unordered_map<PyObject*, PyObject*>& task_link_map() { return task_link_map_; }
-    std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
+    TaskLinkMap& task_link_map() { return task_link_map_; }
+    TaskLinkMap& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
 
   private:
-    // Remove the links of children that are missing from two Task snapshots in a row. A child can be
-    // missing from one snapshot without having finished: it may have been created and linked after the
-    // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
-    // would detach it from its parent for the rest of its life.
-    // A child that finished before any snapshot saw it is missing from every snapshot, so it is removed
-    // as well. Requiring the child to have been seen first would keep such links forever.
-    static void prune_links(std::unordered_map<PyObject*, PyObject*>& links,
-                            std::unordered_set<PyObject*>& missing_children,
-                            const std::unordered_set<PyObject*>& live_task_origins)
+    // Remove children missing from two consecutive snapshots of their own loop. A child may have been
+    // created after the snapshot or missed by a lock-free read, so one miss must not detach its parent.
+    // Children never seen in a snapshot must also expire, including short-lived gather children.
+    static void prune_links(TaskLinkMap& links, uintptr_t loop, const std::unordered_set<PyObject*>& live_task_origins)
     {
         for (auto it = links.begin(); it != links.end();) {
-            PyObject* child = it->first;
-            if (live_task_origins.find(child) != live_task_origins.end()) {
-                missing_children.erase(child);
+            auto& link = it->second;
+            if (link.loop != loop) {
                 ++it;
-            } else if (missing_children.erase(child) > 0) {
+            } else if (live_task_origins.find(it->first) != live_task_origins.end()) {
+                link.missing = false;
+                ++it;
+            } else if (link.missing) {
                 it = links.erase(it);
             } else {
-                missing_children.insert(child);
+                link.missing = true;
+                ++it;
+            }
+        }
+    }
+
+    static void prune_inactive_loop_links(TaskLinkMap& links, const std::unordered_set<uintptr_t>& live_loops)
+    {
+        for (auto it = links.begin(); it != links.end();) {
+            auto& link = it->second;
+            const bool loop_missing = !live_loops.contains(link.loop);
+            if (loop_missing && link.loop_missing) {
+                it = links.erase(it);
+            } else {
+                link.loop_missing = loop_missing;
                 ++it;
             }
         }
     }
 
   public:
-    // Linking a child gives it the full grace period of prune_links, even if a finished Task at the same
-    // address was missing from the last snapshot.
+    // Linking again resets the grace period, including when a finished Task's address is reused.
     // The caller must hold task_link_map_lock_.
-    void link_task(PyObject* parent, PyObject* child)
+    void link_task(PyObject* parent, PyObject* child, uintptr_t loop)
     {
-        task_link_map_[child] = parent;
-        missing_link_children_.erase(child);
+        task_link_map_[child] = TaskLink{ parent, loop };
     }
 
     // The caller must hold task_link_map_lock_.
-    void weak_link_task(PyObject* parent, PyObject* child)
+    void weak_link_task(PyObject* parent, PyObject* child, uintptr_t loop)
     {
-        weak_task_link_map_[child] = parent;
-        missing_weak_link_children_.erase(child);
+        weak_task_link_map_[child] = TaskLink{ parent, loop };
     }
 
     // The caller must hold task_link_map_lock_.
-    void prune_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    void prune_task_links(uintptr_t loop, const std::unordered_set<PyObject*>& live_task_origins)
     {
-        prune_links(task_link_map_, missing_link_children_, live_task_origins);
+        prune_links(task_link_map_, loop, live_task_origins);
     }
 
     // The caller must hold task_link_map_lock_.
-    void prune_weak_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    void prune_weak_task_links(uintptr_t loop, const std::unordered_set<PyObject*>& live_task_origins)
     {
-        prune_links(weak_task_link_map_, missing_weak_link_children_, live_task_origins);
+        prune_links(weak_task_link_map_, loop, live_task_origins);
+    }
+
+    // Count two consecutive cycles without a live thread tracking this loop, independently of task snapshot
+    // misses. This also expires links if set_event_loop(None) leaves a running loop untracked for two cycles.
+    void prune_inactive_loop_task_links(const std::unordered_set<uintptr_t>& live_loops)
+    {
+        std::lock_guard<std::mutex> guard(task_link_map_lock_);
+        prune_inactive_loop_links(task_link_map_, live_loops);
+        prune_inactive_loop_links(weak_task_link_map_, live_loops);
     }
 
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
@@ -359,13 +381,11 @@ class EchionSampler
         // between asyncio Tasks).
         // However, this is the only way to safely continue working after fork.
         new (&thread_info_map_) std::unordered_map<uintptr_t, ThreadInfo::Ptr>();
-        new (&task_link_map_) std::unordered_map<PyObject*, PyObject*>();
-        new (&weak_task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&task_link_map_) TaskLinkMap();
+        new (&weak_task_link_map_) TaskLinkMap();
         new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
         new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
-        new (&missing_link_children_) std::unordered_set<PyObject*>();
-        new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
 
         asyncio_boundary_frame_.reset();
         uvloop_boundary_frame_.reset();
