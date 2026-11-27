@@ -89,6 +89,11 @@ def log_native_errors_to_a_file():
 
 
 def read_native_log(path):
+    """Flush and disable native file logging, then read the log and its rotated siblings."""
+    from ddtrace.internal.native._native import logger
+
+    # Dropping the file layer flushes and joins the non-blocking writer.
+    logger.disable("file")
     # The logger rotates files, so a message can sit in a rotated sibling of path.
     directory = os.path.dirname(path)
     contents = []
