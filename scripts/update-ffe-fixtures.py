@@ -47,15 +47,16 @@ def copy_fixture_file(source, destination):
     destination.chmod(0o644)
 
 
-def copy_fixture_snapshot(source, snapshot):
+def copy_evaluation_suite(source, snapshot, cases_name):
+    if source.is_symlink():
+        raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {source}")
     copy_fixture_file(source / "ufc-config.json", snapshot / "ufc-config.json")
-    cases_directory = source / "evaluation-cases"
+    cases_directory = source / cases_name
     if cases_directory.is_symlink():
         raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {cases_directory}")
     if not cases_directory.is_dir():
         raise ValueError("FFE fixture repository does not contain the expected fixture layout")
-
-    snapshot_cases = snapshot / "evaluation-cases"
+    snapshot_cases = snapshot / cases_name
     snapshot_cases.mkdir()
     snapshot_cases.chmod(0o755)
     for entry in sorted(cases_directory.iterdir()):
@@ -64,19 +65,29 @@ def copy_fixture_snapshot(source, snapshot):
         copy_fixture_file(entry, snapshot_cases / entry.name)
 
 
-def validate_fixture_snapshot(snapshot):
+def copy_fixture_snapshot(source, snapshot):
+    copy_evaluation_suite(source, snapshot, "evaluation-cases")
+    suites = source / "evaluation-suites"
+    if suites.is_symlink():
+        raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {suites}")
+    # Only copy suites exercised by the Python provider runner.
+    dependent = suites / "dependent-flags"
+    if dependent.exists() or dependent.is_symlink():
+        destination = snapshot / "evaluation-suites" / "dependent-flags"
+        destination.mkdir(parents=True)
+        copy_evaluation_suite(dependent, destination, "cases")
+
+
+def validate_evaluation_suite(snapshot, cases_name):
     config_path = snapshot / "ufc-config.json"
-    cases_directory = snapshot / "evaluation-cases"
+    cases_directory = snapshot / cases_name
     if not config_path.is_file() or not cases_directory.is_dir():
         raise ValueError("FFE fixture repository does not contain the expected fixture layout")
-
     with config_path.open(encoding="utf-8") as config_file:
         json.load(config_file)
-
     case_files = sorted(cases_directory.glob("*.json"))
     if not case_files:
         raise ValueError("No FFE JSON fixture files found")
-
     fixture_count = 0
     for case_file in case_files:
         with case_file.open(encoding="utf-8") as fixture_file:
@@ -84,11 +95,17 @@ def validate_fixture_snapshot(snapshot):
         if not isinstance(cases, list):
             raise ValueError(f"{case_file} must contain a JSON array of test cases")
         fixture_count += len(cases)
-
     if fixture_count == 0:
         raise ValueError("No FFE fixture test cases found")
-
     return fixture_count
+
+
+def validate_fixture_snapshot(snapshot):
+    count = validate_evaluation_suite(snapshot, "evaluation-cases")
+    dependent = snapshot / "evaluation-suites" / "dependent-flags"
+    if dependent.exists():
+        count += validate_evaluation_suite(dependent, "cases")
+    return count
 
 
 def relative_files(directory, excluded_files=frozenset()):

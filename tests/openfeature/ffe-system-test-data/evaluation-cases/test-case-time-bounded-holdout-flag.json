@@ -1,0 +1,110 @@
+[
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "frank",
+    "attributes": {},
+    "result": {
+      "value": "status-quo",
+      "reason": "SPLIT",
+      "serialId": 202,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "rupert",
+    "attributes": {},
+    "result": {
+      "value": "status-quo",
+      "reason": "SPLIT",
+      "serialId": 202,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "dave",
+    "attributes": {},
+    "result": {
+      "value": "shipped",
+      "reason": "SPLIT",
+      "serialId": 203,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "erin",
+    "attributes": {},
+    "result": {
+      "value": "shipped",
+      "reason": "SPLIT",
+      "serialId": 203,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "alice",
+    "attributes": {},
+    "result": {
+      "value": "shipped",
+      "reason": "STATIC",
+      "serialId": 204,
+      "doLog": false
+    }
+  },
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "bob",
+    "attributes": {},
+    "result": {
+      "value": "shipped",
+      "reason": "STATIC",
+      "serialId": 204,
+      "doLog": false
+    }
+  },
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "frank",
+    "attributes": {
+      "tier": "internal"
+    },
+    "result": {
+      "value": "targeted",
+      "reason": "TARGETING_MATCH",
+      "serialId": 201,
+      "doLog": false
+    }
+  },
+  {
+    "flag": "time-bounded-holdout-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "dave",
+    "attributes": {
+      "tier": "internal"
+    },
+    "result": {
+      "value": "targeted",
+      "reason": "TARGETING_MATCH",
+      "serialId": 201,
+      "doLog": false
+    }
+  }
+]

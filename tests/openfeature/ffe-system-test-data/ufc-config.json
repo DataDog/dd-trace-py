@@ -1047,6 +1047,137 @@
         }
       ]
     },
+    "time-bounded-holdout-flag": {
+      "key": "time-bounded-holdout-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "status-quo": {
+          "key": "status-quo",
+          "value": "status-quo"
+        },
+        "shipped": {
+          "key": "shipped",
+          "value": "shipped"
+        },
+        "targeted": {
+          "key": "targeted",
+          "value": "targeted"
+        }
+      },
+      "allocations": [
+        {
+          "key": "targeted-override",
+          "startAt": "2022-10-31T09:00:00.594Z",
+          "endAt": "2050-10-31T09:00:00.594Z",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "tier",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "internal"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "targeted",
+              "serialId": 201,
+              "shards": [
+                {
+                  "salt": "targeted-override",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": false
+        },
+        {
+          "key": "holdout-a",
+          "splits": [
+            {
+              "variationKey": "status-quo",
+              "shards": [
+                {
+                  "salt": "holdout-a-holdout-traffic",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 2560000
+                    }
+                  ],
+                  "totalShards": 5120000
+                },
+                {
+                  "salt": "holdout-a-holdout-split",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 5000
+                    }
+                  ],
+                  "totalShards": 10000
+                }
+              ],
+              "serialId": 202
+            },
+            {
+              "variationKey": "shipped",
+              "shards": [
+                {
+                  "salt": "holdout-a-holdout-traffic",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 2560000
+                    }
+                  ],
+                  "totalShards": 5120000
+                },
+                {
+                  "salt": "holdout-a-holdout-split",
+                  "ranges": [
+                    {
+                      "start": 5000,
+                      "end": 10000
+                    }
+                  ],
+                  "totalShards": 10000
+                }
+              ],
+              "serialId": 203
+            }
+          ],
+          "startAt": "2022-10-31T09:00:00.594Z",
+          "endAt": "2050-10-31T09:00:00.594Z",
+          "doLog": true,
+          "randomizationActivatedAt": "2022-10-31T09:00:00.594Z"
+        },
+        {
+          "key": "rollout",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "shipped",
+              "shards": [],
+              "serialId": 204
+            }
+          ],
+          "doLog": false
+        }
+      ]
+    },
     "null-operator-test": {
       "key": "null-operator-test",
       "enabled": true,

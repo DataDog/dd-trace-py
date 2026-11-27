@@ -52,12 +52,13 @@ def test_enable_rc_advertises_only_supported_evaluator_capabilities(has_rc_capab
     poller.enable_product.assert_called_once_with(_remoteconfiguration.FFE_FLAGS_PRODUCT)
 
 
-def test_current_evaluator_does_not_advertise_dependent_flags():
+def test_current_evaluator_advertises_dependent_flags():
     with mock.patch.object(_remoteconfiguration, "remoteconfig_poller") as poller:
         _remoteconfiguration.enable_featureflags_rc()
 
     assert poller.register_callback.call_args.kwargs["capabilities"] == [
-        _remoteconfiguration.RemoteConfigCapabilities.FfeFlagConfigurationRules
+        _remoteconfiguration.RemoteConfigCapabilities.FfeFlagConfigurationRules,
+        _remoteconfiguration.RemoteConfigCapabilities.FfeFlagDependentFlagVariantKeyV1,
     ]
 
 
