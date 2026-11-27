@@ -9,12 +9,6 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.coverage.patch import get_coverage_data
-from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.internal.coverage.patch import run_coverage_report
-from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.internal.unittest.constants import FRAMEWORK
@@ -53,6 +47,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.testing.internal.coverage_py.patch import get_coverage_data
+from ddtrace.testing.internal.coverage_py.patch import patch as patch_coverage
+from ddtrace.testing.internal.coverage_py.patch import run_coverage_report
+from ddtrace.testing.internal.coverage_py.patch import unpatch as unpatch_coverage
+from ddtrace.testing.internal.coverage_py.utils import _is_coverage_invoked_by_coverage_run
+from ddtrace.testing.internal.coverage_py.utils import _is_coverage_patched
 
 
 log = get_logger(__name__)
