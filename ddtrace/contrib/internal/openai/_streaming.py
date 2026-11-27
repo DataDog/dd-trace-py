@@ -1,10 +1,24 @@
+import collections
 from typing import Any
+
+from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
+
+
+def reconstruct_openai_chat(chunks: list[Any]) -> Any:
+    """Rebuild a {"choices": [{"message": ...}]} dict from buffered chunks, one message per choice index."""
+    by_choice: collections.OrderedDict[int, list[Any]] = collections.OrderedDict()
+    for chunk in chunks:
+        for choice in getattr(chunk, "choices", None) or []:
+            by_choice.setdefault(getattr(choice, "index", 0), []).append(choice)
+    return {
+        "choices": [
+            {"message": openai_construct_message_from_streamed_chunks(choices)} for choices in by_choice.values()
+        ]
+    }
 
 
 def _build_output_from_text_deltas(chunks: list[Any]) -> list[Any]:
-    """Last-resort reconstruction: concatenate ``response.output_text.delta`` events into one
-    assistant ``message`` item. Used only when no snapshot or ``output_item.done`` events exist.
-    """
+    """Last resort without a snapshot or output_item.done event: one assistant message from the text deltas."""
     text = "".join(
         str(getattr(c, "delta", ""))
         for c in chunks
@@ -16,9 +30,7 @@ def _build_output_from_text_deltas(chunks: list[Any]) -> list[Any]:
 
 
 def reconstruct_openai_responses(chunks: list[Any]) -> Any:
-    """Rebuild a ``{"output": [...]}`` dict from buffered events, preferring the terminal
-    ``response.completed``/``incomplete`` snapshot, then ``output_item.done``, then text deltas.
-    """
+    """Rebuild a {"output": [...]} dict from the terminal snapshot, else output_item.done, else the text deltas."""
     rebuilt = _reconstruct_output(chunks)
     # A saved prompt resolves its tools server-side; every response snapshot echoes them.
     tools = next(

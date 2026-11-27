@@ -264,12 +264,12 @@ def _openai_stream_created(client: AIGuardClient, events: StreamEvents) -> None:
     operation, kwargs = request
     enabled: EnabledFn = _stream_analysis_enabled
     if operation == _OPENAI_CHAT and analyze_streams:
-        from ddtrace.aiguard.integrations._openai_chat_streaming import reconstruct_openai_chat
+        from ddtrace.contrib.internal.openai._streaming import reconstruct_openai_chat
 
         reconstruct: ReconstructFn = reconstruct_openai_chat
         evaluate: EvaluateFn = partial(_openai_chat_completion_after, client, kwargs)
     elif operation == _OPENAI_RESPONSES and (analyze_streams or (_mcp_enabled() and _may_request_approval(kwargs))):
-        from ddtrace.aiguard.integrations._openai_responses_streaming import reconstruct_openai_responses
+        from ddtrace.contrib.internal.openai._streaming import reconstruct_openai_responses
 
         reconstruct = reconstruct_openai_responses
         if analyze_streams:

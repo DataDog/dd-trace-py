@@ -135,7 +135,7 @@ def test_chat_stream_collision_passthrough(mock_execute_request, openai_client_s
     mock_execute_request.assert_not_called()
 
 
-@patch("ddtrace.aiguard.integrations._openai_chat_streaming.openai_construct_message_from_streamed_chunks")
+@patch("ddtrace.contrib.internal.openai._streaming.openai_construct_message_from_streamed_chunks")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_chat_stream_reconstruction_failure_fails_open(
     mock_execute_request, mock_reconstruct, openai_client_stream_buffered
