@@ -17,19 +17,8 @@ class LiteLLMEvents(Enum):
 
 @dataclass
 class LiteLLMCallEvent(Event):
-    """Lifecycle event for one LiteLLM completion call.
-
-    Used with core.context_with_event inside the request context so products can subscribe
-    through ContextSubscriber[LiteLLMCallEvent]:
-    - on_started(ctx) runs before the provider call and may raise a DDBlockException to stop it.
-    - on_ended(ctx, exc_info) runs when the call returns or raises. For a non-streamed call that
-      succeeded, ctx.event.response holds the response; for a streamed call, ctx.event.stream is
-      True and ctx.event.response is None (the answer arrives later, chunk by chunk).
-    - on_ended does not run when on_started raises: a subscriber that blocks cleans up before raising.
-    - For a streamed call, on_ended runs once the stream is created and must not block, since the
-      caller would get no stream to close: block a stream in on_started.
-
-    Subscribers keep per-call state on the context (ctx.set_item / ctx.get_item).
+    """One LiteLLM completion call, for ContextSubscriber subscribers. on_ended does not run when
+    on_started raises, and must not block a stream: block in on_started.
     """
 
     event_name = LiteLLMEvents.CALL.value
