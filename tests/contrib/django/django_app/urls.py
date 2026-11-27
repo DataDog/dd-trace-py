@@ -93,10 +93,13 @@ urlpatterns = [
     handler(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     handler(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     handler(r"^404-view/$", views.not_found_view, name="404-view"),
+    handler(r"^404-class-view/$", views.NotFoundClassView.as_view(), name="404-class-view"),
+    handler(r"^error-class-view/$", views.ErrorClassView.as_view(), name="error-class-view"),
     handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
     handler(r"^alter-resource/$", views.alter_resource),
     handler(r"^identify/$", views.identify, name="identify"),
     handler(r"^async-view/$", views.AsyncView.as_view(), name="async-view"),
+    handler(r"^async-404-view/$", views.AsyncNotFoundView.as_view(), name="async-404-view"),
     handler(r"^async-fn-view/$", views.async_function_view, name="async-fn-view"),
     handler(r"^async-sleep/$", views.async_view_sleep, name="async-sleep"),
 ]

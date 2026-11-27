@@ -182,6 +182,16 @@ def not_found_view(request):
     raise Http404("DNE")
 
 
+class NotFoundClassView(View):
+    def get(self, request):
+        raise Http404("DNE")
+
+
+class ErrorClassView(View):
+    def get(self, request):
+        raise ValueError("cbv error")
+
+
 def identify(request):
     set_user(
         tracer,
@@ -198,6 +208,11 @@ def identify(request):
 class AsyncView(View):
     async def get(self, request):
         return HttpResponse("async response")
+
+
+class AsyncNotFoundView(View):
+    async def get(self, request):
+        raise Http404("DNE")
 
 
 async def async_function_view(request):

@@ -285,7 +285,11 @@ def _instrument_view(django, view):
 
             resource = f"{func_name(view)}.{name}"
             op_name = f"django.view.{name}"
-            trace_utils.wrap(view, name, traced_func(django, name=op_name, resource=resource))
+            trace_utils.wrap(
+                view,
+                name,
+                traced_func(django, name=op_name, resource=resource, ignored_excs=[django.http.Http404]),
+            )
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
 
@@ -345,7 +349,9 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     except Exception:
         log.debug("Failed to instrument Django view %r", instance, exc_info=True)
     view = func(*args, **kwargs)
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
+    return wrapt.FunctionWrapper(
+        view, traced_func(django, "django.view", resource=func_name(instance), ignored_excs=[django.http.Http404])
+    )
 
 
 @trace_utils.with_traced_module
