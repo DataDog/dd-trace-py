@@ -674,6 +674,11 @@ def gen_pre_checks() -> None:
         paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
     )
     check(
+        name="Check native Python imports",
+        command="scripts/lint native-import-check",
+        paths={"src/native/*", "scripts/check_native_python_imports.py", "scripts/lint"},
+    )
+    check(
         name="Check profiling native coverage",
         command="scripts/lint profiling-native-check",
         paths={
