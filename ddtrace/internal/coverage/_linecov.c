@@ -828,10 +828,14 @@ switch_to_instruction_events(CodeInfo* ci, PyCodeObject* co, const int32_t* posi
         if (keep) {
             m->per_instruction_tools[i] |= g_tool_bit;
         } else {
-            /* Back to its opcode before the switch, as if never instrumented. A superinstruction
+            /* Back to its opcode before the switch, as if never instrumented. A line start held
+               INSTRUMENTED_LINE then, which would keep running CPython's line handler with no tool
+               left on LINE events: its own opcode is the one the switch saved. A superinstruction
                would run the next instruction without its probe; the first instrumentation of the
                code object removed them, so this is only a guard. */
             uint8_t op = before[i];
+            if (op == g_instrumented_line)
+                op = m->per_instruction_opcodes[i];
             bytecode[2 * i] = g_superinstruction[op] ? g_deopt[op] : op;
             m->per_instruction_opcodes[i] = 0;
             m->per_instruction_tools[i] &= (uint8_t)~g_tool_bit;

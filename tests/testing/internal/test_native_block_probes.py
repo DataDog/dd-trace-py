@@ -378,6 +378,44 @@ def test_scenarios_in_successive_contexts() -> None:
     )
 
 
+def test_line_starts_without_probes_run_their_own_opcode() -> None:
+    """After the switch to block probes, a line start that is not a probe holds its own opcode, not
+    INSTRUMENTED_LINE, which would make CPython run its line handler there on every execution.
+    """
+    _run_isolated(
+        """
+        import dis
+        import types
+
+        INSTRUMENTED_LINE = dis.opmap["INSTRUMENTED_LINE"]
+        for n in range(4):
+            context = _linecov.Context()
+            previous = context.enter()
+            try:
+                for f in BLOCKS_NS["ALL"]:
+                    f(n)
+            finally:
+                context.exit(previous)
+
+        functions = []
+        for value in BLOCKS_NS.values():
+            members = vars(value).values() if isinstance(value, type) else [value]
+            functions += [f for f in members if isinstance(f, types.FunctionType) and f.__code__.co_filename == BLOCKS]
+        codes = [f.__code__ for f in functions if _linecov.probes(f.__code__) == 3]
+        assert len(codes) >= 10, [f.__name__ for f in functions]
+        without_probe = 0
+        for code in codes:
+            instructions = list(dis.get_instructions(code))
+            probes = {index for index, _, _ in _linecov.blocks(code)["probes"]}
+            starts = [ins for ins in instructions if ins.starts_line is not None]
+            without_probe += sum(1 for ins in starts if ins.offset // 2 not in probes)
+            left = [ins.offset for ins in instructions if code._co_code_adaptive[ins.offset] == INSTRUMENTED_LINE]
+            assert not left, (code.co_name, left)
+        assert without_probe > 0
+        """
+    )
+
+
 def test_blocks_describe_the_analysis() -> None:
     """blocks() lists each block's line starts, its immediate dominator and probe."""
     _run_isolated(
