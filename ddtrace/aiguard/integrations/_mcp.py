@@ -1,19 +1,16 @@
-"""MCP helpers for model SDK integrations: mcp_servers entries and their server_id fingerprint,
-the decisions taken on OpenAI hosted MCP approval requests, and the MCP SDK client transport capture.
+"""MCP helpers for model SDK integrations: mcp_servers entries, the decisions taken on OpenAI hosted MCP
+approval requests, and the MCP SDK client transport capture.
 """
 
 from collections import OrderedDict
+from collections.abc import Iterable
 from collections.abc import Sequence
-import enum
-import hashlib
 import ipaddress
 import re
 from types import ModuleType
 from typing import Any
-from typing import Literal
 from typing import NamedTuple
 from typing import Optional
-from typing import Union
 import unicodedata
 from urllib import parse
 from weakref import WeakKeyDictionary
@@ -37,32 +34,47 @@ from ddtrace.internal.wrapping import wrap
 logger = ddlogger.get_logger(__name__)
 
 
-# Schemes whose host the WHATWG URL Standard parses as a domain or an IP address.
-_SPECIAL_SCHEMES = frozenset(("http", "https", "ws", "wss", "ftp", "file"))
+# The WHATWG special schemes of MCP servers, whose host and path follow the WHATWG URL Standard.
+_SPECIAL_SCHEMES = frozenset(("http", "https", "ws", "wss"))
 # The full stops that IDNA treats as label separators.
 # The only non-ASCII host characters that are mapped: the WHATWG mapping of every other one cannot be
-# reproduced exactly here (for example IDNA deviations such as ß), so such a host gets no url key.
+# reproduced exactly here (for example IDNA deviations such as ß), so such a host gets no url.
 _MAPPED_TO_DOT = frozenset("\u3002\uff0e\uff61")
 _SOFT_HYPHEN = "\u00ad"
 # Characters that make the WHATWG host parser fail, after percent-decoding.
 _FORBIDDEN_HOST_CHARS = frozenset("\x00\t\n\r #%/:<>?@[\\]^|\x7f") | frozenset(map(chr, range(0x20)))
+# The WHATWG parser strips leading and trailing C0 controls and spaces, and removes tabs and newlines.
+_C0_CONTROL_OR_SPACE = "".join(map(chr, range(0x21)))
+_TAB_OR_NEWLINE = {ord("\t"): None, ord("\n"): None, ord("\r"): None}
+# Printable ASCII outside the WHATWG path percent-encode set, and the dot segments of a path.
+_PATH_SAFE = "".join(chr(code) for code in range(0x21, 0x7F) if chr(code) not in '"#<>?^`{}')
+_SINGLE_DOT = frozenset((".", "%2e"))
+_DOUBLE_DOT = frozenset(("..", ".%2e", "%2e.", "%2e%2e"))
 
 
-def mcp_url_origin(url: str) -> Optional[str]:
-    """Origin of a server URL for mcp_servers and the url key of the server ID; None to use the next key.
+def mcp_url(url: str) -> Optional[str]:
+    """URL of a server without userinfo, query or fragment; http, https, ws and wss follow the WHATWG URL Standard.
 
-    All tracers compute the same ID, so the host follows the WHATWG URL Standard: it is
-    percent-decoded, an IPv4 literal in any number form becomes its dotted quad and an IPv6 literal
-    its compressed form. Fullwidth ASCII forms, the ideographic full stops and the soft hyphen are mapped
-    to ASCII. Any other non-ASCII host, a host with an IDN (xn--) label and a host that the WHATWG
-    parser rejects give None.
+    Other schemes keep a lowercase host and the path as written. None for an IDN host or an ambiguous or invalid URL.
     """
+    url = url.strip(_C0_CONTROL_OR_SPACE).translate(_TAB_OR_NEWLINE)
     origin = url_origin(url)
     if origin is None:
         return None
+    parts = parse.urlsplit(url)
     scheme, _, netloc = origin.partition("://")
     if scheme not in _SPECIAL_SCHEMES:
-        return origin
+        # Whatever the scheme, an IDN host gets no url, as for http, https, ws and wss.
+        if not netloc.isascii():
+            return None
+        # url_origin lowercases the host only up to its first "%".
+        netloc = netloc.lower()
+        if any(label.startswith("xn--") for label in netloc.split(".")):
+            return None
+        return f"{scheme}://{netloc}{parts.path}"
+    if "\\" in parts.netloc:
+        # WHATWG ends the authority at a backslash and HTTP clients such as httpx do not: they reach different hosts.
+        return None
     # url_origin already lowercased the host, dropped a default port and bracketed an IPv6 host.
     host: Optional[str]
     if netloc.startswith("["):
@@ -76,7 +88,25 @@ def mcp_url_origin(url: str) -> Optional[str]:
         host = _canonical_domain(raw_host)
     if host is None:
         return None
-    return f"{scheme}://{host}:{port}" if port else f"{scheme}://{host}"
+    netloc = f"{host}:{port}" if port else host
+    return f"{scheme}://{netloc}{_whatwg_path(parts.path)}"
+
+
+def _whatwg_path(path: str) -> str:
+    """Path of a special-scheme URL: backslashes as slashes, dot segments resolved, percent-encoded, "/" if empty."""
+    segments: list[str] = []
+    parts = path.replace("\\", "/").split("/")[1:] or [""]
+    for index, part in enumerate(parts, 1):
+        lowered = part.lower()
+        if lowered not in _SINGLE_DOT and lowered not in _DOUBLE_DOT:
+            segments.append(parse.quote(part, safe=_PATH_SAFE))
+            continue
+        if lowered in _DOUBLE_DOT and segments:
+            segments.pop()
+        if index == len(parts):
+            # A dot segment at the end keeps the trailing slash.
+            segments.append("")
+    return "/" + "/".join(segments)
 
 
 def _canonical_domain(host: str) -> Optional[str]:
@@ -99,7 +129,7 @@ def _canonical_domain(host: str) -> Optional[str]:
 
 def _ascii_mapped(host: str) -> str:
     """The ASCII host that the WHATWG domain mapping gives for fullwidth ASCII forms, the ideographic
-    full stops and the soft hyphen; an empty string for any other non-ASCII host, which has no url key.
+    full stops and the soft hyphen; an empty string for any other non-ASCII host, which gets no url.
     """
     mapped = []
     for char in host:
@@ -184,49 +214,22 @@ def _canonical_ipv6(host: str) -> Optional[str]:
     return f"[{head}::{tail}]"
 
 
-def mcp_server_id(
-    url: Optional[str] = None,
-    connector_id: Optional[str] = None,
-    command: Optional[str] = None,
-    args: Sequence[str] = (),
-    name: Optional[str] = None,
-) -> Optional[str]:
-    """Deterministic server ID from the first known key among url, connector, stdio command and name.
-
-    The url key is its origin; transport, session and item IDs are left out so the ID stays stable.
-    """
-    origin = mcp_url_origin(url) if url else None
-    if origin:
-        key = f"url|{origin}"
-    elif connector_id:
-        key = f"connector|{connector_id}"
-    elif command:
-        key = "|".join(("stdio", command, *args))
-    elif name:
-        key = f"name|{name}"
-    else:
-        return None
-    return "mcp_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
-
-
 def mcp_server(
     managed_by: MCPManagedBy,
     transport: MCPTransport,
     name: Optional[str] = None,
     url: Optional[str] = None,
-    connector_id: Optional[str] = None,
     command: Optional[str] = None,
     args: Sequence[str] = (),
+    server_id: str = "mcp_1",
 ) -> Optional[MCPServer]:
-    """Build an mcp_servers entry with no tools yet; url is reported as its origin, command as its program name.
+    """An mcp_servers entry with no tools yet; None without a url, command or name to tell the server apart.
 
-    args must only hold safe identifiers (see safe_stdio_args); they are ignored without command.
+    server_id only joins it to the tool calls of its request (mcp_1 when alone); args hold safe identifiers only.
     """
-    url = mcp_url_origin(url) if url else None
+    url = mcp_url(url) if url else None
     command = (stdio_program(command) or None) if command else None
-    args = list(args) if command else []
-    server_id = mcp_server_id(url=url, connector_id=connector_id, command=command, args=args, name=name)
-    if server_id is None:
+    if not (url or command or name):
         return None
     server = MCPServer(id=server_id, managed_by=managed_by, transport=transport, tools={})
     if name:
@@ -236,7 +239,7 @@ def mcp_server(
     if command:
         server["command"] = command
         if args:
-            server["args"] = args
+            server["args"] = list(args)
     return server
 
 
@@ -283,35 +286,22 @@ def mcp_reference(server: MCPServer, tool_name: str, original_name: str) -> MCP:
     return MCP(server_id=server["id"])
 
 
-def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]) -> Optional[list[MCPServer]]:
-    """The servers the tool calls of messages reference, with only the tools they call; None if none.
-
-    Servers sharing an ID become one entry: the first server's fields, with the tools of all of them.
-    """
-    by_id: dict[str, MCPServer] = {}
-    tools_by_id: dict[str, dict[str, str]] = {}
-    for server in servers:
-        by_id.setdefault(server["id"], server)
-        known = tools_by_id.setdefault(server["id"], {})
-        for name, original_name in server["tools"].items():
-            known.setdefault(name, original_name)
-    called: dict[str, dict[str, str]] = {}
+def referenced_mcp_servers(messages: list[Message], servers: Iterable[MCPServer]) -> Optional[list[MCPServer]]:
+    """The servers the tool calls of messages reference, with only the tools they call; None if none."""
+    by_id = {server["id"]: server for server in servers}
+    called: dict[str, MCPServer] = {}
     for message in messages:
         for tool_call in message.get("tool_calls") or []:
-            mcp = tool_call.get("mcp")
-            server_id = mcp["server_id"] if mcp else None
-            tools = tools_by_id.get(server_id) if server_id else None
+            server = by_id.get(tool_call["mcp"]["server_id"]) if "mcp" in tool_call else None
             name = tool_call["function"]["name"]
-            if server_id and tools is not None and name in tools:
-                called.setdefault(server_id, {})[name] = tools[name]
-    if not called:
-        return None
-    result = []
-    for server_id, tools in called.items():
-        server = by_id[server_id].copy()
-        server["tools"] = tools
-        result.append(server)
-    return result
+            if server is None or name not in server["tools"]:
+                continue
+            entry = called.get(server["id"])
+            if entry is None:
+                entry = called[server["id"]] = server.copy()
+                entry["tools"] = {}
+            entry["tools"][name] = server["tools"][name]
+    return list(called.values()) or None
 
 
 def local_tool_call_id() -> str:
@@ -366,17 +356,8 @@ _TRANSPORTS = {
 }
 
 
-class _Unidentified(enum.Enum):
-    SERVER = 0
-
-
-# A server that a known transport reached, but that no ID key identifies (for example an IDN host). Its
-# tool calls still get the check, as ordinary tool calls without MCP metadata.
-UNIDENTIFIED_SERVER: Literal[_Unidentified.SERVER] = _Unidentified.SERVER
-SessionServer = Union[MCPServer, Literal[_Unidentified.SERVER]]
-
 # Server of the read stream a transport yielded, which the ClientSession built on it keeps.
-_servers_by_stream: "WeakKeyDictionary[Any, SessionServer]" = WeakKeyDictionary()
+_servers_by_stream: "WeakKeyDictionary[Any, MCPServer]" = WeakKeyDictionary()
 _wrapped_transports: list[tuple[Any, Any]] = []
 
 
@@ -388,9 +369,9 @@ def _stream_key(stream: Any) -> Any:
 def client_mcp_server(
     transport: MCPTransport, name: Any = None, url: Any = None, command: Any = None, args: Any = None
 ) -> Optional[MCPServer]:
-    """The mcp_servers entry of a client-managed server from its configuration; None if it cannot be identified.
+    """The mcp_servers entry of a client-managed server, the only server of its request; None if nothing tells it apart.
 
-    Remote servers report their URL origin and stdio servers their command and safe args; never headers or env.
+    Remote servers report their URL and stdio servers their command and safe args; never headers or env.
     """
     name = name if isinstance(name, str) and name else None
     if transport == "stdio":
@@ -402,7 +383,7 @@ def client_mcp_server(
 
 
 def _transport_server(transport: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[MCPServer]:
-    """Server of a transport call: the stdio command and safe args, or the URL origin. Never headers or env."""
+    """Server of a transport call: the stdio command and safe args, or the URL. Never headers or env."""
     if transport == "stdio_client":
         params = args[0] if args else kwargs.get("server")
         return client_mcp_server("stdio", command=getattr(params, "command", None), args=getattr(params, "args", None))
@@ -415,7 +396,7 @@ class _StreamsRecorder:
 
     __slots__ = ("_agen", "_server")
 
-    def __init__(self, agen: Any, server: SessionServer) -> None:
+    def __init__(self, agen: Any, server: MCPServer) -> None:
         self._agen = agen
         self._server = server
 
@@ -442,10 +423,9 @@ def _transport_capture(transport: str) -> Any:
         context_manager = f(*args, **kwargs)
         try:
             server = _transport_server(transport, args, kwargs)
-            # The generator asynccontextmanager drives; the transport itself runs unchanged.
-            context_manager.gen = _StreamsRecorder(
-                context_manager.gen, UNIDENTIFIED_SERVER if server is None else server
-            )
+            if server is not None:
+                # The generator asynccontextmanager drives; the transport itself runs unchanged.
+                context_manager.gen = _StreamsRecorder(context_manager.gen, server)
         except Exception:
             logger.debug("AI Guard MCP: failed to capture the %s parameters", transport, exc_info=True)
         return context_manager
@@ -486,12 +466,8 @@ def release_mcp_transports() -> None:
             logger.debug("AI Guard MCP: failed to unwrap %r", function, exc_info=True)
 
 
-def client_session_server(session: Any) -> Optional[SessionServer]:
-    """Server of an MCP ClientSession, from the transport that produced its read stream.
-
-    UNIDENTIFIED_SERVER when a known transport produced the stream but no key identifies its server, and
-    None when the session does not come from a known transport.
-    """
+def client_session_server(session: Any) -> Optional[MCPServer]:
+    """Server of an MCP ClientSession, from the transport that produced its read stream; None if it is unknown."""
     stream = getattr(session, "_read_stream", None)
     if stream is None:
         # mcp>=2 sessions keep their streams on their dispatcher.

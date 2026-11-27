@@ -28,7 +28,6 @@ except ImportError:
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
-from ddtrace.aiguard.integrations._mcp import mcp_server_id
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
 from ddtrace.contrib.internal.openai_agents import patch as openai_agents_patch
 from ddtrace.internal.module import ModuleWatchdog
@@ -37,14 +36,15 @@ from tests.aiguard.utils import override_ai_guard_config
 
 
 EXECUTE_REQUEST = "ddtrace.aiguard._api_client.AIGuardClient._execute_request"
-ATLASSIAN_ID = mcp_server_id(url="https://mcp.example.com")
+# Each MCP tool call is evaluated with its own server, the only one of its request.
+ATLASSIAN_ID = "mcp_1"
 ATLASSIAN_SERVER = {
     "id": ATLASSIAN_ID,
     "managed_by": "client",
     "transport": "streamable_http",
     "tools": {"atlassian_search_issues": "search_issues"},
     "name": "atlassian",
-    "url": "https://mcp.example.com",
+    "url": "https://mcp.example.com/mcp",
 }
 
 
@@ -125,13 +125,15 @@ def test_agent_driven_call_is_evaluated_once_with_its_server(mock_execute_reques
 
 
 @patch(EXECUTE_REQUEST)
-def test_server_id_is_stable_across_connections(mock_execute_request):
+def test_each_connection_reports_its_url_path(mock_execute_request):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     _invoke(_atlassian_server())
     _invoke(_atlassian_server(url="https://mcp.example.com/other-path?session=2"))
 
-    assert [_mcp_servers(mock_execute_request, i)[0]["id"] for i in range(2)] == [ATLASSIAN_ID, ATLASSIAN_ID]
+    first, second = (_mcp_servers(mock_execute_request, i)[0] for i in range(2))
+    assert (first["id"], first["url"]) == (ATLASSIAN_ID, "https://mcp.example.com/mcp")
+    assert (second["id"], second["url"]) == (ATLASSIAN_ID, "https://mcp.example.com/other-path")
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"])
@@ -252,9 +254,8 @@ def test_same_tool_on_two_servers_keeps_each_identity(mock_execute_request):
     _invoke(_atlassian_server(url="https://wiki.example.com:8443/mcp", name="confluence"))
 
     first, second = (_mcp_servers(mock_execute_request, i)[0] for i in range(2))
-    assert (first["name"], first["url"]) == ("jira", "https://mcp.example.com")
-    assert (second["name"], second["url"]) == ("confluence", "https://wiki.example.com:8443")
-    assert first["id"] != second["id"]
+    assert (first["name"], first["url"]) == ("jira", "https://mcp.example.com/mcp")
+    assert (second["name"], second["url"]) == ("confluence", "https://wiki.example.com:8443/mcp")
 
 
 @patch(EXECUTE_REQUEST)
@@ -269,7 +270,7 @@ def test_stdio_server_reports_only_the_launched_package(mock_execute_request):
     payload = json.dumps(mock_execute_request.call_args_list[-1].args[1])
     assert _mcp_servers(mock_execute_request) == [
         {
-            "id": mcp_server_id(command="uvx", args=["mcp-server"]),
+            "id": "mcp_1",
             "managed_by": "client",
             "transport": "stdio",
             "tools": {"atlassian_search_issues": "search_issues"},
@@ -291,8 +292,8 @@ def test_generated_server_name_is_not_reported(mock_execute_request):
     payload = json.dumps(mock_execute_request.call_args_list[-1].args[1])
     (server_entry,) = _mcp_servers(mock_execute_request)
     assert "name" not in server_entry
-    assert (server_entry["transport"], server_entry["url"]) == ("sse", "https://sse.example.com")
-    for secret in ("secret", "key=abc", "Bearer", "sse.example.com/sse"):
+    assert (server_entry["transport"], server_entry["url"]) == ("sse", "https://sse.example.com/sse")
+    for secret in ("secret", "key=abc", "Bearer", '"sse: '):
         assert secret not in payload
 
 
