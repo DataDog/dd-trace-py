@@ -13,6 +13,10 @@ distributions that declare entry points. Two kinds of input reach it.
 - The code roots and the integration resolver are the code_roots and integration_of attributes of the
   entry point's object. The object is loaded when the excepthook is installed (see load_attribution).
 
+Only ddtrace's own distributions (ddtrace, ddtrace-serverless, ddtrace-internal and ddtrace-testing) and module
+namespaces may provide the library: other entry points are ignored with a warning, as the module is executed while
+ddtrace imports.
+
 A distribution that only wants to report when no other library is installed declares its entry point in the
 ddtrace_internal.library.fallback group instead. The first entry point of the primary group wins; the fallback
 group is consulted only when that one is empty. register_library() overrides the entry points, for tests and
@@ -50,15 +54,13 @@ log = get_logger(__name__)
 
 GROUP = "ddtrace_internal.library"
 PROVIDERS_GROUP = "ddtrace_internal.telemetry_providers"
+# Loading the library's entry point or a telemetry provider executes its module while ddtrace is importing, so,
+# like the settings registry, only ddtrace's own distributions and module namespaces may provide either: an
+# unrelated installed distribution must not run code merely because ddtrace starts.
+_TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless", "ddtrace-internal", "ddtrace-testing"})
+_TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace.", "_ddtrace_internal."})
 # Entry points of this group are used only when no distribution declares one in GROUP.
 FALLBACK_GROUP = "ddtrace_internal.library.fallback"
-
-# Only ddtrace's own distributions may provide telemetry: providers are loaded during an ordinary
-# `import ddtrace` (the import-time configuration report, when telemetry is enabled), so a malicious
-# third-party distribution declaring an entry point here would execute its code in every instrumented
-# process. Mirrors the registry's trust boundary in ddtrace.internal.settings.env.
-_TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless", "ddtrace-internal"})
-_TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace.", "_ddtrace_internal."})
 
 
 def _no_integration(filename: str) -> Optional[str]:
@@ -126,12 +128,28 @@ def register_library(
         _registered = (Library(name, version, product_version), _Attribution(tuple(code_roots), integration_of))
 
 
+def _trusted_entry_points(group: str) -> list[tuple["EntryPoint", "Distribution"]]:
+    """Return the entry points of group that a trusted distribution declares, in path order."""
+    trusted = []
+    for entry_point, dist in entry_points_with_distributions(group):
+        if is_trusted_entry_point(entry_point, dist, _TRUSTED_DISTRIBUTIONS, _TRUSTED_MODULE_PREFIXES):
+            trusted.append((entry_point, dist))
+        else:
+            log.warning(
+                "Refusing to use the %s entry point %r of the untrusted distribution %r",
+                group,
+                entry_point.value,
+                distribution_name(dist),
+            )
+    return trusted
+
+
 def _find_entry_point() -> Optional[tuple["EntryPoint", "Distribution"]]:
     global _entry_point, _entry_point_looked_up
 
     if not _entry_point_looked_up:
         try:
-            found = entry_points_with_distributions(GROUP) or entry_points_with_distributions(FALLBACK_GROUP)
+            found = _trusted_entry_points(GROUP) or _trusted_entry_points(FALLBACK_GROUP)
         except Exception:
             # Malformed metadata of any installed distribution makes the scan raise; that must not break startup.
             log.debug("Failed to look up the %s entry points", GROUP, exc_info=True)
@@ -223,7 +241,7 @@ def get_providers() -> tuple[Any, ...]:
     # first.
     if _providers is None:
         try:
-            declared = entry_points_with_distributions(PROVIDERS_GROUP)
+            declared = _trusted_entry_points(PROVIDERS_GROUP)
         except Exception:
             # Broken installed metadata, e.g. a hand-edited or half-written entry_points.txt, must not keep the
             # library importing telemetry from starting. Degrade the way the settings registry does: no provider,
@@ -231,16 +249,7 @@ def get_providers() -> tuple[Any, ...]:
             log.debug("Failed to list the %s entry points: no provider applies", PROVIDERS_GROUP, exc_info=True)
             declared = []
         providers = []
-        for entry_point, dist in sorted(declared, key=lambda ep: ep[0].name):
-            if not is_trusted_entry_point(entry_point, dist, _TRUSTED_DISTRIBUTIONS, _TRUSTED_MODULE_PREFIXES):
-                log.warning(
-                    "Refusing to load %s entry point '%s' from untrusted distribution '%s' (module: %s)",
-                    PROVIDERS_GROUP,
-                    entry_point.name,
-                    distribution_name(dist),
-                    entry_point.value,
-                )
-                continue
+        for entry_point, _ in sorted(declared, key=lambda ep: ep[0].name):
             try:
                 providers.append(entry_point.load())
             except Exception:
