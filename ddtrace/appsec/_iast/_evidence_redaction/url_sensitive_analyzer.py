@@ -83,6 +83,21 @@ def find_query_string_matches(
         log.debug("Error applying query string pattern to URL evidence", exc_info=True)
 
 
+def _merge_ranges(ranges: list[dict[str, int]]) -> list[dict[str, int]]:
+    if len(ranges) <= 1:
+        return ranges
+    ranges.sort(key=lambda r: (r["start"], r["end"]))
+    merged = [ranges[0]]
+    for current in ranges[1:]:
+        last = merged[-1]
+        if current["start"] <= last["end"]:
+            if current["end"] > last["end"]:
+                last["end"] = current["end"]
+        else:
+            merged.append(current)
+    return merged
+
+
 def url_sensitive_analyzer(
     evidence: Evidence,
     name_pattern: Optional[re.Pattern[str]] = None,
@@ -106,4 +121,4 @@ def url_sensitive_analyzer(
     find_query_fragment(ranges, evidence)
     # Apply query string pattern for synchronization with span-level redaction
     find_query_string_matches(ranges, evidence, query_string_pattern)
-    return ranges
+    return _merge_ranges(ranges)

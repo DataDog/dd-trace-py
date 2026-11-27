@@ -32,7 +32,9 @@ def header_injection_sensitive_analyzer(
     if evidence_value is None:
         return []
 
-    header_name, _, header_value = evidence_value.partition(HEADER_NAME_VALUE_SEPARATOR)
+    header_name, separator, header_value = evidence_value.partition(HEADER_NAME_VALUE_SEPARATOR)
+    if not separator or not header_value:
+        return []
 
     if (
         len(header_value) > MAX_REDACTION_VALUE_LENGTH

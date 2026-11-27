@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: Fixes an issue where sensitive values could remain unredacted in reported
+    vulnerability evidence for PostgreSQL dollar-quoted SQL literals and URL query strings.

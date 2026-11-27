@@ -280,15 +280,39 @@ class TestURLSensitiveAnalyzerQueryString:
                 "".join(part.get("value", "<redacted>") for part in redacted["redacted_value_parts"]) == expected_value
             )
 
-        # Should have ranges for both query fragment matching and query string pattern matching
+        # Should have sorted, non-overlapping ranges covering all sensitive parts
         assert len(ranges) > 0
+        for prev, curr in zip(ranges, ranges[1:]):
+            assert prev["end"] < curr["start"]
 
-        # Verify ranges cover sensitive parts
-        assert any(
-            evidence.value[r["start"] : r["end"]] in expected
-            for r in ranges
-            if r["start"] < len(evidence.value) and r["end"] <= len(evidence.value)
+        for secret in expected:
+            assert any(
+                secret in evidence.value[r["start"] : r["end"]]
+                for r in ranges
+                if r["start"] < len(evidence.value) and r["end"] <= len(evidence.value)
+            )
+
+        redacted_full = SensitiveHandler().to_redacted_json(evidence.value, ranges.copy(), [], [])
+        plain_full = "".join(part["value"] for part in redacted_full["redacted_value_parts"] if "value" in part)
+        for secret in expected:
+            assert secret not in plain_full
+
+    def test_url_analyzer_merges_and_sorts_query_string_ranges(self, iast_context_defaults):
+        """Query string obfuscation matches must be sorted and merged with query fragment ranges."""
+        from ddtrace.appsec._iast._evidence_redaction.url_sensitive_analyzer import url_sensitive_analyzer
+
+        handler = SensitiveHandler()
+        url = "http://example.com?token=s3cr3t"
+        ranges = url_sensitive_analyzer(
+            Evidence(value=url),
+            handler._name_pattern,
+            handler._value_pattern,
+            handler._query_string_pattern,
         )
+
+        assert ranges == [{"start": 19, "end": 31}]
+        redacted = handler.to_redacted_json(url, ranges, [], [])
+        assert redacted["redacted_value_parts"] == [{"value": "http://example.com?"}, {"redacted": True}]
 
     def test_url_analyzer_without_query_string(self, iast_context_defaults):
         """Test URL analyzer with URL that has no query string."""
