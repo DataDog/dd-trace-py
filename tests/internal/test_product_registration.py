@@ -29,6 +29,8 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
         event.response_status_code = 201
     assert span.finished
     assert span.get_tag("http.status_code") == "201"
+    assert span.get_tag("http.url") == "http://localhost/"
+    assert span.get_tag("http.method") == "GET"
     assert test_spans.pop() == [span]
 
 
@@ -47,16 +49,19 @@ def test_tracing_initialization_supports_manual_instrumentation() -> None:
     assert "ddtrace._trace.product" not in sys.modules
     assert "ddtrace.contrib" not in sys.modules
     assert "ddtrace._trace.trace_handlers" not in sys.modules
+    assert "ddtrace._trace._registration" not in sys.modules
     assert "ddtrace._trace.subscribers" not in sys.modules
     assert "ddtrace._trace.http_meta" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
+    assert not core.has_listeners("context.started.web.response.wsgi")
     assert not core.has_listeners("context.exception")
 
     import ddtrace.contrib  # noqa: F401
 
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("context.started.web.response.wsgi")
     assert core.has_listeners("context.exception")
 
 
@@ -88,6 +93,7 @@ def test_tracing_product_start_registers_unloaded_subscribers() -> None:
     product.start()
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("context.started.web.response.wsgi")
     assert core.has_listeners("context.exception")
 
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
@@ -114,10 +120,11 @@ def test_tracing_product_start_registers_unloaded_subscribers() -> None:
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
-def test_subscriber_package_import_does_not_activate_web_bundle() -> None:
+def test_subscriber_package_import_activates_manual_request_bundles() -> None:
     import ddtrace._trace.subscribers  # noqa: F401
     from ddtrace.internal import core
 
-    assert not core.has_listeners("context.started.web.request")
-    assert not core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("context.started.web.request")
+    assert core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("context.started.web.response.wsgi")
     assert not core.has_listeners("context.exception")

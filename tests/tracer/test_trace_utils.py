@@ -18,6 +18,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
@@ -1782,3 +1783,60 @@ def test_otel_client_semantics_disabled_by_default(int_config):
         "error.type",
     ):
         assert span.get_tag(otel_name) is None, otel_name
+
+
+@pytest.mark.parametrize("otel", [False, True])
+def test_set_http_meta_response_only_preserves_request_attributes(span: Span, int_config: Config, otel: bool) -> None:
+    attributes = {
+        "http.method": "REDACTED",
+        "http.request.method": "REDACTED",
+        "http.url": "redacted",
+        "url.path": "/redacted",
+        "http.route": "/redacted",
+        "http.client_ip": "redacted",
+        "client.address": "redacted",
+        "http.request.headers.x-private": "redacted",
+    }
+    for name, value in attributes.items():
+        span._set_attribute(name, value)
+    span.resource = "custom-resource"
+    int_config.myint.http.trace_headers(["x-private", "x-final"])
+    calls: list[tuple[object, ...]] = []
+
+    def capture(*args: object) -> None:
+        calls.append(args)
+
+    previous_error_statuses = config._http_server.error_statuses
+    config._http_server.error_statuses = "500-599"
+    core.on("set_http_meta_for_asm", capture)
+    try:
+        with (
+            override_global_config(dict(_otel_trace_semantics_enabled=otel, _retrieve_client_ip=True)),
+            core.context_with_data("test.response_metadata") as ctx,
+        ):
+            ctx.set_item("http.request.remote_ip", "203.0.113.9")
+            trace_utils.set_http_meta(
+                span,
+                int_config.myint,
+                method="GET",
+                url="http://localhost/private",
+                raw_uri="/private",
+                route="/private",
+                query="private=value",
+                request_headers={"x-private": "private"},
+                peer_ip="203.0.113.8",
+                status_code=503,
+                status_msg="Unavailable",
+                response_headers={"x-final": "response"},
+                response_only=True,
+            )
+    finally:
+        config._http_server.error_statuses = previous_error_statuses
+        core.reset_listeners("set_http_meta_for_asm", capture)
+    for name, value in attributes.items():
+        assert span._get_attribute(name) == value, name
+    assert span.resource == "custom-resource" and span.error == 1
+    assert str(span._get_attribute("http.response.status_code" if otel else "http.status_code")) == "503"
+    assert span.get_tag("http.status_msg") == "Unavailable"
+    assert span.get_tag("http.response.headers.x-final") == "response"
+    assert calls == []

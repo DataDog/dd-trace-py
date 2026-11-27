@@ -1,24 +1,32 @@
 from collections.abc import Iterator
+from contextvars import ContextVar
 import os
+from typing import Any
+from typing import Callable
+from typing import Optional
 from unittest import mock
 
 import pytest
-from pytest_mock import MockerFixture
 from webtest import TestApp
 
 from ddtrace import config
-from ddtrace._trace.trace_handlers import _TracedIterable
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.wsgi import wsgi as wsgi_module
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
+from ddtrace.contrib.internal.wsgi.wsgi import _WSGIResponseIterable
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from ddtrace.internal import core
+from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import Span
 from ddtrace.trace import tracer as global_tracer
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
@@ -260,6 +268,66 @@ def test_middleware(tracer, test_spans):
     assert spans[0].error == 1
 
 
+@pytest.mark.parametrize("otel", [False, True])
+@pytest.mark.parametrize("metadata", ["valid", "invalid_status", "invalid_headers"])
+@pytest.mark.parametrize("server_fails", [False, True])
+def test_start_response_metadata_does_not_change_server_callback(
+    tracer: Any, test_spans: Any, otel: bool, metadata: str, server_fails: bool
+) -> None:
+    status = "not-a-code Example" if metadata == "invalid_status" else "200 OK"
+    headers: Any = [("broken",)] if metadata == "invalid_headers" else [("Content-Type", "text/plain")]
+    calls: list[tuple[str, list[tuple[str, str]], Any]] = []
+    writes: list[bytes] = []
+    server_write = writes.append
+    callback_exc_info: ExcInfoType = (RuntimeError, RuntimeError("application retry"), None)
+    server_error = ValueError("server callback failure")
+
+    def start_response(
+        received_status: str, received_headers: list[tuple[str, str]], exc_info: Any
+    ) -> Callable[[bytes], None]:
+        calls.append((received_status, received_headers, exc_info))
+        if server_fails:
+            raise server_error
+        return server_write
+
+    def app(environ: dict[str, Any], respond: Any) -> list[bytes]:
+        write = respond(status, headers, callback_exc_info)
+        assert write is server_write
+        write(b"written")
+        return [b"body"]
+
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    with override_global_config(dict(_otel_trace_semantics_enabled=otel)):
+        middleware = DDWSGIMiddleware(app)
+        if server_fails:
+            with pytest.raises(ValueError, match="server callback failure") as raised:
+                middleware(environ, start_response)
+            assert raised.value is server_error
+        else:
+            response = middleware(environ, start_response)
+            assert list(response) == [b"body"]
+            response.close()
+            assert writes == [b"written"]
+
+    assert calls == [(status, headers, callback_exc_info)]
+    assert calls[0][0] is status
+    assert calls[0][1] is headers
+    assert calls[0][2] is callback_exc_info
+    spans = test_spans.pop()
+    assert all(span.finished for span in spans)
+    request_span = next(span for span in spans if span.name == "wsgi.request")
+    assert request_span.error == int(server_fails)
+    status_key = "http.response.status_code" if otel else "http.status_code"
+    observed_status = request_span._get_attribute(status_key)
+    assert (str(observed_status) if observed_status is not None else None) == ("200" if status == "200 OK" else None)
+
+
 def test_otel_semantics_keeps_method_resource_before_response_on_exception(tracer, test_spans):
     observed_resources = []
 
@@ -356,6 +424,204 @@ def test_http_request_header_tracing(tracer, test_spans):
         config.wsgi.http._reset()
 
 
+@pytest.mark.parametrize("otel", [False, True])
+@pytest.mark.parametrize("remove", [False, True])
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close", "stream_error", "close_error", "application_error"])
+def test_request_tag_overrides_survive_completion(
+    tracer: Any, test_spans: Any, otel: bool, remove: bool, terminal: str
+) -> None:
+    roots: list[Span] = []
+    failure = RuntimeError(terminal)
+    keys = (
+        ["http.request.method", "url.path", "url.scheme", "url.query", "server.address", "server.port"]
+        if otel
+        else ["http.method", "http.url", "http.query.string"]
+    ) + ["http.request.headers.x-private"]
+    client_key = "client.address" if otel else "http.client_ip"
+    response_keys = ["http.response.headers.x-final", "custom.response.header"]
+
+    def redact(span: Span, names: list[str]) -> None:
+        for name in names:
+            if remove:
+                span._remove_attribute(name)
+            else:
+                span._set_attribute(name, "redacted")
+
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        roots.append(span)
+        for name in keys:
+            assert span._get_attribute(name) is not None, name
+        redact(span, keys)
+        span.resource = "custom-request"
+
+    class Response:
+        def __init__(self) -> None:
+            self.index = 0
+
+        def __iter__(self) -> "Response":
+            return self
+
+        def __next__(self) -> bytes:
+            self.index += 1
+            if self.index == 1:
+                return b"first"
+            if terminal == "stream_error":
+                raise failure
+            if self.index == 2:
+                return b"second"
+            raise StopIteration
+
+        def close(self) -> None:
+            if terminal == "close_error":
+                raise failure
+
+    def app(environ: dict[str, Any], start_response: Callable[..., Any]) -> Response:
+        if terminal == "application_error":
+            raise failure
+        start_response("201 Created", [("X-Final", "response"), ("X-Custom", "custom")])
+        assert [roots[0]._get_attribute(key) for key in response_keys] == ["response", "custom"]
+        redact(roots[0], response_keys)
+        # Completion must not recalculate request IP after application redaction.
+        core.current.set_item("http.request.remote_ip", "203.0.113.9")
+        redact(roots[0], [client_key])
+        return Response()
+
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/private/value",
+        "QUERY_STRING": "private=value",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+        "HTTP_X_PRIVATE": "private-header",
+    }
+    with (
+        override_global_config(dict(_otel_trace_semantics_enabled=otel, _retrieve_client_ip=True)),
+        override_http_config(
+            "wsgi",
+            dict(
+                _header_tags={"x-custom": "custom.response.header"},
+                trace_query_string=True,
+                trace_headers=["x-private", "x-final"],
+            ),
+        ),
+    ):
+        middleware = DDWSGIMiddleware(app, span_modifier=modifier)
+        if terminal == "application_error":
+            with pytest.raises(RuntimeError) as raised:
+                middleware(environ, lambda *args: None)
+            assert raised.value is failure
+        else:
+            response = middleware(environ, lambda *args: None)
+            expected = None if remove else "redacted"
+            assert all(roots[0]._get_attribute(name) == expected for name in keys + [client_key])
+            assert next(response) == b"first"
+            if terminal == "stream_error":
+                with pytest.raises(RuntimeError) as raised:
+                    next(response)
+                assert raised.value is failure
+            elif terminal == "exhaustion":
+                assert list(response) == [b"second"]
+            if terminal == "close_error":
+                with pytest.raises(RuntimeError) as raised:
+                    response.close()
+                assert raised.value is failure
+            else:
+                response.close()
+        assert len(roots) == 1
+        root = roots[0]
+        assert root.finished and root.resource == "custom-request"
+        expected = None if remove else "redacted"
+        for name in keys:
+            assert root._get_attribute(name) == expected, name
+        if terminal != "application_error":
+            assert root._get_attribute(client_key) == expected
+            status_key = "http.response.status_code" if otel else "http.status_code"
+            assert str(root._get_attribute(status_key)) == "201"
+            for key in response_keys:
+                assert root._get_attribute(key) == expected, key
+        assert all(span.finished for span in test_spans.pop())
+
+
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
+def test_manual_wsgi_with_deferred_tracer_initialization() -> None:
+    import sys
+    from typing import Any
+    from typing import cast
+
+    import ddtrace  # noqa: F401
+
+    assert "ddtrace.trace" not in sys.modules
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from ddtrace.internal.products import manager
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    assert manager._products is None
+    calls = []
+
+    def write(data: bytes) -> None:
+        pass
+
+    def app(environ, start_response):
+        assert start_response("200 OK", [("Content-Type", "text/plain")]) is write
+        return [b"first", b"second"]
+
+    def start_response(status, headers, exc_info=None):
+        calls.append((status, headers))
+        return write
+
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    writer = DummyWriter()
+    tracer._span_aggregator.writer = cast(Any, writer)
+    try:
+        with tracer.trace("caller") as caller:
+            response = DDWSGIMiddleware(app)(environ, start_response)
+            assert tracer.current_root_span() is caller
+            assert list(response) == [b"first", b"second"]
+            response.close()
+            assert tracer.current_span() is caller
+        spans = [span for trace in writer.pop_traces() for span in trace]
+        (root,) = [span for span in spans if span.name == "wsgi.request"]
+        assert root.parent_id == caller.span_id
+        for name in ("wsgi.application", "wsgi.response"):
+            (child,) = [span for span in spans if span.name == name]
+            assert child.parent_id == root.span_id
+        assert all(span.finished for span in spans)
+    finally:
+        tracer.shutdown()
+    assert len(calls) == 1
+    assert manager._products is None
+
+
+def test_completion_preserves_legacy_user_agent_lookup(tracer, test_spans) -> None:
+    entry_header_modes: list[bool] = []
+
+    def started(ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        entry_header_modes.append(ctx.event.headers_case_sensitive)
+
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    core.on("context.started.web.request.wsgi", started)
+    try:
+        response = app.get("/", headers={"User-Agent": "test-user-agent"})
+    finally:
+        core.reset_listeners("context.started.web.request.wsgi", started)
+
+    assert response.status_int == 200
+    assert entry_header_modes == [True]
+    request_span = test_spans.pop()[0]
+    assert request_span.name == "wsgi.request"
+    # Legacy WSGI metadata lookup does not add this tag from title-cased headers.
+    assert request_span.get_tag("http.useragent") is None
+
+
 def test_http_response_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-response-header"])
     try:
@@ -371,6 +637,30 @@ def test_http_response_header_tracing(tracer, test_spans):
         config.wsgi.http._reset()
 
 
+def test_span_modifier_http_tags_survive_completion(tracer: Any, test_spans: Any) -> None:
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        span._set_attribute("http.url", "http://localhost/redacted")
+        span._set_attribute("http.method", "REDACTED")
+        span._set_attribute("http.query.string", "redacted")
+
+    config.wsgi.http.trace_headers(["my-header"])
+    try:
+        with override_http_config("wsgi", dict(trace_query_string=True)):
+            app = TestApp(DDWSGIMiddleware(application, tracer=tracer, span_modifier=modifier))
+            response = app.get("/?secret=value", headers={"my-header": "test_value"})
+    finally:
+        config.wsgi.http._reset()
+
+    assert response.status_int == 200
+    request_span = test_spans.pop()[0]
+    assert request_span.name == "wsgi.request"
+    assert request_span.get_tag("http.url") == "http://localhost/redacted"
+    assert request_span.get_tag("http.method") == "REDACTED"
+    assert request_span.get_tag("http.query.string") == "redacted"
+    assert request_span.get_tag("http.request.headers.my-header") == "test_value"
+    assert request_span.get_tag("http.status_code") == "200"
+
+
 def test_service_name_can_be_overriden(tracer, test_spans):
     with override_config("wsgi", dict(service_name="test-override-service")):
         app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
@@ -381,6 +671,87 @@ def test_service_name_can_be_overriden(tracer, test_spans):
         assert len(spans) > 0
         span = spans[0][0]
         assert span.service == "test-override-service"
+
+
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close", "stream_error", "application_error"])
+def test_service_override_survives_deferred_completion(tracer: Any, test_spans: Any, terminal: str) -> None:
+    roots: list[Span] = []
+    sources: list[Any] = []
+
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        span.service = "custom-request-service"
+        roots.append(span)
+        sources.append(span.get_tag(_SERVICE_SOURCE))
+
+    def app(environ: dict[str, Any], start_response: Any) -> Iterator[bytes]:
+        if terminal == "application_error":
+            raise RuntimeError("application failure")
+        start_response("200 OK", [])
+
+        def generate() -> Iterator[bytes]:
+            yield b"first"
+            if terminal == "stream_error":
+                raise RuntimeError("stream failure")
+            yield b"second"
+
+        return generate()
+
+    middleware = DDWSGIMiddleware(app, span_modifier=modifier)
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    if terminal == "application_error":
+        with pytest.raises(RuntimeError, match="application failure"):
+            middleware(environ, lambda *args: None)
+    else:
+        response = middleware(environ, lambda *args: None)
+        assert roots[0].service == "custom-request-service"
+        assert next(response) == b"first"
+        if terminal == "stream_error":
+            with pytest.raises(RuntimeError, match="stream failure"):
+                next(response)
+        elif terminal == "exhaustion":
+            # Mapping changes must not reinterpret an explicit live span override at finish.
+            with override_global_config(dict(service_mapping={"custom-request-service": "late-mapped-service"})):
+                assert list(response) == [b"second"]
+        response.close()
+
+    spans = test_spans.pop()
+    request_span = roots[0]
+    assert request_span.finished
+    assert request_span.service == "custom-request-service"
+    assert request_span.get_tag(_SERVICE_SOURCE) == sources[0]
+    assert request_span.error == int(terminal == "application_error")
+    # The start_response helper has an explicitly configured service; application
+    # and response spans inherit the customized request service.
+    children = [span for span in spans if span.name in ("wsgi.application", "wsgi.response")]
+    assert all(span.service == request_span.service for span in children)
+    response_spans = [span for span in spans if span.name == "wsgi.response"]
+    assert len(response_spans) == int(terminal != "application_error")
+    if response_spans:
+        assert response_spans[0].parent_id == request_span.span_id
+
+
+def test_other_web_requests_still_resolve_service_at_completion(tracer: Any, test_spans: Any) -> None:
+    DDWSGIMiddleware(application)
+    event = WebFrameworkRequestEvent(
+        component="wsgi",
+        integration_config=config.wsgi,
+        http_operation="other.request",
+        request_method="GET",
+        request_url="http://localhost/",
+        request_headers={},
+        headers_case_sensitive=False,
+        service="initial-service",
+    )
+    with core.context_with_event(event) as ctx:
+        ctx.set_item("service", "resolved-at-completion")
+    request_span = test_spans.pop()[0]
+    assert request_span.service == "resolved-at-completion"
 
 
 def test_generator_exit_ignored(tracer, test_spans):
@@ -534,16 +905,12 @@ class _ClosableIterable:
         self.closed = True
 
 
-def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes(mocker: MockerFixture) -> None:
+def test_wsgi_response_iterable_completes_once_and_forwards_attributes() -> None:
     wrapped = _ClosableIterable([b"one", b"two"])
-    parent_span = Span("wsgi.request")
-    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
-    finish = mocker.spy(Span, "finish")
-    iterable = _TracedIterable(wrapped, span, parent_span, wrapped_is_iterator=True)
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(wrapped, completions.append, wrapped_is_iterator=True)
 
-    assert not span.finished
-    assert not parent_span.finished
-
+    assert completions == []
     assert iterable.__wrapped__ is wrapped
     assert iterable.__class__ is _ClosableIterable
     assert isinstance(iterable, _ClosableIterable)
@@ -554,45 +921,253 @@ def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes(mocker: Moc
     assert not hasattr(wrapped, "custom_attribute")
     assert not hasattr(iterable, "__len__"), "WSGI iterables should not expose __len__"
     assert list(iterable) == [b"one", b"two"]
-    assert span.finished
-    assert parent_span.finished
-    assert span.error == 0
-    assert parent_span.error == 0
-    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
-
+    assert not wrapped.closed
+    assert completions == [(None, None, None)]
     iterable.close()
-    assert wrapped.closed
-    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+    assert bool(wrapped.closed)
+    iterable.close()
+    assert completions == [(None, None, None)]
+    with pytest.raises(StopIteration):
+        next(iterable)
 
 
-def test_wsgi_traced_iterable_finishes_spans_on_error(mocker: MockerFixture) -> None:
+@pytest.mark.parametrize("wrapped_is_iterator", [False, True])
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close"])
+def test_wsgi_response_iterable_closes_returned_iterable(wrapped_is_iterator: bool, terminal: str) -> None:
+    close_calls: list[str] = []
+
+    class GeneratorBackedResponse:
+        def __iter__(self) -> Iterator[bytes]:
+            try:
+                yield b"one"
+                yield b"two"
+            finally:
+                close_calls.append("iterator")
+
+        def close(self) -> None:
+            close_calls.append("response")
+
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(
+        GeneratorBackedResponse(), completions.append, wrapped_is_iterator=wrapped_is_iterator
+    )
+    if terminal == "exhaustion":
+        assert list(iterable) == [b"one", b"two"]
+        assert close_calls == ["iterator"]
+    else:
+        assert next(iterable) == b"one"
+    iterable.close()
+
+    # PEP 3333: the server's close() must reach the object the application returned.
+    assert close_calls == ["iterator", "response"]
+    assert completions == [(None, None, None)]
+
+
+def test_wsgi_response_iterable_closes_returned_iterable_when_iterator_close_fails() -> None:
+    close_calls: list[str] = []
+
+    class FailingIterator:
+        def __iter__(self) -> "FailingIterator":
+            return self
+
+        def __next__(self) -> bytes:
+            raise StopIteration
+
+        def close(self) -> None:
+            raise RuntimeError("iterator close failure")
+
+    class Response:
+        def __iter__(self) -> FailingIterator:
+            return FailingIterator()
+
+        def close(self) -> None:
+            close_calls.append("response")
+
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(Response(), completions.append)
+    with pytest.raises(RuntimeError, match="iterator close failure"):
+        iterable.close()
+
+    assert close_calls == ["response"]
+    assert len(completions) == 1
+    assert completions[0][0] is RuntimeError
+
+
+def test_wsgi_response_iterable_reports_error_once() -> None:
     error = RuntimeError("test error")
 
     def raising_iterable() -> Iterator[bytes]:
         yield b"one"
         raise error
 
-    parent_span = Span("wsgi.request")
-    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
-    finish = mocker.spy(Span, "finish")
-    iterable = _TracedIterable(raising_iterable(), span, parent_span)
-
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(raising_iterable(), completions.append)
     assert next(iterable) == b"one"
-    assert not span.finished
-    assert not parent_span.finished
+    assert completions == []
     with pytest.raises(RuntimeError, match="test error") as exc_info:
         next(iterable)
-
     assert exc_info.value is error
-    assert span.error == 1
-    assert span.get_tag(ERROR_TYPE) == "builtins.RuntimeError"
-    assert span.get_tag(ERROR_MSG) == "test error"
-    assert "raising_iterable" in span.get_tag(ERROR_STACK)
-    assert "RuntimeError: test error" in span.get_tag(ERROR_STACK)
-    assert parent_span.error == 0
-    assert span.finished
-    assert parent_span.finished
-    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+    assert len(completions) == 1
+    assert completions[0][0] is RuntimeError
+    assert completions[0][1] is error
+    assert completions[0][2] is not None
+    iterable.close()
+    assert len(completions) == 1
+
+
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close", "close_error", "stream_error"])
+def test_wsgi_shared_request_lifecycle_through_response(tracer, test_spans, terminal: str) -> None:
+    contexts: list[core.ExecutionContext[WebFrameworkRequestEvent]] = []
+    phases: list[str] = []
+    completions: list[ExcInfoType] = []
+    close_calls: list[None] = []
+    finish_order: list[str] = []
+    chunks: list[Any] = []
+    error = RuntimeError("response failed")
+
+    response_contexts: list[core.ExecutionContext[Any]] = []
+
+    def request_started(ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        contexts.append(ctx)
+
+    def response_started(ctx: core.ExecutionContext[Any]) -> None:
+        assert ctx.parent is contexts[0]
+        response_contexts.append(ctx)
+
+    def request_ended(ctx: core.ExecutionContext[WebFrameworkRequestEvent], exc_info: ExcInfoType) -> None:
+        assert ctx is contexts[0]
+        completions.append(exc_info)
+        phases.append("response_completed")
+
+    def application_returned(ctx: core.ExecutionContext[WebFrameworkRequestEvent], exc_info: ExcInfoType) -> None:
+        assert ctx is contexts[0]
+        assert exc_info == (None, None, None)
+        assert not span_from_context(ctx).finished
+        phases.append("application_returned")
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            phases.append("iteration_started")
+            with global_tracer.trace("stream.chunk") as chunk:
+                chunks.append(chunk)
+            yield b"one"
+            if terminal == "stream_error":
+                raise error
+            yield b"two"
+
+        def close(self) -> None:
+            close_calls.append(None)
+            if terminal == "close_error":
+                raise error
+
+    def streaming_application(environ: dict[str, Any], start_response: Any) -> Response:
+        start_response("200 OK", [("Content-Type", "text/plain")])
+        return Response()
+
+    middleware = DDWSGIMiddleware(streaming_application, app_is_iterator=True)
+    listeners = (
+        ("context.started.web.request.wsgi", request_started),
+        ("context.ended.web.request.wsgi", request_ended),
+        ("context.started.web.response.wsgi", response_started),
+        ("wsgi.application.returned", application_returned),
+    )
+    for event_name, callback in listeners:
+        core.on(event_name, callback)
+    try:
+        response = middleware(
+            {
+                "REQUEST_METHOD": "GET",
+                "PATH_INFO": "/stream",
+                "QUERY_STRING": "",
+                "SERVER_NAME": "localhost",
+                "SERVER_PORT": "80",
+                "wsgi.url_scheme": "http",
+            },
+            lambda *args: None,
+        )
+        assert len(contexts) == 1
+        ctx = contexts[0]
+        request_span = span_from_context(ctx)
+        response_span = span_from_context(response_contexts[0])
+        app_span = ctx.get_item("app_span")
+        response_span._on_finish_callbacks.append(lambda span: finish_order.append("response"))
+        request_span._on_finish_callbacks.append(lambda span: finish_order.append("request"))
+        assert phases == ["application_returned"]
+        assert not request_span.finished
+        assert not response_span.finished
+        assert app_span.finished
+        assert app_span.parent_id == request_span.span_id
+        assert response_span.parent_id == request_span.span_id
+        assert completions == []
+        assert next(response) == b"one"
+        assert phases == ["application_returned", "iteration_started"]
+        assert not request_span.finished
+        assert not response_span.finished
+        assert chunks[0].parent_id == response_span.span_id
+
+        if terminal == "exhaustion":
+            assert next(response) == b"two"
+            assert not request_span.finished
+            with pytest.raises(StopIteration):
+                next(response)
+        elif terminal == "stream_error":
+            with pytest.raises(RuntimeError, match="response failed") as raised:
+                next(response)
+            assert raised.value is error
+        elif terminal == "close_error":
+            with pytest.raises(RuntimeError, match="response failed") as raised:
+                response.close()
+            assert raised.value is error
+        else:
+            response.close()
+
+        assert all(span.finished for span in (request_span, response_span))
+        assert request_span.error == 0
+        assert app_span.error == 0
+        assert finish_order == ["response", "request"]
+        assert request_span.get_tag("http.status_code") == "200"
+        # Response failures end the response context; the request context ends cleanly.
+        assert completions == [(None, None, None)]
+        assert phases.count("response_completed") == 1
+        if terminal in ("stream_error", "close_error"):
+            assert response_span.error == 1
+            assert response_span.get_tag(ERROR_TYPE) == "builtins.RuntimeError"
+            assert response_span.get_tag(ERROR_MSG) == "response failed"
+            assert "RuntimeError: response failed" in (response_span.get_tag(ERROR_STACK) or "")
+        else:
+            assert response_span.error == 0
+        if terminal in ("exhaustion", "stream_error"):
+            assert close_calls == []
+        response.close()
+        response.close()
+        assert close_calls == [None]
+        assert finish_order == ["response", "request"]
+        assert len(completions) == 1
+        spans = test_spans.pop()
+        assert sum(span.name == "wsgi.request" for span in spans) == 1
+        assert sum(span.name == "wsgi.response" for span in spans) == 1
+    finally:
+        for event_name, callback in listeners:
+            core.reset_listeners(event_name, callback)
+
+
+def test_wsgi_response_iterable_close_can_reenter() -> None:
+    closed: list[None] = []
+    completions: list[ExcInfoType] = []
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            return iter([b"one"])
+
+        def close(self) -> None:
+            closed.append(None)
+            response.close()
+
+    response = _WSGIResponseIterable(Response(), completions.append, wrapped_is_iterator=True)
+    response.close()
+    response.close()
+    assert closed == [None]
+    assert completions == [(None, None, None)]
 
 
 @pytest.mark.parametrize(
@@ -932,3 +1507,143 @@ def test_otel_semantics_server_span_attributes():
         assert_otel_server_span(
             span, method="GET", status=200, path="/ok", query="q=1", resource="GET", client_attributes=False
         )
+
+
+@pytest.mark.parametrize("preserve_context", [None, "werkzeug.debug.preserve_context", "flask._preserve_context"])
+def test_wsgi_does_not_publish_context_switches_without_switching(preserve_context: Optional[str], tracer: Any) -> None:
+    value: ContextVar[str] = ContextVar("wsgi_context_switch", default="caller")
+    notifications: list[str] = []
+
+    original_dispatch = core.dispatch
+
+    def dispatch(event_name: str, *args: Any, **kwargs: Any) -> Any:
+        # Count manual publication, excluding native watcher events on Python 3.14+.
+        if event_name == PYTHON_CONTEXT_SWITCH_EVENT:
+            notifications.append(value.get())
+        return original_dispatch(event_name, *args, **kwargs)
+
+    def application(environ: dict[str, Any], start_response: Any) -> Iterator[bytes]:
+        value.set("request")
+        start_response("200 OK", [])
+        return iter([b"one", b"two"])
+
+    environ: dict[str, Any] = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/stream",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    if preserve_context:
+        environ[preserve_context] = True
+    middleware = DDWSGIMiddleware(application)
+    token = value.set("caller")
+    try:
+        with mock.patch.object(core, "dispatch", side_effect=dispatch):
+            response = middleware(environ, lambda *args: None)
+            assert next(response) == b"one"
+            response.close()
+            response.close()
+        assert notifications == []
+        assert value.get() == "request"
+    finally:
+        value.reset(token)
+
+
+def test_wsgi_preserves_application_context_for_outer_middleware(tracer: Any, test_spans: Any) -> None:
+    value: ContextVar[str] = ContextVar("wsgi_outer_middleware", default="caller")
+    roots: list[Span] = []
+    tokens: list[Any] = []
+    caller_token = value.set("outer")
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            assert value.get() == "outer-bound"
+            value.set("stream")
+            yield b"one"
+
+        def close(self) -> None:
+            assert value.get() in ("application", "stream")
+            value.reset(tokens[0])
+
+    def app(environ: dict[str, Any], start_response: Any) -> Response:
+        value.reset(caller_token)
+        tokens.append(value.set("application"))
+        start_response("200 OK", [])
+        return Response()
+
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        roots.append(span)
+
+    middleware = DDWSGIMiddleware(app, span_modifier=modifier)
+    response = middleware(
+        {
+            "REQUEST_METHOD": "GET",
+            "PATH_INFO": "/",
+            "SERVER_NAME": "localhost",
+            "SERVER_PORT": "80",
+            "wsgi.url_scheme": "http",
+        },
+        lambda *args: None,
+    )
+    try:
+        assert value.get() == "application"
+        root = tracer.current_root_span()
+        assert root is roots[0]
+        root.set_tag("outer.middleware", "observed")
+        value.set("outer-bound")
+        assert next(response) == b"one"
+        assert value.get() == "stream"
+    finally:
+        response.close()
+    assert value.get() == "caller"
+    assert roots[0].get_tag("outer.middleware") == "observed"
+    assert all(span.finished for span in test_spans.pop())
+
+
+@pytest.mark.parametrize("phase", ["iterator", "response_modifier"])
+def test_wsgi_response_setup_errors_mark_request(tracer: Any, test_spans: Any, phase: str) -> None:
+    class Failure(BaseException):
+        pass
+
+    failure = RuntimeError("response setup failed") if phase == "iterator" else Failure("response setup failed")
+    roots: list[Span] = []
+    responses: list[Span] = []
+    finished: list[str] = []
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            raise failure
+
+    class Middleware(DDWSGIMiddleware):
+        def _response_span_modifier(self, span: Span, response: Any) -> None:
+            responses.append(span)
+            span._on_finish_callbacks.append(lambda _: finished.append("response"))
+            if phase == "response_modifier":
+                raise failure
+
+    def app(environ: dict[str, Any], start_response: Any) -> Response:
+        start_response("200 OK", [])
+        return Response()
+
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        roots.append(span)
+        span._on_finish_callbacks.append(lambda _: finished.append("request"))
+
+    middleware = Middleware(app, span_modifier=modifier)
+    with pytest.raises(type(failure)) as raised:
+        middleware(
+            {
+                "REQUEST_METHOD": "GET",
+                "PATH_INFO": "/",
+                "SERVER_NAME": "localhost",
+                "SERVER_PORT": "80",
+                "wsgi.url_scheme": "http",
+            },
+            lambda *args: None,
+        )
+    assert raised.value is failure
+    assert roots[0].error == 1
+    assert responses[0].error == 1
+    assert finished == ["response", "request"]
+    assert all(span.finished for span in test_spans.pop())

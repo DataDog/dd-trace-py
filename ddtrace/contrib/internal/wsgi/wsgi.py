@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import sys
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -8,6 +9,9 @@ from typing import Iterable
 from typing import Optional
 
 from ddtrace._trace.http_tags import set_instrumentation_resource
+from ddtrace.contrib._events.web_framework import WSGIRequestEvent
+from ddtrace.contrib._events.web_framework import WSGIResponseEvent
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 
@@ -60,6 +64,100 @@ def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
 
 
+class _WSGIResponseIterable:
+    """Report response completion without owning tracing or security resources."""
+
+    __slots__ = (
+        "__wrapped__",
+        "_iterator",
+        "_on_complete",
+        "_completed",
+        "_closed",
+        "_close",
+        "_iterator_close",
+    )
+
+    def __init__(
+        self,
+        wrapped: Iterable[Any],
+        on_complete: Callable[[ExcInfoType], None],
+        wrapped_is_iterator: bool = False,
+    ) -> None:
+        # PERF: set slots directly; __setattr__ forwards other names to the wrapped object.
+        _set = object.__setattr__
+        iterator = iter(wrapped)
+        _set(self, "_iterator", iterator)
+        _set(self, "__wrapped__", wrapped if wrapped_is_iterator else iterator)
+        _set(self, "_on_complete", on_complete)
+        _set(self, "_completed", False)
+        _set(self, "_closed", False)
+        # PEP 3333 requires calling close() on the iterable the application returned,
+        # which differs from the iterator when its __iter__ returns a new object.
+        # That iterator (usually a generator) is still closed so it exits promptly.
+        _set(self, "_close", getattr(wrapped, "close", None))
+        _set(self, "_iterator_close", getattr(iterator, "close", None) if iterator is not wrapped else None)
+
+    def __iter__(self) -> _WSGIResponseIterable:
+        return self
+
+    def __next__(self) -> Any:
+        # PERF: no completed check per chunk; an exhausted or closed iterator raises
+        # StopIteration again, and _complete only reports the first completion.
+        try:
+            return next(self._iterator)
+        except StopIteration:
+            self._complete()
+            raise
+        except BaseException:
+            self._complete(sys.exc_info())
+            raise
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        object.__setattr__(self, "_closed", True)
+        exc_info: ExcInfoType = (None, None, None)
+        try:
+            try:
+                if self._iterator_close is not None:
+                    self._iterator_close()
+            finally:
+                if self._close is not None:
+                    self._close()
+        except BaseException:
+            exc_info = sys.exc_info()
+            raise
+        finally:
+            self._complete(exc_info)
+
+    def _complete(self, exc_info: ExcInfoType = (None, None, None)) -> None:
+        if not self._completed:
+            object.__setattr__(self, "_completed", True)
+            self._on_complete(exc_info)
+
+    @property  # type: ignore[misc]
+    def __class__(self) -> type[Any]:
+        return self.__wrapped__.__class__
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "__len__":
+            # WSGI iterables must not expose the wrapped object's length.
+            raise AttributeError("__len__ is not supported")
+        return getattr(self.__wrapped__, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in self.__slots__:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self.__wrapped__, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in self.__slots__:
+            object.__delattr__(self, name)
+        else:
+            delattr(self.__wrapped__, name)
+
+
 class _DDWSGIMiddlewareBase:
     """Base WSGI middleware class.
 
@@ -71,7 +169,7 @@ class _DDWSGIMiddlewareBase:
 
     def __init__(
         self,
-        application: Iterable[Any],
+        application: Callable[..., Iterable[Any]],
         tracer: Optional[Tracer],
         int_config: Config,
         app_is_iterator: bool = False,
@@ -102,101 +200,167 @@ class _DDWSGIMiddlewareBase:
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def __call__(self, environ: Iterable[Any], start_response: Callable[..., Any]) -> Iterable[Any]:
+    def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> _WSGIResponseIterable:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
-
         headers = get_request_headers(environ)
+        event = WSGIRequestEvent(
+            component=self._config.integration_name,
+            integration_config=self._config,
+            http_operation=(
+                self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name
+            ),
+            request_method="",
+            request_url="",
+            request_headers=headers,
+            headers_case_sensitive=True,
+            query=None,
+            service=trace_utils.int_service(None, self._config),
+            activate_distributed_headers=True,
+            measured=False,
+        )
+        ctx = core.context_with_event(event, dispatch_end_event=False)
+        # Span processors consume these values synchronously during subscriber span creation.
+        ctx.set_items(
+            {
+                "remote_addr": environ.get("REMOTE_ADDR"),
+                "distributed_headers": environ,
+                "environ": environ,
+                "middleware": self,
+                "span_key": "req_span",
+            }
+        )
+        original_start_response = start_response
+
+        def report_start_response(
+            status: str, response_headers: list[tuple[str, str]], *args: Any, **kwargs: Any
+        ) -> Any:
+            # Observe the final response after framework/security adaptations.
+            try:
+                event.response_status_code = int(status.split(" ", 1)[0])
+                event.response_headers = dict(response_headers)
+            except Exception:
+                log.debug("Failed to collect WSGI response metadata", exc_info=True)
+            return original_start_response(status, response_headers, *args, **kwargs)
+
+        start_response = report_start_response
         closing_iterable = ()
         not_blocked = True
-        with core.context_with_data(
-            "wsgi.__call__",
-            remote_addr=environ.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            service=trace_utils.int_service(None, self._config),
-            span_type=SpanTypes.WEB,
-            span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
-            middleware_config=self._config,
-            integration_config=self._config,
-            distributed_headers=environ,
-            environ=environ,
-            middleware=self,
-            span_key="req_span",
-            activate_distributed_headers=True,
-        ) as ctx:
-            ctx.set_item("wsgi.construct_url", construct_url)
+        application_exc_info: ExcInfoType = (None, None, None)
+        response_ctx: Optional[core.ExecutionContext[WSGIResponseEvent]] = None
 
-            def blocked_view():
-                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                    "wsgi.block.started", (ctx, construct_url)
-                ).status_headers_content
-                if result:
-                    status, headers, content = result.value
-                else:
-                    status, headers, content = 403, [], ""
-                return content, status, headers
+        def complete(exc_info: ExcInfoType) -> None:
+            try:
+                if response_ctx is not None:
+                    response_ctx.dispatch_ended_event(*exc_info)
+            finally:
+                # Response failures belong to the response span only.
+                ctx.dispatch_ended_event()
 
-            if get_blocked():
-                content, status, headers = blocked_view()
-                start_response(str(status), headers)
-                closing_iterable = [content]
-                not_blocked = False
+        with ctx:
+            try:
+                ctx.set_item("wsgi.construct_url", construct_url)
 
-            core.dispatch("wsgi.block_decided", (blocked_view,))
-            stop_iteration_exception = None
+                def blocked_view():
+                    result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                        "wsgi.block.started", (ctx, construct_url)
+                    ).status_headers_content
+                    if result:
+                        status, headers, content = result.value
+                    else:
+                        status, headers, content = 403, [], ""
+                    return content, status, headers
 
-            if not_blocked:
-                core.dispatch("wsgi.request.prepare", (ctx, start_response))
-                try:
-                    closing_iterable = self.app(environ, ctx.find_item("intercept_start_response"))
-                except BlockingException as e:
-                    set_blocked(e.args[0])
+                if get_blocked():
                     content, status, headers = blocked_view()
                     start_response(str(status), headers)
                     closing_iterable = [content]
-                    core.dispatch("wsgi.app.exception", (ctx,))
-                except StopIteration as e:
-                    """
-                    WSGI frameworks emit `StopIteration` when closing connections
-                    with Gunicorn as part of their standard workflow.  We don't want to mark
-                    these as errors for the UI since they are standard and expected
-                    to be caught later.
+                    not_blocked = False
 
-                    Here we catch the exception and close out the request/app spans through the non-error
-                    handling pathways.
-                    """
-                    stop_iteration_exception = e
-                except BaseException as exc:
-                    # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
-                    if blocking_exc := find_exception(exc, BlockingException):
-                        set_blocked(blocking_exc.args[0])
+                core.dispatch("wsgi.block_decided", (blocked_view,))
+                stop_iteration_exception = None
+
+                if not_blocked:
+                    core.dispatch("wsgi.request.prepare", (ctx, start_response))
+                    try:
+                        closing_iterable = self.app(environ, ctx.find_item("intercept_start_response"))
+                    except BlockingException as e:
+                        set_blocked(e.args[0])
                         content, status, headers = blocked_view()
                         start_response(str(status), headers)
                         closing_iterable = [content]
                         core.dispatch("wsgi.app.exception", (ctx,))
+                    except StopIteration as e:
+                        """
+                        WSGI frameworks emit `StopIteration` when closing connections
+                        with Gunicorn as part of their standard workflow.  We don't want to mark
+                        these as errors for the UI since they are standard and expected
+                        to be caught later.
+
+                        Here we catch the exception and close out the request/app spans through the non-error
+                        handling pathways.
+                        """
+                        stop_iteration_exception = e
+                    except BaseException as exc:
+                        # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                        if blocking_exc := find_exception(exc, BlockingException):
+                            set_blocked(blocking_exc.args[0])
+                            content, status, headers = blocked_view()
+                            start_response(str(status), headers)
+                            closing_iterable = [content]
+                            core.dispatch("wsgi.app.exception", (ctx,))
+                        else:
+                            core.dispatch("wsgi.app.exception", (ctx,))
+                            raise
                     else:
-                        core.dispatch("wsgi.app.exception", (ctx,))
-                        raise
-                else:
-                    if get_blocked():
-                        _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                            "wsgi.block.started", (ctx, construct_url)
-                        ).status_headers_content.value or (None, None, "")
-                        closing_iterable = [content]
-                    core.dispatch("wsgi.app.success", (ctx, closing_iterable))
+                        if get_blocked():
+                            _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                                "wsgi.block.started", (ctx, construct_url)
+                            ).status_headers_content.value or (None, None, "")
+                            closing_iterable = [content]
+                        core.dispatch("wsgi.app.success", (ctx, closing_iterable))
 
-            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
-            ).traced_iterable
-
-            if stop_iteration_exception:
-                if result.value:
-                    # Close the request and app spans
-                    result.value._finish_spans()
+                modifier = (
+                    self._response_call_modifier
+                    if hasattr(self, "_response_call_modifier")
+                    else self._response_span_modifier
+                )
+                response_ctx = core.context_with_event(
+                    WSGIResponseEvent(
+                        component=self._config.integration_name,
+                        operation_name=(
+                            self._response_call_name
+                            if hasattr(self, "_response_call_name")
+                            else self._response_span_name
+                        ),
+                    ),
+                    dispatch_end_event=False,
+                )
+                with response_ctx:
+                    modifier(span_from_context(response_ctx), closing_iterable)
+                    response = _WSGIResponseIterable(closing_iterable, complete, self.app_is_iterator)
+            except BaseException:
+                # Failures before the iterable is returned also belong to the request span.
+                application_exc_info = sys.exc_info()
+                try:
+                    if response_ctx is not None:
+                        response_ctx.dispatch_ended_event(*application_exc_info)
+                finally:
+                    ctx.dispatch_ended_event(*application_exc_info)
+                raise
+            else:
+                if stop_iteration_exception:
+                    # Close the request and app spans without treating socket closure as an error.
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
-                raise stop_iteration_exception
-            return result.value if result else []
+                    complete((None, None, None))
+                    raise stop_iteration_exception
+                return response
+            finally:
+                # Security analysis ends at application return, before deferred response iteration.
+                try:
+                    core.dispatch("wsgi.application.returned", (ctx, application_exc_info))
+                finally:
+                    application_exc_info = (None, None, None)
 
     def _traced_start_response(
         self,
@@ -378,7 +542,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def __init__(
         self,
-        application: Iterable[Any],
+        application: Callable[..., Iterable[Any]],
         tracer: Optional[Tracer] = None,
         span_modifier: Callable[[Span, dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,
@@ -409,6 +573,8 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
         request_headers = parsed_headers if parsed_headers is not None else get_request_headers(environ)
+        # Request metadata is tagged here, before span_modifier runs, and is not copied
+        # onto the event, so completion cannot overwrite the modifier's changes.
         core.dispatch("wsgi.request.prepared", (self, req_span, url, request_headers, environ))
 
     def _response_span_modifier(self, resp_span, response):

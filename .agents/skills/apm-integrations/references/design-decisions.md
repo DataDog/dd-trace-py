@@ -60,16 +60,17 @@ Retain the returned response until deferred completion as a fallback if an earli
 callback fails, while preserving metadata supplied by successful response preparation.
 
 Products own subscriber activation. Integrations emit events without importing product
-bundle declarations or registering subscriber classes. Tracing product startup and normal
-global tracer initialization use the same tracing-owned helper to activate all declared
-bundles. Global initialization uses an import hook to defer activation until the
-subscriber package finishes loading through contrib; product startup activates immediately. Activation also occurs when
+bundle declarations or registering subscriber classes. Tracing product startup and manual
+instrumentation use the same tracing-owned registration helper. The import hook in
+`ddtrace/_monkey.py` defers manual activation until the subscriber package finishes loading
+through contrib; product startup activates immediately. Activation also occurs when
 `DD_TRACE_ENABLED=false` so existing integrations can finish their spans without enabling tracing. Manual instrumentation does not need to start
 the product manager.
 All subscriber classes require explicit registration; class definitions only collect handlers.
 The tracing subscriber package preserves activation of the migrated families for manual instrumentation,
-including explicitly deferred global tracer creation. Web request and span exception activation timing
-is unchanged. The generic span bundle registers `TracingSubscriber` directly. Custom subclasses must
+including explicitly deferred global tracer creation. Deferred initialization activates the web request
+bundle after the subscriber package finishes loading; span exception activation still requires product startup.
+The generic span bundle registers `TracingSubscriber` directly. Custom subclasses must
 call `register()` or be included in a bundle activated by their owning product.
 Ray's SDK-dependent bundle is activated by a tracing-owned import hook after its integration patch
 module finishes loading. Ordinary tracing startup does not import Ray. Repeated product startup
@@ -82,6 +83,10 @@ may never prepare a response. Store the callback handle and remove it when the
 request finishes: connection tasks can remain alive across keep-alive requests.
 Do not retain exception objects in deferred callbacks; record errors synchronously
 and allow cancellation to complete without requiring a response or tagging it as an error.
+
+Flask and WSGI defer their request context through response iteration; the invariants are in
+"WSGI request lifecycle" in `ddtrace/internal/README.md`. Put WSGI-only behavior in the WSGI
+event and subscriber subclasses, not behind context-item checks in the shared web subscriber.
 
 Bottle maps request and response metadata into WebFrameworkRequestEvent and leaves
 propagation, spans, and HTTP error policy to WebFrameworkRequestSubscriber. Raised
@@ -103,7 +108,7 @@ with its cookie-free copy before the WAF runs.
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
 listeners consume to create spans. Used by botocore,
-flask and django. This pattern decouples patch code from span creation.
+Flask child operations and django. This pattern decouples patch code from span creation.
 
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call

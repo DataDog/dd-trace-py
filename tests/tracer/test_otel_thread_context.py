@@ -1,10 +1,12 @@
 import asyncio
+from collections.abc import Iterator
 import concurrent.futures
 from contextvars import Context
 import ctypes
 import os
 import sys
 import threading
+from typing import Any
 
 import pytest
 
@@ -13,6 +15,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.internal import core
 from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
 
@@ -226,7 +229,8 @@ def test_global_tracer_listener_is_registered_on_explicit_import():
 
 def test_python_context_switch_syncs_active_span(tracer: Tracer):
     with tracer.trace("test") as span:
-        sync_otel_thread_context(None)
+        if sys.platform == "linux":
+            sync_otel_thread_context(None)
         assert _published_span_id() is None
 
         core.dispatch("python.context.switch")
@@ -246,7 +250,8 @@ def test_python_context_switch_syncs_active_span(tracer: Tracer):
 def test_python_context_switch_syncs_active_context(tracer: Tracer):
     context = DDContext(trace_id=123, span_id=456, sampling_priority=1)
     tracer.context_provider.activate(context)
-    sync_otel_thread_context(None)
+    if sys.platform == "linux":
+        sync_otel_thread_context(None)
 
     core.dispatch("python.context.switch")
 
@@ -290,3 +295,87 @@ def test_span_context_is_reactivated_after_fork(tracer: Tracer):
         _, status = os.waitpid(pid, 0)
 
     assert os.waitstatus_to_exitcode(status) == 0
+
+
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close", "application_error", "stream_error", "close_error"])
+def test_wsgi_context_transitions_publish_native_context(tracer: Tracer, terminal: str) -> None:
+    class Failure(BaseException):
+        pass
+
+    failure = Failure("request failed")
+    phases: list[str] = []
+
+    def check_context(phase: str) -> None:
+        # Read TLS before asking the provider for the active span: that lookup can
+        # itself reactivate a parent when the current span has finished.
+        published = _published_context()
+        active = tracer.current_span()
+        assert active is not None
+        assert published is not None
+        assert published[:2] == (active.trace_id, active.span_id)
+        phases.append(phase)
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            check_context("iteration")
+            yield b"one"
+            check_context("resume")
+            if terminal == "stream_error":
+                raise failure
+            yield b"two"
+
+        def close(self) -> None:
+            check_context("close")
+            if terminal == "close_error":
+                raise failure
+
+    def application(environ: dict[str, Any], start_response: Any) -> Response:
+        check_context("application")
+        if terminal == "application_error":
+            raise failure
+        start_response("200 OK", [])
+        return Response()
+
+    middleware = DDWSGIMiddleware(application)
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/stream",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    with tracer.trace("caller") as caller:
+        if terminal == "application_error":
+            with pytest.raises(Failure) as raised:
+                middleware(environ, lambda *args: None)
+            assert raised.value is failure
+            check_context("caller")
+        else:
+            response = middleware(environ, lambda *args: None)
+            check_context("after_application")
+            assert tracer.current_root_span() is caller
+            # A different ambient span ensures reentry restores the current caller,
+            # rather than the context captured when the middleware was invoked.
+            with tracer.trace("other_caller") as other:
+                assert next(response) == b"one"
+                check_context("other_caller")
+                assert tracer.current_span() is other
+                if terminal == "stream_error":
+                    with pytest.raises(Failure) as raised:
+                        next(response)
+                    assert raised.value is failure
+                elif terminal == "exhaustion":
+                    assert list(response) == [b"two"]
+                check_context("other_caller")
+                if terminal == "close_error":
+                    with pytest.raises(Failure) as raised:
+                        response.close()
+                    assert raised.value is failure
+                else:
+                    response.close()
+                check_context("other_caller")
+                response.close()
+                assert phases.count("close") == 1
+            check_context("caller")
+            assert tracer.current_span() is caller
+    assert _published_context() is None

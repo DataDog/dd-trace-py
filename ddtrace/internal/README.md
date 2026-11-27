@@ -186,8 +186,9 @@ that calls it after the subscriber package loads through contrib. Waiting for th
 package to finish avoids registering against partially initialized subscriber bases
 and preserves lightweight bare tracer imports.
 The subscriber package also explicitly activates `MANUAL_SUBSCRIBER_BUNDLES` for
-manual instrumentation, including when global tracer creation is deferred. Web request
-and span exception bundles retain their existing activation timing. Listeners remain
+manual instrumentation, including when global tracer creation is deferred. In that mode,
+a post-import hook also activates the web request bundle after the subscriber package
+finishes loading. Span exception activation still requires product startup. Listeners remain
 available with `DD_TRACE_ENABLED=false` so existing integrations can finish their spans
 without enabling tracing. Repeated activation restores reset listeners without duplicating spans.
 All subscribers require explicit registration. Integrations emit events without
@@ -215,6 +216,17 @@ remote activation, and runtime switches share `load_appsec()` / `disable_appsec(
 product `stop()` also removes the operation listeners. These bundles do not own
 request cleanup, whose listeners remain registered separately. Repeated activation
 restores listeners after a reset without caching registration state.
+
+### WSGI request lifecycle
+
+Flask and WSGI open a `WSGIRequestEvent` context that stays open until the response
+iterable completes, with a nested `WSGIResponseEvent` context for the response span.
+- AppSec and IAST finalize on `wsgi.application.returned`, at application return, before
+  the response is iterated.
+- Completion tags only the response status. Request attributes, response headers and the
+  service are tagged at entry or by `start_response` hooks, so later overrides survive.
+- Iteration failures and early closure mark only the response span (`GeneratorExit` is
+  not an error). Failures before the iterable is returned mark both spans.
 
 ## Remote Configuration Callbacks
 

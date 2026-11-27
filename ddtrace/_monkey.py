@@ -23,6 +23,21 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 log = get_logger(__name__)
 
+
+def _register_manual_tracing_subscribers(_module: ModuleType) -> None:
+    # Manual instrumentation bypasses product startup. Keep registration imports
+    # lazy so importing ddtrace alone does not load the subscriber machinery.
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace._trace._registration import register_subscribers
+
+    if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+        register_subscribers()
+    else:
+        register_subscribers((WEB_FRAMEWORK_SUBSCRIBERS,))
+
+
+when_imported("ddtrace._trace.subscribers")(_register_manual_tracing_subscribers)
+
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     "aiokafka": True,

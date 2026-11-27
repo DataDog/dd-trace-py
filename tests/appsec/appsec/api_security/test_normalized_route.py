@@ -466,7 +466,7 @@ def test_normalize_route_flask_dm_assembly_via_handler():
     with (
         override_global_config(dict(_asm_enabled=True, _api_security_enabled=True)),
         patch("ddtrace.appsec._handlers.get_active_asm_context", return_value=asm_ctx),
-        patch("ddtrace.appsec._handlers.core.find_item") as mock_find,
+        patch("ddtrace.appsec._handlers._find_integration_config") as mock_find,
     ):
         integration_config = MagicMock()
         integration_config.integration_name = "flask"
@@ -823,3 +823,27 @@ def test_normalize_route_tornado_anonymous_dynamic_segment(route, expected):
 )
 def test_normalize_route_tornado_escaped_chars_in_static_segment(route, expected):
     assert normalize_route_tornado(route, {}) == expected
+
+
+def test_find_integration_config_falls_back_to_event() -> None:
+    from dataclasses import dataclass
+    from typing import Any
+
+    from ddtrace.appsec._handlers import _find_integration_config
+    from ddtrace.internal import core
+    from ddtrace.internal.core.events import Event
+
+    @dataclass
+    class ConfiguredEvent(Event):
+        event_name = "test.normalized_route.configured"
+        integration_config: Any = None
+
+    event_config = object()
+    data_config = object()
+    with core.context_with_event(ConfiguredEvent(integration_config=event_config)):
+        # Events-based contexts expose the config on their event.
+        with core.context_with_data("test.normalized_route.child"):
+            assert _find_integration_config() is event_config
+        # Context data still takes precedence over an outer event.
+        with core.context_with_data("test.normalized_route.data", integration_config=data_config):
+            assert _find_integration_config() is data_config

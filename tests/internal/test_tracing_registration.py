@@ -1,6 +1,49 @@
 import pytest
 
 
+@pytest.mark.subprocess(
+    env={
+        "_DD_GLOBAL_TRACER_INIT": "false",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": None,
+    }
+)
+def test_deferred_global_initialization_keeps_registration_imports_lazy() -> None:
+    import sys
+
+    import ddtrace  # noqa: F401
+
+    for module in (
+        "ddtrace.trace",
+        "ddtrace._trace._registration",
+        "ddtrace._trace.subscribers",
+        "ddtrace.internal.core",
+        "ddtrace.internal.core.subscriber",
+    ):
+        assert module not in sys.modules, module
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_GLOBAL_TRACER_INIT": "false",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": None,
+    }
+)
+def test_web_response_contract_does_not_import_contrib() -> None:
+    import sys
+
+    from ddtrace._trace.web_framework import WSGIResponseEvent
+    from ddtrace.internal import core
+
+    assert WSGIResponseEvent.event_name == "web.response.wsgi"
+    assert not any(name == "ddtrace.contrib" or name.startswith("ddtrace.contrib.") for name in tuple(sys.modules))
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    assert "ddtrace.trace" not in sys.modules
+    assert not core.has_listeners("context.started.web.response.wsgi")
+    assert not core.has_listeners("context.started.web.request")
+
+
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
 def test_tracing_subscriber_definitions_do_not_register_listeners() -> None:
     from importlib import import_module
@@ -124,7 +167,7 @@ def test_manual_initialization_activates_all_families_without_optional_sdks() ->
     assert "ddtrace._trace.subscribers.ray" not in sys.modules
 
 
-@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
+@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"), parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
 def test_deferred_global_initialization_preserves_manual_tracing() -> None:
     import ddtrace.contrib  # noqa: F401
     from ddtrace.internal import core
@@ -133,8 +176,10 @@ def test_deferred_global_initialization_preserves_manual_tracing() -> None:
     for event_name in ("http.client.request", "llm.request", "messaging.produce", "messaging.consume"):
         assert core.has_listeners("context.started." + event_name), event_name
         assert core.has_listeners("context.ended." + event_name), event_name
-    # Web and exception activation still require product startup in this deferred mode.
-    assert not core.has_listeners("context.started.web.request")
+    assert core.has_listeners("context.started.web.request")
+    assert core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("context.started.web.response.wsgi")
+    # Exception activation still requires product startup in this deferred mode.
     assert not core.has_listeners("context.exception")
     assert tracer is not None
 

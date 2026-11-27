@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.appsec._contrib.fastapi import _asgi_make_block_content
 from ddtrace.appsec._contrib.flask import _on_flask_blocked_request
 from ddtrace.appsec._contrib.flask import _wsgi_make_block_content
+from ddtrace.contrib._events.web_framework import WSGIRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -148,8 +149,18 @@ def test_flask_blocked_request_tags_keep_status_when_request_unreadable(otel_ena
 def test_wsgi_block_content_tags(otel_enabled):
     span = _new_span()
     middleware = SimpleNamespace(_config=config.flask)
-    items = {"middleware": middleware, "req_span": span, "headers": _HEADERS, "environ": _ENVIRON}
-    ctx = mock.Mock(get_item=items.get)
+    # The WSGI middleware passes its request context, whose event carries the headers.
+    event = WSGIRequestEvent(
+        component="flask",
+        integration_config=config.flask,
+        http_operation="flask.request",
+        request_method="",
+        request_url="",
+        request_headers=_HEADERS,
+        headers_case_sensitive=True,
+        query=None,
+    )
+    ctx = core.ExecutionContext(event.event_name, event=event, middleware=middleware, req_span=span, environ=_ENVIRON)
     with (
         override_global_config(dict(_otel_trace_semantics_enabled=otel_enabled)),
         override_http_config("flask", {"trace_query_string": True}),
