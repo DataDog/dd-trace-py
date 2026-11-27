@@ -86,6 +86,11 @@ def cleanup_loaded_modules() -> None:
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
+        # Modules of the packages extracted from ddtrace (_ddtrace_internal, _ddtrace_native, ...) are bridged under
+        # ddtrace.internal names, so they must not be imported a second time: a new copy would start with empty
+        # state, and a pyo3 module cannot be initialized twice.
+        if m.startswith("_ddtrace_"):
+            continue
 
         drop(m)
 
