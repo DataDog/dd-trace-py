@@ -52,6 +52,14 @@ def _is_traced_stream(result: Any) -> bool:
     return isinstance(getattr(result, "_self_handler", None), BaseStreamHandler)
 
 
+def _traced_stream_request_kwargs(result: Any, default: dict[str, Any]) -> dict[str, Any]:
+    """The request kwargs of a traced stream, else default.
+
+    The contrib hands its handler the same kwargs dict as its before event, so they hold the before-hook's changes.
+    """
+    return getattr(getattr(result, "_self_handler", None), "request_kwargs", default)
+
+
 def _is_async_traced_stream(result: Any) -> bool:
     """Return True if *result*'s handler is an AsyncStreamHandler (TracedAsyncStream)."""
     return isinstance(getattr(result, "_self_handler", None), AsyncStreamHandler)
