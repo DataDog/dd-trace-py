@@ -1,8 +1,8 @@
 """Tests for ddtrace.testing.internal.platform module."""
 
 import json
-import logging
 import platform
+from unittest import mock
 
 import pytest
 
@@ -104,22 +104,22 @@ class TestRuntimeTagsOverrides:
         assert get_platform_tags()[PlatformTag.OS_VERSION] == platform.release()
 
     @pytest.mark.parametrize("value", ["", "   "])
-    def test_empty_variable_sets_no_override(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, value: str
-    ) -> None:
+    def test_empty_variable_sets_no_override(self, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_RUNTIME_TAGS", value)
-        assert get_platform_tags()[PlatformTag.OS_VERSION] == platform.release()
-        assert "DD_TEST_OPTIMIZATION_RUNTIME_TAGS" not in caplog.text
+        with mock.patch("ddtrace.testing.internal.platform.log") as log:
+            assert get_platform_tags()[PlatformTag.OS_VERSION] == platform.release()
+        log.warning.assert_not_called()
 
     @pytest.mark.parametrize("value", ["{invalid json}", '["os.version"]', '"6.12.0"', "null"])
     def test_invalid_value_logs_warning_and_keeps_detected_tags(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, value: str
+        self, monkeypatch: pytest.MonkeyPatch, value: str
     ) -> None:
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_RUNTIME_TAGS", value)
-        with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.platform"):
+        with mock.patch("ddtrace.testing.internal.platform.log") as log:
             result = get_platform_tags()
         assert result[PlatformTag.OS_VERSION] == platform.release()
-        assert "DD_TEST_OPTIMIZATION_RUNTIME_TAGS" in caplog.text
+        log.warning.assert_called_once()
+        assert "DD_TEST_OPTIMIZATION_RUNTIME_TAGS" in log.warning.call_args.args
 
     def test_deeply_nested_value_logs_warning_and_keeps_detected_tags(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_RUNTIME_TAGS", '{"custom.tag":' + "[" * 100_000)
