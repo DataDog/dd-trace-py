@@ -7,6 +7,12 @@ loads the native collector by path, records every line it runs in the workspace,
 included, since the whole child runs for the context that started it, and at exit writes them
 to a record file. The test process merges the record into that context.
 
+A process forked from the test process or from a child records the lines it runs from the fork
+on, for the context that ran the fork (start_forked_record()): the lines run before the fork are
+in its parent's record. It writes them however it ends: at exit, through os._exit(), and on
+SIGTERM or SIGHUP unless the signal is ignored. A thread that ends the process while another
+writes the record waits for it, up to two seconds.
+
 A multiprocessing child writes its record when its run ends instead, at the end of
 BaseProcess._bootstrap, for the context that started the process (run_process()): fork and
 forkserver children leave through os._exit(), which skips atexit, and Pool.terminate() ends its
@@ -18,14 +24,20 @@ hooks (sitecustomize, usercustomize): a hook that handles SIGTERM only while the
 default action still does, and the record's handler passes the signal on to it. Code that the
 unpickling or the run imports or runs finds the record's handler in place instead.
 
+Each record holds the lines run since the process last wrote one, so a process that writes more
+than one, as when a signal handler lets it go on, reports each line once.
+
 It imports no ddtrace module, so a child pays only for the collector, and any failure leaves the
 child unrecorded and otherwise unchanged. Not recorded: interpreters started with -E, -I or -S,
-which skip sitecustomize; another Python version or build than the test process's; children
-that exit through os._exit() or a signal, which skip the record, except a multiprocessing child
-that SIGTERM ends once its run started and a spawn child that SIGTERM ends while it unpickles its
-process, unless its run replaced the SIGTERM handler without calling the one before; children
-still running when the test session ends; a file outside the workspace that is a link to a file
-in it.
+which skip sitecustomize; another Python version or build than the test process's; a child that
+is not forked and exits through os._exit() or a signal, except a multiprocessing child that
+SIGTERM ends once its run started and a spawn child that SIGTERM ends while it unpickles its
+process, unless its run replaced the SIGTERM handler without calling the one before; a forked
+process that calls an os._exit() bound before following started, or that a signal handler set
+after its fork ends without calling the one before; what a forked process runs in the exit
+handlers registered before its fork; a process that a multiprocessing fork server forks, outside
+its run; children still running when the test session ends; a file outside the workspace that
+is a link to a file in it.
 """
 
 from __future__ import annotations
@@ -49,11 +61,22 @@ _OWNER_ENV = "_DD_COVERAGE_CHILD_OWNER"
 _STATE_HEADER_SIZE = 64
 _TOOL_IDS = (4, 3, 1)
 _SITE_PACKAGES = frozenset(("site-packages", "dist-packages"))
+# How long a thread that ends a forked process waits for another thread's write, in 1 ms steps.
+_WAIT_FOR_WRITE_STEPS = 2000
 # The token of the context this process records for. A multiprocessing child takes the one its
 # Process object names (run_process()).
 _owner = 0
 # What a spawn child writes its record with when SIGTERM ends it while it unpickles its process.
 _startup_record: _ProcessRecord | None = None
+# The process start() ran in. The processes it forks inherit its exit handler, and write records
+# of their own.
+_start_pid = 0
+# The record of this process when it is a forked process.
+_forked: _ForkedRecord | None = None
+# The handlers that _on_signal passes SIGTERM and SIGHUP on to, in a forked process.
+_signal_handlers: dict[int, Any] = {}
+# The os._exit that _exit_with_record replaced.
+_original_exit: Any = None
 
 
 def _read_config(directory: str) -> dict[str, Any]:
@@ -172,6 +195,7 @@ def _exec_hook(linecov: Any, config: dict[str, Any]) -> Callable[[CodeType], Non
 
 
 def _write_record(linecov: Any, directory: str, owner: int) -> None:
+    """Write the lines run since the last record, for the context owner names, and forget them."""
     # Through the posix module: the child's program may have left the os functions and open patched
     # (pyfakefs, mock) by the time it exits.
     try:
@@ -191,6 +215,7 @@ def _write_record(linecov: Any, directory: str, owner: int) -> None:
         finally:
             posix.close(fd)
         posix.replace(temporary, directory + "/" + name + ".rec")
+        linecov.forget()
         # A process forked from the test process does not map the state file; mapping it again
         # where it is mapped costs a few system calls.
         linecov.share_state(directory + "/state")
@@ -200,7 +225,10 @@ def _write_record(linecov: Any, directory: str, owner: int) -> None:
 
 
 def _write_final_record(linecov: Any, directory: str) -> None:
-    _write_record(linecov, directory, _owner)
+    import posix
+
+    if posix.getpid() == _start_pid:
+        _write_record(linecov, directory, _owner)
 
 
 class _ProcessRecord:
@@ -263,8 +291,8 @@ class _ProcessRecord:
         """Handle the signal as the handler before on_sigterm would have."""
         previous = self.previous
         if callable(previous):
-            # A handler that returns lets the run go on: the record written at its end is a
-            # superset of this one.
+            # A handler that returns lets the run go on: the lines it runs from then on are written
+            # when the run ends.
             previous(signum, frame)
             return
         import posix
@@ -272,6 +300,168 @@ class _ProcessRecord:
 
         signal.signal(signum, signal.SIG_DFL)
         posix.kill(posix.getpid(), signum)
+
+
+class _ForkedRecord:
+    """Writes the record of a forked process, for the context that ran the fork."""
+
+    __slots__ = ("linecov", "directory", "owner", "pid", "writer", "pending")
+
+    def __init__(self, linecov: Any, directory: str, owner: int) -> None:
+        import posix
+
+        self.linecov = linecov
+        self.directory = directory
+        self.owner = owner
+        self.pid = posix.getpid()
+        # The thread writing the record, or 0.
+        self.writer = 0
+        # A signal that arrived on that thread while it wrote, as (signum, frame).
+        self.pending: Any = None
+
+    def write(self) -> None:
+        import _thread
+        import posix
+
+        # A process forked from this one inherits the record, and starts one of its own.
+        if posix.getpid() != self.pid:
+            return
+        thread = _thread.get_ident()
+        if self.writer == thread:
+            # Called from a signal handler that interrupted the write.
+            return
+        if self.writer:
+            # Ending the process now would lose the record another thread is writing.
+            import time
+
+            for _ in range(_WAIT_FOR_WRITE_STEPS):
+                if not self.writer:
+                    break
+                time.sleep(0.001)
+        self.writer = thread
+        try:
+            _write_record(self.linecov, self.directory, self.owner)
+        finally:
+            self.writer = 0
+        pending = self.pending
+        if pending is not None:
+            self.pending = None
+            _pass_on_signal(*pending)
+
+
+def has_forked_record() -> bool:
+    """Whether this process is a forked process that start_forked_record() records."""
+    import posix
+
+    record = _forked
+    return record is not None and record.pid == posix.getpid()
+
+
+def _write_forked_record() -> None:
+    record = _forked
+    if record is not None:
+        record.write()
+
+
+def _on_signal(signum: int, frame: Any) -> None:
+    """Write the record of this forked process, then handle the signal as before."""
+    import _thread
+
+    record = _forked
+    if record is not None:
+        if record.writer == _thread.get_ident():
+            # Handled once the record is written.
+            record.pending = (signum, frame)
+            return
+        record.write()
+    _pass_on_signal(signum, frame)
+
+
+def _pass_on_signal(signum: int, frame: Any) -> None:
+    previous = _signal_handlers.get(signum)
+    if callable(previous):
+        # A handler that returns lets the process go on: the lines it runs from then on are
+        # written when it ends.
+        previous(signum, frame)
+        return
+    import _signal
+    import posix
+
+    _signal.signal(signum, _signal.SIG_DFL)
+    posix.kill(posix.getpid(), signum)
+
+
+def _exit_with_record(status: int) -> None:
+    """os._exit(), once the record of a forked process is written."""
+    record = _forked
+    if record is not None:
+        record.write()
+    _original_exit(status)
+
+
+def wrap_exit() -> None:
+    """Make os._exit() write the record of a forked process first."""
+    global _original_exit
+
+    if os._exit is not _exit_with_record:
+        _original_exit = os._exit
+        os._exit = _exit_with_record  # type: ignore[assignment]
+
+
+def unwrap_exit() -> None:
+    # Whoever replaced it since keeps theirs, which calls the wrapper.
+    if os._exit is _exit_with_record:
+        os._exit = _original_exit
+
+
+def start_forked_record(linecov: Any, directory: str, owner: int) -> None:
+    """Record the lines this forked process runs from now on, for the context owner names.
+
+    The lines its parent ran before the fork are its parent's to report. The record is written at
+    exit, through os._exit() once wrap_exit() ran, and on SIGTERM or SIGHUP unless the signal is
+    ignored or handled outside Python.
+    """
+    global _forked, _owner
+
+    linecov.forget()
+    _owner = owner
+    # The children of this process run for the same context.
+    os.environ[_OWNER_ENV] = str(owner)
+    _forked = _ForkedRecord(linecov, directory, owner)
+    import _signal
+    import atexit
+
+    # Registered at the fork, as the last handler: the handlers registered after the fork run
+    # before it, and the record holds what they run.
+    atexit.unregister(_write_forked_record)
+    atexit.register(_write_forked_record)
+    for signum in (_signal.SIGTERM, _signal.SIGHUP):
+        try:
+            handler = _signal.getsignal(signum)
+            # Inherited from the parent, with the handler it passes the signal on to.
+            if handler is _on_signal:
+                continue
+            # An ignored signal ends nothing, and a handler set outside Python stays.
+            if handler == _signal.SIG_DFL or callable(handler):
+                _signal_handlers[signum] = handler
+                _signal.signal(signum, _on_signal)
+        except Exception:  # nosec: not the main thread
+            pass
+
+
+def _follow_forks(linecov: Any, directory: str) -> None:
+    """Give each process this one forks a record of its own (start_forked_record())."""
+
+    def after_fork_in_child() -> None:
+        try:
+            start_forked_record(linecov, directory, _owner)
+        except Exception:  # nosec: the forked process stays unrecorded and otherwise unchanged
+            pass
+
+    # Not through ddtrace.internal.forksafe, which would import ddtrace into every child: this
+    # process runs no ddtrace hook or thread that this hook would have to be ordered with.
+    os.register_at_fork(after_in_child=after_fork_in_child)
+    wrap_exit()
 
 
 def run_process(linecov: Any, directory: str, owner: int, bootstrap: Any, process: Any, args: Any, kwargs: Any) -> Any:
@@ -283,6 +473,10 @@ def run_process(linecov: Any, directory: str, owner: int, bootstrap: Any, proces
     _owner = owner
     # The children of this child run for the same context.
     os.environ[_OWNER_ENV] = str(owner)
+    forked = _forked
+    if forked is not None and has_forked_record():
+        # So does the record an os._exit() in the run writes.
+        forked.owner = owner
     record = _ProcessRecord(linecov, directory, owner)
     record.handle_sigterm(_startup_record)
     _startup_record = None
@@ -317,7 +511,8 @@ def _start_method(argv: list[str]) -> str:
 def _cover_processes(linecov: Any, directory: str) -> None:
     """Wrap BaseProcess._bootstrap, which a spawn child and each child a forkserver forks run.
 
-    A child forked from this process forgets the lines this process ran, which are not its own.
+    A child forked from this process forgets the lines this process ran, which are not its own,
+    unless its fork started a record of its own (start_forked_record()).
     """
     # multiprocessing imports it next anyway.
     from multiprocessing.process import BaseProcess
@@ -327,7 +522,7 @@ def _cover_processes(linecov: Any, directory: str) -> None:
     pid = posix.getpid()
 
     def _bootstrap(self: Any, *args: Any, **kwargs: Any) -> Any:
-        if posix.getpid() != pid:
+        if posix.getpid() != pid and not has_forked_record():
             linecov.forget()
         # The test process names the context on the Process object; a process started here runs
         # for this process's context.
@@ -360,7 +555,7 @@ def _cover_unpickling(linecov: Any, directory: str) -> None:
 
 def start() -> None:
     """Record this process's lines for the context named in its environment or the state file."""
-    global _owner
+    global _owner, _start_pid
 
     directory = os.environ.get(_DIR_ENV)
     if not directory or not hasattr(sys, "monitoring"):
@@ -412,9 +607,15 @@ def start() -> None:
         _cover_processes(linecov, directory)
     if start_method == "spawn":
         _cover_unpickling(linecov, directory)
+    # A fork server forks for processes started in other contexts than the one it started in, which
+    # their Process objects name (_cover_processes()).
+    if start_method != "forkserver":
+        _follow_forks(linecov, directory)
 
     import atexit
+    import posix
 
+    _start_pid = posix.getpid()
     # Registered before any handler the child's program adds, so it runs after them: the record
     # includes what they run.
     atexit.register(_write_final_record, linecov, directory)
