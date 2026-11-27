@@ -1,0 +1,5 @@
+fixes:
+  - |
+    aws_sdk_bedrock_runtime: Fixes Nova Sonic token usage being attributed to a later
+    turn when an earlier turn receives no usage event. Unknown counts are omitted
+    until usage can be attributed to an individual turn again.
