@@ -196,6 +196,22 @@ def test_is_sensitive_follows_the_registered_sensitive_set():
     assert not env_module.is_sensitive("DD_SERVICE")
 
 
+def test_is_reportable_excludes_the_sensitive_configurations():
+    from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+
+    assert not any(env_module.is_reportable(name) for name in SENSITIVE_CONFIGURATIONS)
+    assert env_module.is_reportable("DD_SERVICE")
+
+
+def test_is_reportable_fails_closed_without_a_registry(monkeypatch):
+    monkeypatch.setattr(env_module, "_SUPPORTED_CONFIGURATIONS", None)
+    monkeypatch.setattr(env_module, "_SENSITIVE_CONFIGURATIONS", frozenset())
+
+    assert not env_module.is_sensitive("OTEL_EXPORTER_OTLP_HEADERS")
+    assert not env_module.is_reportable("OTEL_EXPORTER_OTLP_HEADERS")
+    assert not env_module.is_reportable("DD_SERVICE")
+
+
 def test_getitem_falls_back_to_alias_when_canonical_missing(monkeypatch):
     canonical, legacy = _pick_alias_pair()
     monkeypatch.delenv(canonical, raising=False)

@@ -14,7 +14,8 @@ is unset. Aliases registered here must be pure renames (same value space) —
 translations like OTEL→DD belong in ``_otel_remapper.py`` instead.
 
 The registry also lists the sensitive configurations, whose values must never be reported (e.g. in telemetry).
-:func:`get_aliases` and :func:`is_sensitive` expose aliases and sensitivity to other shared code.
+:func:`get_aliases`, :func:`is_sensitive` and :func:`is_reportable` expose aliases and sensitivity to other shared
+code.
 
 This module does not import the registry at import time. The registry is resolved lazily, the first time a
 lookup needs it (validation, aliases or sensitivity), in this order of precedence:
@@ -30,7 +31,8 @@ lookup needs it (validation, aliases or sensitivity), in this order of precedenc
    registry stays unregistered.
 
 While unregistered, no key is validated (so nothing is logged), no aliases are applied, i.e. reads look up the
-exact key in ``os.environ``, and no configuration is known to be sensitive.
+exact key in ``os.environ``, and no configuration is known to be sensitive. Since that does not make them safe to
+report, :func:`is_reportable` fails closed: nothing is reportable without a registry.
 """
 
 from _thread import allocate_lock as _allocate_lock
@@ -216,6 +218,17 @@ def is_sensitive(name: str) -> bool:
     if not _resolved:
         _resolve()
     return name in _SENSITIVE_CONFIGURATIONS
+
+
+def is_reportable(name: str) -> bool:
+    """Return whether the value of the configuration name may be reported, e.g. in telemetry.
+
+    Unlike not is_sensitive(name), this fails closed: without a registry nothing is known to be safe, so
+    nothing is reportable.
+    """
+    if not _resolved:
+        _resolve()
+    return _SUPPORTED_CONFIGURATIONS is not None and name not in _SENSITIVE_CONFIGURATIONS
 
 
 def _get_env_value(key: str) -> Optional[str]:
