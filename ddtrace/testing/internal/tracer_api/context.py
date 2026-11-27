@@ -38,6 +38,53 @@ def enable_all_ddtrace_integrations():
         log.exception("Error enabling ddtrace integrations")
 
 
+def enable_log_correlation(force: bool) -> None:
+    """
+    Patch the logging integration so log records carry the active test's trace_id/span_id.
+
+    The patch is applied if ddtrace's logs injection is enabled, or if `force` is set (e.g. when logs are submitted to
+    Datadog, which requires the IDs on every record).
+    """
+    try:
+        import ddtrace
+    except ImportError:
+        log.debug("ddtrace is not available, skipping logging patch")
+        return None
+
+    if not (ddtrace.config._logs_injection or force):
+        return None
+
+    try:
+        from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
+
+        _patch_logging()  # type: ignore[no-untyped-call]
+    except ImportError:
+        log.warning("Could not import ddtrace logging patch; log records will not carry trace/span IDs.")
+
+
+def enable_selenium_integration() -> None:
+    """
+    Patch Selenium so browser tests get test visibility tags (test.is_browser, test.browser.*).
+
+    The Selenium integration looks for the root span with type=test that `trace_context()` creates.
+    """
+    try:
+        from ddtrace.contrib.internal.selenium.patch import patch as patch_selenium
+
+        patch_selenium()
+    except Exception:
+        log.debug("Could not patch Selenium for test visibility", exc_info=True)
+
+
+def get_tracer() -> t.Any:
+    """
+    Return the global ddtrace tracer.
+    """
+    import ddtrace
+
+    return ddtrace.tracer
+
+
 def uninstall_global_trace_filter() -> None:
     """
     Uninstall trace filters from the global ddtrace tracer.
