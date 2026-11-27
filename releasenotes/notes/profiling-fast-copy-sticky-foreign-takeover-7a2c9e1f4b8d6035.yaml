@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the stack profiler could reclaim signal handlers
+    over another owner after stop and restart, risking a process crash.
