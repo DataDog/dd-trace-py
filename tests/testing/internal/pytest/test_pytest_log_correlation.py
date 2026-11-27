@@ -11,8 +11,12 @@ Uses subprocess runs so env vars are picked up by ddtrace during initialisation.
 
 from __future__ import annotations
 
+import os
+
 from _pytest.pytester import Pytester
 import pytest
+
+from tests.utils import logs_intake_receiver
 
 
 @pytest.fixture()
@@ -36,6 +40,8 @@ def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("_CI_DD_API_KEY", raising=False)
     monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
     monkeypatch.setenv("DD_API_KEY", "test-key")
+    # The global switch now also turns log submission on; tests opt in explicitly.
+    monkeypatch.delenv("DD_AGENTLESS_ENABLED", raising=False)
 
 
 # Infrastructure mock plugin — loaded via "-p dd_log_corr_infra".
@@ -244,6 +250,37 @@ def test_root_level_filters_child_logger_records():
     assert captured[0]["status"] == "error"
 """
 
+# Loaded with "-p", so it is imported before the plugin's pytest_load_initial_conftests runs: it
+# records whether the ddtrace bootstrap (ddtrace-run) had started APM agentless log submission.
+_APM_LOGS_PROBE_PLUGIN = """\
+import logging
+
+from ddtrace.internal import logs
+
+ENABLED_AT_STARTUP = logs._handler is not None
+
+# Buffered by the APM writer before the plugin turns it off; it must be discarded, not sent.
+logging.getLogger("pre_session").warning("pre-session record")
+"""
+
+_TEST_APM_LOG_SUBMISSION_DISABLED = """\
+import logging
+
+import dd_apm_logs_probe
+from ddtrace.internal import logs
+from ddtrace.testing.internal.logs import LogsHandler
+
+EXPECTED_LOGS_HANDLERS = {expected_logs_handlers}
+
+
+def test_apm_log_submission_disabled():
+    assert dd_apm_logs_probe.ENABLED_AT_STARTUP, "the bootstrap did not start APM log submission"
+    assert logs._handler is None, "APM log submission still enabled during the test session"
+    assert logging.Logger.callHandlers is logs._original_call_handlers
+    logs_handlers = [h for h in logging.getLogger().handlers if isinstance(h, LogsHandler)]
+    assert len(logs_handlers) == EXPECTED_LOGS_HANDLERS, logging.getLogger().handlers
+"""
+
 
 class TestLogCorrelation:
     def test_log_records_carry_test_span_ids(
@@ -314,6 +351,34 @@ class TestAgentlessLogSubmission:
 
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_AGENTLESS_HANDLER_INSTALLED)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_handler_installed_by_the_global_agentless_flag_alone(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """DD_AGENTLESS_ENABLED turns log submission on without DD_AGENTLESS_LOG_SUBMISSION_ENABLED."""
+        monkeypatch.delenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", raising=False)
+        monkeypatch.delenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", raising=False)
+        monkeypatch.setenv("DD_AGENTLESS_ENABLED", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_AGENTLESS_HANDLER_INSTALLED)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_global_agentless_flag_opted_out_of_log_submission(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """DD_AGENTLESS_LOG_SUBMISSION_ENABLED=false opts out of log submission under DD_AGENTLESS_ENABLED."""
+        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "false")
+        monkeypatch.setenv("DD_AGENTLESS_ENABLED", "true")
+        monkeypatch.setenv("DD_LOGS_INJECTION", "false")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
@@ -389,3 +454,38 @@ class TestAgentlessLogSubmission:
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
+
+    @pytest.mark.parametrize("civisibility_agentless", [True, False])
+    def test_apm_agentless_log_submission_disabled(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None, civisibility_agentless: bool
+    ) -> None:
+        """Under the ddtrace bootstrap, Test Optimization turns APM log submission off before conftests load.
+
+        DD_AGENTLESS_LOG_SUBMISSION_ENABLED also enables APM log submission in any process started
+        with ddtrace-run. Test sessions must keep submitting logs only through the plugin's own
+        LogsHandler, and nothing at all without agentless mode, as before APM support existed. Records
+        the APM writer buffered before the session are discarded, not sent to the APM intake.
+        """
+        import ddtrace.bootstrap
+
+        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
+        if not civisibility_agentless:
+            monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "false")
+            monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://127.0.0.1:9")
+        # Activate the ddtrace bootstrap sitecustomize (normally done by ddtrace-run) so the
+        # preload starts APM log submission before pytest starts.
+        monkeypatch.setenv("PYTHONPATH", os.path.dirname(ddtrace.bootstrap.__file__))
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN, dd_apm_logs_probe=_APM_LOGS_PROBE_PLUGIN)
+        pytester.makepyfile(
+            test_file=_TEST_APM_LOG_SUBMISSION_DISABLED.format(expected_logs_handlers=int(civisibility_agentless))
+        )
+
+        with logs_intake_receiver() as apm_intake:
+            monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_URL", apm_intake.url)
+            result = pytester.runpytest_subprocess(
+                "--ddtrace", "-p", "dd_apm_logs_probe", "-p", "dd_log_corr_infra", "-v", "-s"
+            )
+        result.assert_outcomes(passed=1)
+        submitted = [event["message"] for event in apm_intake.events()]
+        assert "pre-session record" not in submitted, submitted

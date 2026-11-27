@@ -1231,20 +1231,6 @@ Test Visibility
      version_added:
         v3.15.0:
 
-   DD_AGENTLESS_LOG_SUBMISSION_ENABLED:
-     type: Boolean
-     default: False
-
-     description: |
-        When used with ``DD_CIVISIBILITY_AGENTLESS_ENABLED=true``, enables log submission from the
-        ``ddtrace.testing`` pytest plugin directly to the Datadog logs intake. Log records emitted
-        during tests are enriched with the active test span's ``dd.trace_id`` and ``dd.span_id``
-        and forwarded as structured JSON. When using the Datadog Agent instead of agentless mode,
-        set ``DD_LOGS_INJECTION=true`` to achieve the same result via the agent's intake.
-
-     version_added:
-        v4.8.0:
-
    DD_TEST_OPTIMIZATION_MANIFEST_FILE:
      type: String
      default: ""
@@ -1324,9 +1310,11 @@ Agent
          ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
          startup. ``DD_SITE`` selects the intake to submit to.
 
-         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and
-         ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this value and can each be set explicitly to
-         override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
+         It also turns on log submission (see ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED``).
+
+         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED``,
+         ``DD_LLMOBS_AGENTLESS_ENABLED`` and ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED`` default to this
+         value and can each be set explicitly to override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
          specific variants, likewise keeps OpenTelemetry data going to your own collector.
 
          Health metrics, profiling and tracer flares require an agent and thus have no effect
@@ -1406,6 +1394,67 @@ Logs
 ----
 
 .. ddtrace-configuration-options::
+
+   DD_AGENTLESS_LOG_SUBMISSION_ENABLED:
+     type: Boolean
+     default: (the value of DD_AGENTLESS_ENABLED)
+
+     description: |
+        When enabled, together with ``DD_API_KEY``, records emitted through Python's standard
+        ``logging`` module are submitted directly to the Datadog logs intake
+        (``https://http-intake.logs.<DD_SITE>/api/v2/logs``) instead of through the Datadog
+        Agent. The tracer must be installed via ``ddtrace-run`` or ``import ddtrace.auto``.
+        ``DD_AGENTLESS_ENABLED`` turns it on; set this option to ``false`` to opt out while
+        running agentless, or to ``true`` to submit logs without making anything else
+        agentless.
+
+        Records that propagate to the root logger are batched and sent asynchronously,
+        enriched with service, environment, version, hostname and, when a trace is active and
+        ``DD_LOGS_INJECTION`` is enabled (the default), ``dd.trace_id`` and ``dd.span_id``.
+        The application's logging configuration is not modified: no handler is added, so console
+        output, ``logging.basicConfig()`` and ``dictConfig``/``fileConfig`` behave as without the
+        tracer. Logger levels apply as usual: with the default root level of ``WARNING``,
+        ``INFO`` records are only submitted if the application configures logging itself.
+        Records from loggers with ``propagate=False`` are not submitted. Logging is best-effort:
+        a batch the intake rejects, or that cannot be sent, is dropped without retrying.
+
+        Records are sent at least every 5 seconds and when the process exits normally, including
+        ``multiprocessing`` workers that finish normally, such as ``Pool`` workers after
+        ``close()`` and ``join()``. The exit flush gives up after 1 second, so a slow or unreachable
+        intake delays the exit by at most that long, and records not sent by then are dropped.
+        Records not sent yet are lost when the process is ended by a
+        signal such as ``SIGTERM`` or ``SIGKILL``, by ``os._exit()`` (for example an
+        ``os.fork()`` child), by ``Pool.terminate()`` (which leaving a ``with Pool()`` block calls;
+        use ``close()`` and ``join()`` to keep worker logs), or by a crash.
+
+        When the Test Optimization pytest plugin is enabled, this submission is turned off for the
+        test session, and test logs are submitted only by the plugin, as before: in agentless mode
+        (``DD_CIVISIBILITY_AGENTLESS_ENABLED=true`` or ``DD_AGENTLESS_ENABLED=true``), the plugin
+        submits them with this same variable.
+
+        If ``DD_LOGS_OTEL_ENABLED`` is also set, ``DD_AGENTLESS_ENABLED`` leaves logs to
+        OpenTelemetry, which then exports them to the Datadog intake too. An explicit
+        ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED=true`` takes precedence instead: OpenTelemetry log
+        export is turned off and a warning is logged at startup.
+
+     version_added:
+        v4.8.0: |
+          Log submission from the Test Optimization pytest plugin.
+        v4.18.0: |
+          Log submission from any process started with the tracer installed, no longer
+          restricted to the Test Optimization pytest plugin.
+
+   DD_AGENTLESS_LOG_SUBMISSION_URL:
+     type: String
+     default: None
+
+     description: |
+        Overrides the base URL of the Datadog logs intake that records are submitted to when
+        ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED=true``. The ``/api/v2/logs`` path is appended to
+        the given value. Intended mainly for testing against a local log receiver.
+
+     version_added:
+        v4.18.0:
 
    DD_LOGS_INJECTION:
      type: Boolean

@@ -9,6 +9,9 @@ class AgentlessConfig(DDConfig):
     api_key = DDConfig.v(t.Optional[str], "dd.api_key", default=None)
     site = DDConfig.v(str, "dd.site", default="datadoghq.com")
 
+    #: Overrides the base URL of the logs intake that log submissions are sent to.
+    log_submission_url = DDConfig.v(t.Optional[str], "dd.agentless.log_submission.url", default=None)
+
     #: The global switch. Every product setting below defaults to it.
     enabled = DDConfig.v(bool, "dd.agentless.enabled", default=False)
 
@@ -17,12 +20,16 @@ class AgentlessConfig(DDConfig):
     _apm_tracing = DDConfig.v(t.Optional[bool], "_dd.apm.tracing.agentless.enabled", default=None)
     _ci_visibility = DDConfig.v(t.Optional[bool], "dd.civisibility.agentless.enabled", default=None)
     _llmobs = DDConfig.v(t.Optional[bool], "dd.llmobs.agentless.enabled", default=None)
+    _log_submission = DDConfig.v(t.Optional[bool], "dd.agentless.log_submission.enabled", default=None)
 
     apm_tracing = DDConfig.d(bool, lambda c: c.enabled if c._apm_tracing is None else c._apm_tracing)
     ci_visibility = DDConfig.d(bool, lambda c: c.enabled if c._ci_visibility is None else c._ci_visibility)
     # LLM Observability keeps a third state: left unset (and with no global switch) it
     # probes the agent at startup and decides then, so it must not collapse to False.
     llmobs = DDConfig.d(t.Optional[bool], lambda c: True if c.enabled and c._llmobs is None else c._llmobs)
+    #: Submit application logs straight to the logs intake. Unlike the global switch, the explicit
+    #: setting does not route anything else agentlessly (parity with dd-trace-js).
+    log_submission = DDConfig.d(bool, lambda c: c.enabled if c._log_submission is None else c._log_submission)
 
     #: Whether anything at all submits agentlessly. Products without a transport
     #: setting of their own (instrumentation telemetry) follow this.
@@ -49,6 +56,7 @@ class AgentlessConfig(DDConfig):
             for env_name, value in (
                 ("DD_AGENTLESS_ENABLED", self.enabled),
                 ("DD_SITE", self.site),
+                ("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", self.log_submission),
                 ("_DD_APM_TRACING_AGENTLESS_ENABLED", self.apm_tracing),
                 ("DD_CIVISIBILITY_AGENTLESS_ENABLED", self.ci_visibility),
                 ("DD_LLMOBS_AGENTLESS_ENABLED", self.llmobs),

@@ -1,0 +1,19 @@
+---
+upgrade:
+  - |
+    logs: Applications running with ``DD_AGENTLESS_ENABLED=true`` now submit their Python ``logging``
+    records to the Datadog logs intake, and so do agentless Test Optimization sessions. Set
+    ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED=false`` to keep the previous behavior.
+features:
+  - |
+    logs: Agentless mode (``DD_AGENTLESS_ENABLED=true``, with ``DD_API_KEY``) now also submits Python
+    ``logging`` records directly to the Datadog logs intake from any process started with the tracer
+    installed (for example with ``ddtrace-run``), correlated with traces.
+    ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED`` overrides it: ``false`` opts out, and ``true`` submits
+    logs without making anything else agentless. It previously applied only to the Test Optimization
+    pytest plugin. When ``DD_LOGS_OTEL_ENABLED`` is set, logs stay with OpenTelemetry unless
+    ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED=true`` is also set. ``DD_AGENTLESS_LOG_SUBMISSION_URL``
+    overrides the logs intake base URL.
+  - |
+    CI Visibility: Logs submitted by the Test Optimization pytest plugin and ``DDTestLogsHandler`` now
+    include the exception traceback in the message when the record carries exception information.

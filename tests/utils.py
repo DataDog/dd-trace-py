@@ -3,7 +3,10 @@ from __future__ import annotations
 import base64
 import contextlib
 from contextlib import contextmanager
+import gzip
 import http.client as httplib
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import importlib.metadata as importlib_metadata
 import inspect
 import json
@@ -13,6 +16,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import threading
 import time
 from typing import Any
 from typing import Iterator
@@ -1744,3 +1748,65 @@ def override_third_party_packages(packages: list[str]):
 
 def process_tag_reload():
     process_tags.process_tags, process_tags.process_tags_list = process_tags.generate_process_tags()
+
+
+class _LogsIntakeRequest:
+    def __init__(self, path: str, headers: dict[str, str], body: bytes) -> None:
+        self.path = path
+        self.headers = headers
+        self.body = body
+
+
+class LogsIntakeReceiver:
+    """A local HTTP server standing in for the Datadog logs intake; it records the POSTed bodies."""
+
+    def __init__(self) -> None:
+        self.requests: list[_LogsIntakeRequest] = []
+
+        class Handler(BaseHTTPRequestHandler):
+            intake = self
+
+            def do_POST(self) -> None:  # noqa: N802
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length)
+                if self.headers.get("Content-Encoding") == "gzip":
+                    body = gzip.decompress(body)
+                self.intake.requests.append(
+                    _LogsIntakeRequest(self.path, {k.lower(): v for k, v in self.headers.items()}, body)
+                )
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+            def log_message(self, *args: Any) -> None:
+                pass
+
+        self._server = HTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self._server.server_address[1]
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    @property
+    def url(self) -> str:
+        return "http://127.0.0.1:%d" % self.port
+
+    def events(self) -> list[dict[str, Any]]:
+        """All events POSTed to the logs intake endpoint (the tracer may reuse the receiver)."""
+        events = []
+        for request in self.requests:
+            if request.path == "/api/v2/logs":
+                events.extend(json.loads(request.body))
+        return events
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
+@contextmanager
+def logs_intake_receiver() -> Iterator[LogsIntakeReceiver]:
+    receiver = LogsIntakeReceiver()
+    try:
+        yield receiver
+    finally:
+        receiver.close()
