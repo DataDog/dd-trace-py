@@ -104,10 +104,11 @@ class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
 class Debouncer(PeriodicService):
     """Calls a target once delay seconds have passed since the last touch().
 
-    Any thread can call touch(), which never blocks, so application threads can
-    report a change without starting or waiting on a ddtrace thread. The deadline
-    is cleared before the target is called, so a touch made while the target runs
-    schedules another call: touch after making the change you report.
+    Any thread can call touch(), which never waits for the target, so application
+    threads can report a change without starting or waiting on a ddtrace thread.
+    The deadline is cleared before the target is called, so a touch made while
+    the target runs schedules another call: touch after making the change you
+    report.
 
     Once started it runs until the process exits. Without a target it is dormant,
     which lets an owner that goes away, and comes back, switch it off and on.
@@ -118,18 +119,23 @@ class Debouncer(PeriodicService):
         super().__init__(interval=delay / 2)
         self._delay = delay
         self._deadline: typing.Optional[float] = None
+        # Held only to read or update the deadline, never while the target runs, so that a
+        # touch cannot land between checking the deadline and clearing it.
+        self._deadline_lock = forksafe.Lock()
         self.target = target
 
     def touch(self) -> None:
         """Call the target once delay seconds have passed without another touch."""
-        self._deadline = monotonic() + self._delay
+        with self._deadline_lock:
+            self._deadline = monotonic() + self._delay
 
     def periodic(self) -> None:
-        if (target := self.target) is None or (deadline := self._deadline) is None:
+        if (target := self.target) is None:
             return
-        if monotonic() < deadline:
-            return
-        self._deadline = None
+        with self._deadline_lock:
+            if (deadline := self._deadline) is None or monotonic() < deadline:
+                return
+            self._deadline = None
         target()
 
 

@@ -1882,3 +1882,16 @@ def test_write_sets_the_otlp_trace_context(make_writer, agent):
     for span in (root, child):
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
+
+
+def test_a_buffer_writer_stopped_before_building_its_buffer_never_builds_it():
+    """A writer built in a child fork hook defers its buffer, which must not be built once the writer stops."""
+    with mock.patch("ddtrace.internal.forksafe.in_child_hook", return_value=True):
+        writer = NativeTraceBuffer("http://localhost:8126")
+    assert writer._buffer_value is None
+
+    writer.stop()
+    writer.flush_queue()
+    writer.write([Span(name="late")])
+
+    assert writer._buffer_value is None

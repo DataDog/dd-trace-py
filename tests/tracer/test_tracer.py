@@ -2491,3 +2491,38 @@ def test_writer_is_rebuilt_in_children_forked_repeatedly_from_threads():
 
     assert failures == []
     assert tracer._span_aggregator.writer is parent_writer
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30, err=None)
+def test_child_fork_hook_does_not_wait_for_an_aggregator_lock_held_at_fork():
+    """The child rebuilds its writer in its fork hook, which must not wait for a lock another thread held."""
+    import ddtrace.auto  # noqa:F401,I001
+
+    import os
+    import threading
+
+    from ddtrace.trace import tracer
+
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold():
+        with tracer._span_aggregator._lock:
+            held.set()
+            release.wait(timeout=10)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=5)
+
+    pid = os.fork()
+    if pid == 0:
+        with tracer.trace("child"):
+            pass
+        os._exit(0)
+
+    release.set()
+    holder.join()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status

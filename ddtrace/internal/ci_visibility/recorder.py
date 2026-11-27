@@ -68,6 +68,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALU
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -446,7 +447,19 @@ class CIVisibility(Service, CIVisibilityProtocol):
                 use_gzip=self._is_gzip_supported_by_agent(),
             )
         if writer is not None:
+            replaced = self.tracer._span_aggregator.writer
             self.tracer._span_aggregator.writer = writer
+            # Writers run from when they are created, so stop the one this replaces.
+            try:
+                replaced.flush_queue()
+                replaced.stop()
+            except ServiceStatusError:
+                # A writer that never started, e.g. in sync mode, still has a native exporter.
+                shutdown_exporter = getattr(replaced, "shutdown_exporter", None)
+                if shutdown_exporter is not None:
+                    shutdown_exporter()
+            except Exception:
+                log.warning("Failed to stop the trace writer replaced by CI Visibility", exc_info=True)
             self.tracer._recreate()
 
     def _agent_evp_proxy_base_url(self) -> Optional[str]:

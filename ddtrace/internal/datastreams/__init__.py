@@ -6,6 +6,7 @@ from typing import Optional
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import uwsgi
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 
 from ...internal.utils.importlib import require_modules
@@ -66,6 +67,13 @@ def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor
     """
     global _processor
     if reset and config._data_streams_enabled:
-        _processor = _create_processor()
+        replaced, _processor = _processor, _create_processor()
+        if replaced is not None:
+            # Do not leave the replaced processor running.
+            try:
+                replaced.shutdown(timeout=5)
+            except ServiceStatusError:
+                # Already shut down, e.g. by a test that owned it.
+                pass
 
     return _processor

@@ -436,6 +436,9 @@ class Tracer:
 
     def _child_after_fork(self):
         self._pid = getpid()
+        # The rebuild below takes the aggregator lock, which the parent might have forked while
+        # another of its threads held it.
+        self._span_aggregator.reset_lock_after_fork()
         self._span_aggregator.reset_trace_buffer_after_fork()
         # Rebuild the inherited writer here rather than on the first span start, so that no
         # application thread starts the writer thread. Process managers that close inherited

@@ -783,6 +783,10 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         self._process_unseen_loaded_modules()
 
     def _add_scope(self, scope: Scope) -> None:
+        if type(self)._instance is not self:
+            # Uninstalled, e.g. by remote configuration while an import was in flight: this
+            # uploader no longer collects symbols, and its final upload has already run.
+            return
         self._context.add_scope(scope)
         # After the scope is in, as the debouncer requires.
         self._debouncer.touch()

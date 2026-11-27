@@ -1047,7 +1047,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Built outside the exporter lock, as in _downgrade(): _create_exporter() can take the
         # telemetry enable lock, whose holder notifies _on_telemetry_worker_changed(), which takes
         # the exporter lock.
-        new_exporter = self._create_exporter()
+        try:
+            new_exporter = self._create_exporter()
+        except BaseException as e:
+            if not (isinstance(e, Exception) or is_panic_exception(e)):
+                raise
+            # Keep the payloads, and the writer thread: the next flush tries again.
+            _safelog(log.warning, "failed to build the trace exporter, retrying on the next flush", exc_info=True)
+            return False
         with self._exporter_lock, self._exporter_lifecycle_lock:
             # A build that finishes after stop() or a refresh must not install an exporter.
             installed = self._exporter is None and not self._discarded_by_refresh and not self._exporter_stopping
@@ -1676,22 +1683,30 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         if not forksafe.in_child_hook():
             self._install_buffer()
 
-    def _buffer_deferred(self) -> bool:
-        """Whether the buffer cannot be built yet, because the child fork hooks are running."""
-        return self._buffer_value is None and forksafe.in_child_hook()
-
     @property
     def _buffer(self) -> "native.TraceBuffer":
-        if (buffer := self._buffer_value) is None:
-            with self._buffer_build_lock:
-                if self._buffer_value is None:
-                    self._install_buffer()
-                buffer = cast("native.TraceBuffer", self._buffer_value)
+        if (buffer := self._usable_buffer()) is None:
+            raise RuntimeError("the native trace buffer is not available")
         return buffer
 
     @_buffer.setter
     def _buffer(self, buffer: "native.TraceBuffer") -> None:
         self._buffer_value = buffer
+
+    def _usable_buffer(self) -> "Optional[native.TraceBuffer]":
+        """Return the buffer, building it if this writer was built in a child fork hook.
+
+        Return None while the child fork hooks run, and once the writer is stopped without a buffer.
+        """
+        if (buffer := self._buffer_value) is not None:
+            return buffer
+        if forksafe.in_child_hook():
+            return None
+        with self._buffer_build_lock:
+            # stop() sets the flag under this lock, so a buffer is never built after it.
+            if self._buffer_value is None and not self._stopped:
+                self._install_buffer()
+            return self._buffer_value
 
     def _create_buffer(self) -> "native.TraceBuffer":
         shared_worker = telemetry_writer._get_shared_worker() if config._telemetry_enabled else None
@@ -1829,9 +1844,10 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
     def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if not spans:
             return
-        if self._buffer_deferred():
-            # A trace finished while the child fork hooks run cannot reach a buffer yet.
-            _safelog(log.debug, "dropping a trace finished during the child fork hooks")
+        if self._usable_buffer() is None:
+            # A trace finished while the child fork hooks run, or after the writer stopped before
+            # it built its buffer, cannot reach a buffer.
+            _safelog(log.debug, "dropping a trace that finished without a native trace buffer")
             return
         # This writer has no periodic thread. Each write() adds the buckets that the periodic flush of
         # NativeWriter adds, so the keep rate of both writers moves at the same pace.
@@ -1920,10 +1936,10 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             _safelog(log.warning, "native trace buffer dropped spans: %s", reason)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
-        if self._buffer_deferred():
+        if (buffer := self._usable_buffer()) is None:
             return
         try:
-            self._buffer.flush(_flush_timeout_ns())
+            buffer.flush(_flush_timeout_ns())
         except Exception as exc:
             if raise_exc:
                 raise
@@ -1950,10 +1966,13 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         # The shutdown blocks on an export already in flight, so a caller that passes no timeout still
         # gets a bound. atexit and SpanAggregator.shutdown both reach here.
         timeout_ns = int(timeout * 1e9) if timeout is not None else 3_000_000_000
-        self._stopped = True
+        # Under the build lock, so that a buffer is either built before, and shut down here, or never.
+        with self._buffer_build_lock:
+            self._stopped = True
+            buffer = self._buffer_value
         # A forked child that never rebuilt its writer still holds the buffer of the parent. See
         # _discard_buffer for why that buffer must not shut down here.
-        if os.getpid() != self._pid or (buffer := self._buffer_value) is None:
+        if os.getpid() != self._pid or buffer is None:
             return
         try:
             buffer.shutdown(timeout_ns)

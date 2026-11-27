@@ -885,6 +885,16 @@ class SpanAggregator(SpanProcessor):
             self.reset_trace_buffer_after_fork()
         return None
 
+    def reset_lock_after_fork(self) -> None:
+        """Replace the lock in a fork child, where another thread of the parent might have held it.
+
+        The MicroVM lock is fork-safe, and replaces itself. The plain lock is kept elsewhere, as it is
+        cheaper on the span path. Only the child fork hooks may call this, as nothing else holds the
+        lock there.
+        """
+        if not self._identity_refresh_enabled:
+            self._lock = RLock()
+
     def reset_trace_buffer_after_fork(self) -> None:
         """Discard inherited traces without touching the fork-unsafe writer."""
         self._traces = defaultdict(lambda: _Trace())

@@ -2113,3 +2113,27 @@ def test_codeowners_uses_tested_checkout_root(tmp_path):
     assert visibility.get_workspace_path() == str(inner)
     assert visibility._tags[ci.WORKSPACE_PATH] == str(outer)
     assert Codeowners(cwd=visibility.get_workspace_path()).of("test_file.py") == ["@inner-owner"]
+
+
+def test_configure_writer_stops_the_writer_it_replaces():
+    """Writers run from when they are created, so CI Visibility stops the writer it replaces."""
+    from types import SimpleNamespace
+
+    replaced = mock.Mock()
+    tracer = mock.Mock()
+    tracer._span_aggregator.writer = replaced
+    recorder = SimpleNamespace(
+        _requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
+        _coverage_report_upload_enabled=False,
+        _api_key="foobar",
+        _suite_skipping_mode=False,
+        tracer=tracer,
+    )
+
+    with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter") as writer_class:
+        CIVisibility._configure_writer(recorder)
+
+    assert tracer._span_aggregator.writer is writer_class.return_value
+    replaced.flush_queue.assert_called_once_with()
+    replaced.stop.assert_called_once_with()
+    tracer._recreate.assert_called_once_with()

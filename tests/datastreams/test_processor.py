@@ -450,3 +450,33 @@ def test_dsm_pathway_codec_decode_no_context():
     assert ctx.hash == processor.new_pathway().hash
     assert ctx.pathway_start_sec == mocked_time
     assert ctx.current_edge_start_sec == mocked_time
+
+
+def test_checkpoint_context_storage_is_created_on_first_use():
+    """The processor is created when ddtrace is imported, before gevent can patch threading.
+
+    Its checkpoint context belongs to the greenlet, so its storage is created on first use.
+    """
+    processor = DataStreamsProcessor("http://localhost:8126")
+    try:
+        assert processor._current_context_storage is None
+        storage = processor._current_context
+        assert processor._current_context is storage
+    finally:
+        processor.stop()
+        processor.join()
+
+
+def test_reset_shuts_down_the_replaced_processor():
+    from ddtrace.internal.datastreams import data_streams_processor
+    from tests.utils import override_global_config
+
+    with override_global_config(dict(_data_streams_enabled=True)):
+        replaced = data_streams_processor(reset=True)
+        assert replaced is not None
+        with mock.patch.object(replaced, "shutdown") as shutdown:
+            replacement = data_streams_processor(reset=True)
+        shutdown.assert_called_once_with(timeout=5)
+        assert replacement is not replaced
+        replaced.stop()
+        replacement.shutdown(timeout=5)

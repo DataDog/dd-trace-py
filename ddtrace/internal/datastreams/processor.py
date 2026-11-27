@@ -132,7 +132,9 @@ class DataStreamsProcessor(PeriodicService):
         self._hostname = compat.ensure_text(get_hostname())
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
-        self._current_context = local()
+        # Created on first use rather than here: the processor is created when ddtrace is imported,
+        # before gevent can patch threading, and a checkpoint context belongs to the greenlet.
+        self._current_context_storage: Optional[Any] = None
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
@@ -313,6 +315,12 @@ class DataStreamsProcessor(PeriodicService):
                 self._agent_endpoint,
                 e,
             )
+
+    @property
+    def _current_context(self) -> Any:
+        if (storage := self._current_context_storage) is None:
+            storage = self._current_context_storage = local()
+        return storage
 
     def shutdown(self, timeout: Optional[float]) -> None:
         self.periodic()

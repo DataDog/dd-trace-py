@@ -455,6 +455,22 @@ def test_symbols_uploader_debounces_uploads():
         assert debouncer.target is None
         assert debouncer.status is ServiceStatus.RUNNING
 
+        # Imports still in flight add no scopes to an uninstalled uploader.
+        pending = len(uploader._context)
+        with mock.patch.object(ScopeContext, "_send_batch"):
+            uploader._add_scope(
+                Scope(
+                    scope_type=ScopeType.MODULE,
+                    name="late",
+                    source_file=__file__,
+                    start_line=0,
+                    end_line=0,
+                    symbols=[],
+                    scopes=[],
+                )
+            )
+        assert len(uploader._context) == pending
+
         # A new uploader reuses it.
         SymbolDatabaseUploader.install()
         reinstalled = SymbolDatabaseUploader._instance
