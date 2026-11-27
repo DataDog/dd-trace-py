@@ -22,12 +22,6 @@ NATIVE_DIR = ROOT / "src" / "native"
 
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 IMPORT_DDTRACE = re.compile(r'\bimport(?:_bound)?\s*\([^)]*?"ddtrace\b')
-IMPORTED_MODULE = re.compile(r'"([^"]+)"')
-
-# The packb import in span/wire.rs predates this check. The packer-split PR replaces it with the
-# sibling _msgpack import and deletes this entry; until then the check still flags every other
-# ddtrace import.
-ALLOWED_IMPORTS = frozenset({"ddtrace.internal._encoding"})
 
 
 def _blank_comment(match: re.Match[str]) -> str:
@@ -40,11 +34,6 @@ def find_violations(root: Path = NATIVE_DIR) -> list[str]:
     for path in sorted(root.rglob("*.rs")):
         source = COMMENT.sub(_blank_comment, path.read_text(encoding="utf-8"))
         for match in IMPORT_DDTRACE.finditer(source):
-            # The lazy import regex stops at the first "ddtrace, so read the module name from
-            # the source right after the match: the next quoted string is the imported module.
-            module = IMPORTED_MODULE.search(source, match.start())
-            if module is not None and module.group(1) in ALLOWED_IMPORTS:
-                continue
             line = source.count("\n", 0, match.start()) + 1
             violations.append(f"{path.relative_to(ROOT)}:{line}: imports a ddtrace module")
     return violations
