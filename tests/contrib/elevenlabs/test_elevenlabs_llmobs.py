@@ -325,9 +325,24 @@ class Socket:
         return json.dumps(value)
 
 
+@pytest.fixture
+def no_billing_requests(monkeypatch):
+    calls = []
+
+    def unexpected_get(*args, **kwargs):
+        calls.append(True)
+        raise AssertionError("Unexpected conversation-details request")
+
+    monkeypatch.setattr("elevenlabs.conversational_ai.conversations.client.ConversationsClient.get", unexpected_get)
+    yield
+    assert not calls
+
+
 @pytest.mark.parametrize("default_interface", [False, True])
 @pytest.mark.parametrize("vad_enabled", [False, True])
-def test_ordinary_sync_sdk_with_normal_event_subset(monkeypatch, test_spans, default_interface, vad_enabled):
+def test_ordinary_sync_sdk_with_normal_event_subset(
+    monkeypatch, test_spans, default_interface, vad_enabled, no_billing_requests
+):
     clock = Clock()
     monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
     if default_interface:
@@ -374,7 +389,9 @@ def test_ordinary_sync_sdk_with_normal_event_subset(monkeypatch, test_spans, def
 @pytest.mark.asyncio
 @pytest.mark.parametrize("default_interface", [False, True])
 @pytest.mark.parametrize("vad_enabled", [False, True])
-async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans, default_interface, vad_enabled):
+async def test_ordinary_async_sdk_with_custom_interface(
+    monkeypatch, test_spans, default_interface, vad_enabled, no_billing_requests
+):
     clock = Clock()
     monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
     if default_interface:

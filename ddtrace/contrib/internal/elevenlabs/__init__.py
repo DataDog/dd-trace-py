@@ -20,4 +20,34 @@ and phase-based colors remain available. VAD timing is estimated and does not en
 latency measurements.
 
 Standalone speech-to-text, text-to-speech, and browser transports are not instrumented.
+
+Conversation costs (unreleased)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Configure an ElevenLabs post-call transcription webhook and verify its signature
+in your application. Submit its data with ``LLMObs.submit_conversation_cost`` and
+``source="post_call_transcription"``. Pass ``agent_service`` for the originating
+voice application when the webhook handler uses a different application name.
+The conversation process can exit before the webhook arrives; the handler must
+finish submitting and flushing its data before it exits.
+
+You can also submit a completed conversation-details response your application
+already obtained. The tracer performs no polling or additional ElevenLabs
+requests. This API requires Datadog backend support and a released tracer version
+exposing the method.
+
+The reported conversation total includes the provider's LLM and platform prices.
+One dedicated workflow owns the charge. Missing provider amounts remain unknown;
+``total_cost`` can supply a finite, nonnegative user override, including zero,
+on the first submission. Late initial billing is supported. Delivery and updates
+to missing values are supported for 24 hours after the first known total is
+accepted; conflicting amounts and expired updates are rejected asynchronously.
+
+``True`` means the observation was queued locally for every requested destination,
+not that it was delivered or accepted for billing. With multiple routing
+destinations, ``False`` can mean some queues accepted it while others were full.
+Retrying the same conversation does not add charges. ``context_usage`` and audio
+duration do not establish billable usage, and conversation charges are not allocated
+to turns.
+
 """

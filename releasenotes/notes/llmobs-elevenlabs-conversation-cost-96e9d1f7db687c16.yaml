@@ -1,0 +1,5 @@
+features:
+  - |
+    elevenlabs: Adds ``LLMObs.submit_conversation_cost`` to report conversation-level
+    USD billing from verified post-call transcription webhooks or completed details
+    obtained by the application, including explicit zero costs and user overrides.
