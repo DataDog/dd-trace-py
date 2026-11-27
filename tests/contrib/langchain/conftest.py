@@ -12,6 +12,26 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+@pytest.fixture(autouse=True)
+def _clear_langchain_openai_http_client_cache():
+    """Drop the HTTP clients that langchain-openai caches by base URL after each test.
+
+    Every test uses the same test agent URL, so without this the async client created
+    in one test's event loop is reused in the next one. With httpx2 (openai>=3), the
+    pool then closes the stale connections on the previous, already closed loop and
+    raises "Event loop is closed".
+    """
+    yield
+    try:
+        from langchain_openai.chat_models import _client_utils
+    except ImportError:
+        return
+    for name in ("_cached_sync_httpx_client", "_cached_async_httpx_client"):
+        cached = getattr(_client_utils, name, None)
+        if cached is not None:
+            cached.cache_clear()
+
+
 @pytest.fixture
 def langchain_llmobs(tracer, monkeypatch):
     """Enable LLMObs with langchain-specific config (instrumented proxy URLs).

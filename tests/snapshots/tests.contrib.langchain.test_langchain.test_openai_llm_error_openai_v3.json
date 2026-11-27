@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_openai.llms.base.OpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.llmobs.artificial_gen_ai_tags": "true",
+      "_dd.llmobs.model_name": "gpt-3.5-turbo-instruct",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6afada4400000000",
+      "_dd.sdk.otlp_export": "false",
+      "_dd.svc_src": "datadog",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
+      "error.message": "Error code: 400 - Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/langchain/patch.py\", line 108, in traced_llm_generate\n    completions = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.cache/test-environments/1b4dd6b4d877/lib/python3.12/site-packages/langchain_core/language_models/llms.py\", line 1029, in generate\n    return self._generate_helper(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.cache/test-environments/1b4dd6b4d877/lib/python3.12/site-packages/langchain_core/language_models/llms.py\", line 827, in _generate_helper\n    self._generate(\n  File \"/home/bits/project/.cache/test-environments/1b4dd6b4d877/lib/python3.12/site-packages/langchain_openai/llms/base.py\", line 510, in _generate\n    response = self.client.create(prompt=_prompts, **params)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.cache/test-environments/1b4dd6b4d877/lib/python3.12/site-packages/openai/_utils/_utils.py\", line 298, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.cache/test-environments/1b4dd6b4d877/lib/python3.12/site-packages/openai/resources/completions.py\", line 555, in create\n    return self._post(\n           ^^^^^^^^^^^\n  File \"/home/bits/project/.cache/test-environments/1b4dd6b4d877/lib/python3.12/site-packages/openai/_base_client.py\", line 1474, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.cache/test-environments/1b4dd6b4d877/lib/python3.12/site-packages/openai/_base_client.py\", line 1248, in request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.BadRequestError: Error code: 400 - Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).\n",
+      "error.type": "openai.BadRequestError",
+      "gen_ai.operation.name": "llm",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-3.5-turbo-instruct",
+      "langchain.request.model": "gpt-3.5-turbo-instruct",
+      "langchain.request.provider": "openai",
+      "language": "python",
+      "runtime-id": "16efa18bbad14740bf111d8c7ab5d2c4"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 12833902,
+    "start": 1794824772889657561
+  }]]
