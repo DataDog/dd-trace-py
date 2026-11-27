@@ -44,6 +44,7 @@ from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.platform import get_platform_tags
+from ddtrace.testing.internal.platform import get_runtime_tags_overrides
 from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
@@ -156,7 +157,8 @@ class SessionManager:
         else:
             self.workspace_path = Path.cwd()
 
-        self.platform_tags = get_platform_tags()
+        self.runtime_tags_overrides = get_runtime_tags_overrides()
+        self.platform_tags = get_platform_tags(self.runtime_tags_overrides)
         self.collected_tests: set[TestRef] = set()
         self.skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
         self.itr_correlation_id: t.Optional[str] = None

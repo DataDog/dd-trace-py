@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
+import pytest
 
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -64,3 +65,30 @@ class TestDDTraceTags:
         assert test_event["content"]["meta"].get("my_custom_tag") == "foo"
         assert test_event["content"]["meta"].get("my_other_tag") == "bar"
         assert test_event["content"]["metrics"].get("my_custom_metric") == 42
+
+    def test_runtime_tags_overrides_take_precedence_over_ddtrace_tags(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pytester.makepyfile(
+            test_foo="""
+            def test_set_ddtrace_tags():
+                from ddtrace import tracer
+                tracer.current_span().set_tag("os.version", "from-span")
+        """
+        )
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_RUNTIME_TAGS", '{"os.version": "6.12.0"}')
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        test_event = event_capture.event_by_test_name("test_set_ddtrace_tags")
+        assert test_event["content"]["meta"].get("os.version") == "6.12.0"

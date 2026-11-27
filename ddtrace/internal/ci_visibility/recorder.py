@@ -76,6 +76,7 @@ from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabi
 from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.testing.internal.platform import get_runtime_tags_overrides
 from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
@@ -208,7 +209,11 @@ class CIVisibility(Service, CIVisibilityProtocol):
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
 
         # Holds the runtime and OS facets, plus any custom configurations as a nested dict.
-        self._configurations: dict[str, Union[str, dict[str, str]]] = dict(ci._get_runtime_and_os_metadata())
+        runtime_tags_overrides = get_runtime_tags_overrides()
+        self._configurations: dict[str, Union[str, dict[str, str]]] = {
+            **ci._get_runtime_and_os_metadata(),
+            **runtime_tags_overrides,
+        }
         custom_configurations = _get_custom_configurations()
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
@@ -228,7 +233,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
             )
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-        self._tags: dict[str, str] = ci.tags(cwd=_get_git_repo())
+        self._tags: dict[str, str] = {**ci.tags(cwd=_get_git_repo()), **runtime_tags_overrides}
         self._is_auto_injected = bool(env.get("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None

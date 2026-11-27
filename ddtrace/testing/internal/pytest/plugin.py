@@ -1116,6 +1116,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         test_run.set_status(status)
         test_run.set_tags(tags)
         test_run.set_context(context)
+        # The test span carries the DD_TAGS values, which the runtime tag overrides take precedence over
+        test_run.set_tags(self.manager.runtime_tags_overrides)
 
         if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid, None):
             test_run.set_tags(benchmark_data.tags)

@@ -1183,6 +1183,20 @@ Test Visibility
      version_added:
         v2.16.0:
 
+   DD_TEST_OPTIMIZATION_RUNTIME_TAGS:
+     type: String
+     default: ""
+
+     description: |
+        JSON object that overrides the detected operating system and Python runtime tags of test events and of the
+        configurations sent to Datadog, for example ``{"os.version": "6.12.0"}``. Supported keys are
+        ``os.platform``, ``os.architecture``, ``os.version``, ``runtime.name``, and ``runtime.version``. Pinning a
+        value that changes between runs, such as the kernel version, keeps Test Impact Analysis able to use earlier
+        coverage.
+
+     version_added:
+        v4.18.0:
+
    DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
      type: Integer
      default: 500

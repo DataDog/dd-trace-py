@@ -4,6 +4,7 @@ import json
 import multiprocessing
 import os
 from pathlib import Path
+import platform
 import re
 import socket
 import subprocess
@@ -1480,6 +1481,31 @@ def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_ur
             timeout=20.0,
         )
         CIVisibility.disable()
+
+
+def test_civisibility_applies_runtime_tags_overrides():
+    with (
+        _ci_override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_TEST_OPTIMIZATION_RUNTIME_TAGS='{"os.version": "6.12.0", "runtime.version": "3.11.0"}',
+            )
+        ),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
+        ),
+        _dummy_noop_git_client(),
+        mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
+    ):
+        CIVisibility.enable()
+        try:
+            for tags in (CIVisibility._instance._configurations, CIVisibility._instance._tags):
+                assert tags["os.version"] == "6.12.0"
+                assert tags["runtime.version"] == "3.11.0"
+                assert tags["os.platform"] == platform.system()
+        finally:
+            CIVisibility.disable()
 
 
 def test_civisibility_enable_tracer_uses_partial_traces():

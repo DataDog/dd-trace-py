@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    CI Visibility: Adds the ``DD_TEST_OPTIMIZATION_RUNTIME_TAGS`` environment variable. It takes a JSON object, such as
+    ``{"os.version": "6.12.0"}``, that overrides the detected ``os.platform``, ``os.architecture``, ``os.version``,
+    ``runtime.name``, and ``runtime.version`` values in test events and in the configurations sent to Datadog. Use it
+    to keep Test Impact Analysis skipping tests when a value such as the kernel version changes between runs.
