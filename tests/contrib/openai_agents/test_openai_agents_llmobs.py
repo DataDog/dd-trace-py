@@ -134,6 +134,19 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
 }
 
 
+class _StartsWith:
+    """Matches a string by prefix; newer openai-agents redacts the tool error details."""
+
+    def __init__(self, prefix):
+        self.prefix = prefix
+
+    def __eq__(self, other):
+        return isinstance(other, str) and other.startswith(self.prefix)
+
+    def __repr__(self):
+        return f"_StartsWith({self.prefix!r})"
+
+
 def _expected_agent_metadata(agent_name: str) -> dict:
     return {"_dd": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}}
 
@@ -204,7 +217,7 @@ def _assert_expected_agent_run(
             if tool_call["error"]:
                 error = {
                     "type": "Error running tool (non-fatal)",
-                    "message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
+                    "message": _StartsWith(f'{{"tool_name": "{tool_call["tool_name"]}", "error": "'),
                     "stack": mock.ANY,
                 }
             io_args = (
@@ -728,8 +741,7 @@ async def test_llmobs_single_agent_with_tool_errors(
                             {
                                 "tool_id": mock.ANY,
                                 "name": "",
-                                "result": "An error occurred while running the tool."
-                                " Please try again. Error: This is a test error",
+                                "result": _StartsWith("An error occurred while running the tool. Please try again."),
                                 "type": "function_call_output",
                             }
                         ],
