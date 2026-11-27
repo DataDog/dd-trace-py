@@ -62,6 +62,7 @@ DEFAULT_TIMEOUT_SECONDS = _parse_timeout_millis(env.get("DD_CIVISIBILITY_BACKEND
 
 MAX_ATTEMPTS = 5
 MAX_RETRY_AFTER_SECONDS = 120.0
+DEFAULT_GZIP_LEVEL = 6
 
 T = t.TypeVar("T")
 
@@ -378,11 +379,12 @@ class BackendConnector(threading.local):
         headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         is_json_response: bool = False,
+        gzip_level: int = DEFAULT_GZIP_LEVEL,
     ) -> BackendResult:
         full_headers = self.default_headers | (headers or {})
 
         if send_gzip and self.use_gzip and data is not None:
-            data = gzip.compress(data, compresslevel=6)
+            data = gzip.compress(data, compresslevel=gzip_level)
             full_headers["Content-Encoding"] = "gzip"
 
         result = BackendResult()
@@ -460,6 +462,7 @@ class BackendConnector(threading.local):
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        gzip_level: int = DEFAULT_GZIP_LEVEL,
     ) -> BackendResult:
         attempts_so_far = 0
 
@@ -472,6 +475,7 @@ class BackendConnector(threading.local):
                 headers=headers,
                 send_gzip=send_gzip,
                 is_json_response=is_json_response,
+                gzip_level=gzip_level,
             )
 
             if telemetry:
@@ -551,6 +555,7 @@ class BackendConnector(threading.local):
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        gzip_level: int = DEFAULT_GZIP_LEVEL,
     ) -> BackendResult:
         boundary = uuid.uuid4().hex
         boundary_bytes = boundary.encode("utf-8")
@@ -578,6 +583,7 @@ class BackendConnector(threading.local):
             send_gzip=send_gzip,
             telemetry=telemetry,
             max_attempts=max_attempts,
+            gzip_level=gzip_level,
         )
 
 
@@ -613,6 +619,7 @@ class NoOpBackendConnector:
         is_json_response: bool = False,
         telemetry: t.Any = None,
         max_attempts: int = 1,
+        gzip_level: int = DEFAULT_GZIP_LEVEL,
     ) -> BackendResult:
         log.debug("NoOp connector: skipping %s %s in offline mode", method, path)
         return BackendResult()
