@@ -1,0 +1,20 @@
+write:
+  nspans: 10
+  nmetastructs: 0
+  lmetastructs: 0
+  init: false
+write-meta-struct:
+  nspans: 10
+  nmetastructs: 1
+  lmetastructs: 32
+  init: false
+write-many-meta-structs:
+  nspans: 10
+  nmetastructs: 10
+  lmetastructs: 32
+  init: false
+init:
+  nspans: 1
+  nmetastructs: 0
+  lmetastructs: 0
+  init: true
