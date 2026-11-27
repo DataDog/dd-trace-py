@@ -16,7 +16,7 @@ The `_datadog_patch` flag on the module prevents double-patching. Always check
 `Pin` attaches tracing metadata (service name, tracer) to library instances.
 Many existing integrations use `Pin().onto(module)` and `Pin.get_from(instance)`.
 Pin is DEPRECATED -- do NOT use it in new integrations. It remains in existing
-integrations (redis, kafka, grpc, psycopg, flask, celery, etc.) but
+integrations (redis, kafka, grpc, flask, celery, etc.) but
 new code should use `context_with_event` or `context_with_data` instead.
 
 ## The contrib/internal/ Split
