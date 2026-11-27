@@ -250,8 +250,11 @@ def unresolved_providers(monkeypatch):
     monkeypatch.setattr(inputs, "_provider_hooks", {})
 
 
-def _declared_providers(*named):
-    """Entry points of the providers group, one per ``(name, provider)``, with a record of which were loaded."""
+def _declared_providers(*named, dist="ddtrace", value="ddtrace.internal.provider"):
+    """Entry points of the providers group, one per ``(name, provider)``, with a record of which were loaded.
+
+    Declared by ``dist`` and resolving into ``value``, both trusted by default, as ddtrace's own providers are.
+    """
     loaded = []
 
     def entry(name, provider):
@@ -259,7 +262,7 @@ def _declared_providers(*named):
             loaded.append(name)
             return provider
 
-        return (SimpleNamespace(name=name, value=name, load=load), SimpleNamespace(metadata={"Name": "lib"}))
+        return (SimpleNamespace(name=name, value=value, load=load), SimpleNamespace(metadata={"Name": dist}))
 
     return [entry(name, provider) for name, provider in named], loaded
 
@@ -288,6 +291,27 @@ def test_a_provider_that_fails_to_load_is_skipped(monkeypatch, unresolved_provid
     monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
 
     assert inputs.get_providers() == ()
+
+
+@pytest.mark.parametrize(
+    "dist,value",
+    [
+        pytest.param("evil", "ddtrace.internal.evil", id="untrusted-distribution"),
+        pytest.param("ddtrace", "evil.provider", id="untrusted-module"),
+        pytest.param("ddtrace", "ddtraceevilsuffix.provider", id="spoofed-module-prefix"),
+    ],
+)
+def test_a_provider_from_an_untrusted_declaration_is_refused(monkeypatch, unresolved_providers, dist, value):
+    """Loading a provider executes its module during import ddtrace, so only ddtrace's own may be loaded."""
+    provider = object()
+    found, loaded = _declared_providers(("evil", provider), dist=dist, value=value)
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
+
+    assert inputs.get_providers() == ()
+    assert loaded == []
+    assert inputs.dependency_metadata_enabled() is False
+    assert inputs.endpoint_collection_enabled() is True
+    assert inputs.endpoint_collection_limit() == 300
 
 
 def test_broken_installed_metadata_means_no_provider(monkeypatch, unresolved_providers):

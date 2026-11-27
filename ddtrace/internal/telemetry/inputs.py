@@ -23,7 +23,8 @@ for callers that know their identity better than their metadata does.
 ``configurations()``, ``dependency_metadata_enabled()``, ``endpoint_collection_enabled()`` and
 ``endpoint_collection_limit()``. The providers are loaded in entry point name order, and their hooks are resolved with
 them and called on each use, so runtime changes to the settings behind the hooks apply. A missing provider or hook
-means the documented default applies. Broken installed metadata means no provider, like the settings registry.
+means the documented default applies. Only ddtrace's own distributions may declare a provider, and broken installed
+metadata means no provider, like the settings registry.
 
 Importing this module resolves nothing, and everything resolved is cached.
 """
@@ -35,7 +36,9 @@ from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.entry_points import distribution_name
 from ddtrace.internal.utils.entry_points import entry_points_with_distributions
+from ddtrace.internal.utils.entry_points import is_trusted_entry_point
 
 
 if TYPE_CHECKING:
@@ -49,6 +52,13 @@ GROUP = "ddtrace_internal.library"
 PROVIDERS_GROUP = "ddtrace_internal.telemetry_providers"
 # Entry points of this group are used only when no distribution declares one in GROUP.
 FALLBACK_GROUP = "ddtrace_internal.library.fallback"
+
+# Only ddtrace's own distributions may provide telemetry: providers are loaded during an ordinary
+# `import ddtrace` (the import-time configuration report, when telemetry is enabled), so a malicious
+# third-party distribution declaring an entry point here would execute its code in every instrumented
+# process. Mirrors the registry's trust boundary in ddtrace.internal.settings.env.
+_TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless", "ddtrace-internal"})
+_TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace.", "_ddtrace_internal."})
 
 
 def _no_integration(filename: str) -> Optional[str]:
@@ -221,7 +231,16 @@ def get_providers() -> tuple[Any, ...]:
             log.debug("Failed to list the %s entry points: no provider applies", PROVIDERS_GROUP, exc_info=True)
             declared = []
         providers = []
-        for entry_point, _ in sorted(declared, key=lambda ep: ep[0].name):
+        for entry_point, dist in sorted(declared, key=lambda ep: ep[0].name):
+            if not is_trusted_entry_point(entry_point, dist, _TRUSTED_DISTRIBUTIONS, _TRUSTED_MODULE_PREFIXES):
+                log.warning(
+                    "Refusing to load %s entry point '%s' from untrusted distribution '%s' (module: %s)",
+                    PROVIDERS_GROUP,
+                    entry_point.name,
+                    distribution_name(dist),
+                    entry_point.value,
+                )
+                continue
             try:
                 providers.append(entry_point.load())
             except Exception:
