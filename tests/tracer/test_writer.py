@@ -25,6 +25,8 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import _opentelemetry
 from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
@@ -1004,10 +1006,36 @@ def test_flush_queue_raise(writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-def test_racing_start():
+def test_write_does_not_start_writer():
+    """Writes run on application threads, which must not start ddtrace threads."""
+    writer = NativeWriter("http://dne:1234")
+    try:
+        writer.write([Span("span")])
+        assert writer.status is ServiceStatus.STOPPED
+        assert len(writer._encoder) == 1
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_ci_visibility_writer_starts_when_recreated_not_on_write():
+    """CI Visibility writers start when they are created for use, as recreate() does, never on their first write."""
+    writer = CIVisibilityWriter("http://dne:1234")
+    writer.write([Span("span")])
+    assert writer.status is ServiceStatus.STOPPED
+
+    replacement = writer.recreate()
+    try:
+        assert replacement.status is ServiceStatus.RUNNING
+        assert writer.status is ServiceStatus.STOPPED
+    finally:
+        replacement.stop()
+
+
+def test_concurrent_writes():
     writer = NativeWriter("http://dne:1234")
     with contextlib.ExitStack() as stack:
         stack.enter_context(mock.patch.object(writer, "periodic"))
+        writer.start()
         stack.callback(writer.stop, 3.0)
 
         def do_write(i):
@@ -2860,3 +2888,88 @@ def test_native_writer_forwards_inherited_otel_trace_context():
     assert child.get_tag("tracestate") == (
         "dd=p:0000000000000002;s:2,ot=rv:ef284ace7a91e1;th:e6666666666668,future=value"
     )
+
+
+def test_deferred_exporter_build_failure_is_retried_on_the_next_flush():
+    """A writer built in a child fork hook builds its exporter on its first flush, and retries if that fails."""
+    with mock.patch("ddtrace.internal.forksafe.in_child_hook", return_value=True):
+        writer = NativeWriter("http://dne:1234")
+    assert writer._exporter is None
+
+    with mock.patch.object(NativeWriter, "_create_exporter", side_effect=RuntimeError("boom")):
+        # Raising would stop the writer thread for good.
+        writer.flush_queue()
+    assert writer._exporter is None
+
+    exporter = mock.Mock()
+    with mock.patch.object(NativeWriter, "_create_exporter", return_value=exporter):
+        assert writer._ensure_exporter()
+    assert writer._exporter is exporter
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30, err=None)
+def test_sync_writer_recreated_in_a_fork_child_leaves_the_inherited_exporter_alone():
+    """Shutting down the exporter inherited from the parent would send the stats of the parent again."""
+    import os
+    from unittest import mock
+
+    from ddtrace.internal.writer import NativeWriter
+
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    pid = os.fork()
+    if pid == 0:
+        code = 1
+        try:
+            with mock.patch.object(NativeWriter, "shutdown_exporter") as shutdown_exporter:
+                writer.recreate()
+            code = 0 if not shutdown_exporter.called else 2
+        finally:
+            os._exit(code)
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+    with mock.patch.object(NativeWriter, "shutdown_exporter") as shutdown_exporter:
+        writer.recreate()
+    shutdown_exporter.assert_called_once_with()
+
+
+def test_sync_writer_stopped_before_building_its_deferred_exporter_never_builds_it():
+    """A sync writer built in a child fork hook must not build its exporter on a flush after shutdown."""
+    with mock.patch("ddtrace.internal.forksafe.in_child_hook", return_value=True):
+        writer = NativeWriter("http://dne:1234", sync_mode=True)
+    assert writer._exporter is None
+
+    with pytest.raises(ServiceStatusError):
+        writer.stop()  # a sync writer never starts its periodic service
+    writer.flush_queue()
+
+    assert writer._exporter is None
+
+
+def test_sync_writer_stop_does_not_wait_for_a_send_in_flight():
+    """A send holds the exporter lock for the whole request, which stop() must not wait for."""
+    import threading
+
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    sending = threading.Event()
+    release = threading.Event()
+
+    def send():
+        with writer._exporter_lock:
+            sending.set()
+            release.wait(timeout=10)
+
+    sender = threading.Thread(target=send)
+    sender.start()
+    try:
+        assert sending.wait(timeout=5)
+        stopper = threading.Thread(target=lambda: pytest.raises(ServiceStatusError, writer.stop, 0))
+        stopper.start()
+        stopper.join(timeout=2)
+        assert not stopper.is_alive(), "stop() waited for the send in flight"
+        assert writer._exporter_stopping
+    finally:
+        release.set()
+        sender.join()
+        writer.shutdown_exporter()

@@ -733,7 +733,12 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self._inner_writer.set_test_session_token(token, compute_stats_enabled=compute_stats_enabled)
 
     def stop(self, timeout: Optional[float] = None) -> None:
-        self._inner_writer.stop(timeout=timeout)
+        try:
+            self._inner_writer.stop(timeout=timeout)
+        except ServiceStatusError:
+            # Nothing starts the inner writer, as no span aggregator installs it: send what it
+            # holds, as stopping it would, and release its exporter.
+            self._inner_writer.on_shutdown()
 
     @property
     def interval(self) -> float:

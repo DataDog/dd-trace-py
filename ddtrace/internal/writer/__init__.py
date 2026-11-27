@@ -9,6 +9,7 @@ from .writer import NativeWriter
 from .writer import Response
 from .writer import TraceWriter
 from .writer import create_trace_writer
+from .writer import start_writer
 from .writer_client import WriterClientBase
 
 
@@ -24,4 +25,5 @@ __all__ = [
     "TraceWriter",
     "WriterClientBase",
     "create_trace_writer",
+    "start_writer",
 ]

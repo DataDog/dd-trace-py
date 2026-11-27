@@ -1280,6 +1280,9 @@ def test_a_timed_out_synchronous_export_is_not_reported_as_lost_spans(monkeypatc
 @contextlib.contextmanager
 def _native_writer(url, **kwargs):
     writer = NativeWriter(url, **kwargs)
+    if not writer._sync_mode:
+        # A span aggregator starts the writers it installs; a write does not start one.
+        writer.start()
     try:
         yield writer
     finally:
@@ -1879,3 +1882,56 @@ def test_write_sets_the_otlp_trace_context(make_writer, agent):
     for span in (root, child):
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
+
+
+def test_a_buffer_writer_stopped_before_building_its_buffer_never_builds_it():
+    """A writer built in a child fork hook defers its buffer, which must not be built once the writer stops."""
+    with mock.patch("ddtrace.internal.forksafe.in_child_hook", return_value=True):
+        writer = NativeTraceBuffer("http://localhost:8126")
+    assert writer._buffer_value is None
+
+    writer.stop()
+    writer.flush_queue()
+    writer.write([Span(name="late")])
+
+    assert writer._buffer_value is None
+
+
+def test_a_failed_deferred_buffer_build_does_not_raise_and_is_retried():
+    with mock.patch("ddtrace.internal.forksafe.in_child_hook", return_value=True):
+        writer = NativeTraceBuffer("http://localhost:8126")
+
+    with mock.patch.object(NativeTraceBuffer, "_create_buffer", side_effect=RuntimeError("boom")):
+        # Span finishes and flushes reach the build, and must not fail on it.
+        writer.write([Span(name="dropped")])
+        writer.flush_queue(raise_exc=True)
+    assert writer._buffer_value is None
+
+    assert writer._usable_buffer() is not None
+    writer.stop()
+
+
+def test_stop_from_a_signal_handler_during_the_deferred_buffer_build_does_not_deadlock():
+    """A signal handler can shut the tracer down on the thread that is building the buffer."""
+    import threading
+
+    with mock.patch("ddtrace.internal.forksafe.in_child_hook", return_value=True):
+        writer = NativeTraceBuffer("http://localhost:8126")
+
+    built = mock.Mock()
+
+    def install_interrupted_by_stop():
+        writer.stop()  # what the handler would do, before the build publishes its buffer
+        writer._buffer_value = built
+
+    result = []
+    with mock.patch.object(writer, "_install_buffer", side_effect=install_interrupted_by_stop):
+        with mock.patch.object(writer, "_discard_buffer") as discard:
+            thread = threading.Thread(target=lambda: result.append(writer._usable_buffer()))
+            thread.start()
+            thread.join(timeout=5)
+
+    assert not thread.is_alive(), "stop() deadlocked on the build lock"
+    assert result == [None]
+    discard.assert_called_once_with(built)
+    assert writer._buffer_value is None

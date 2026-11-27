@@ -835,6 +835,8 @@ def test_microvm_reconfiguration_joins_detached_sender_outside_identity_lock():
                 NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=mock.Mock(return_value="{}"))
             ),
             mock.patch("ddtrace._trace.tracer.store_metadata"),
+            # Writers come up unstarted, as in sync mode, so that the test starts them.
+            mock.patch("ddtrace.internal.writer.writer.start_writer"),
         ):
             tracer = Tracer()
             aggregator = tracer._span_aggregator
@@ -991,6 +993,8 @@ def test_microvm_shutdown_retries_failed_retired_writer_teardown():
         with (
             mock.patch.object(NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=lambda _: "{}")),
             mock.patch("ddtrace._trace.tracer.store_metadata"),
+            # Writers come up unstarted, as in sync mode, so that the test starts them.
+            mock.patch("ddtrace.internal.writer.writer.start_writer"),
         ):
             tracer = Tracer()
             aggregator = tracer._span_aggregator
@@ -1138,6 +1142,8 @@ def test_microvm_shutdown_shares_timeout_with_retired_writers():
     with (
         mock.patch.object(NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=lambda _: "{}")),
         mock.patch("ddtrace._trace.tracer.store_metadata"),
+        # Writers come up unstarted, as in sync mode, so that the test starts them.
+        mock.patch("ddtrace.internal.writer.writer.start_writer"),
     ):
         tracer = Tracer()
         aggregator = tracer._span_aggregator
@@ -1193,6 +1199,8 @@ def test_microvm_shutdown_continues_after_persistent_retired_writer_failures():
         with (
             mock.patch.object(NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=lambda _: "{}")),
             mock.patch("ddtrace._trace.tracer.store_metadata"),
+            # Writers come up unstarted, as in sync mode, so that the test starts them.
+            mock.patch("ddtrace.internal.writer.writer.start_writer"),
         ):
             tracer = Tracer()
             aggregator = tracer._span_aggregator
@@ -1668,6 +1676,8 @@ def test_microvm_retired_native_shutdown_is_capped_by_remaining_budget():
         with (
             mock.patch.object(NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=lambda _: "{}")),
             mock.patch("ddtrace._trace.tracer.store_metadata"),
+            # Writers come up unstarted, as in sync mode, so that the test starts them.
+            mock.patch("ddtrace.internal.writer.writer.start_writer"),
         ):
             tracer = Tracer()
             old_writer = tracer._span_aggregator.writer

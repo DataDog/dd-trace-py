@@ -146,8 +146,8 @@ FS-8 Start threads in the product lifecycle, not on first use (target)
 Threads start from the product's ``start()`` / ``enable()`` path, not lazily from an
 application thread on its first call (for example, on the first span written). A lazy start on
 an application thread can race with a fork in progress on another application thread; the fork
-barrier in ``ddtrace/internal/threads.py`` exists only to cover that case. Known exception:
-writers that start their worker on the first write. Do not add new ones.
+barrier in ``ddtrace/internal/threads.py`` exists only to cover that case. Writers, for example,
+start their worker when they are created for use, never on their first write.
 
 .. _FS-9:
 

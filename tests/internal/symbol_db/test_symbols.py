@@ -367,15 +367,159 @@ def test_scope_context_upload_skips_empty_batch():
     context = ScopeContext()
 
     with mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as mock_sender:
-        with context._scopes_lock:
-            context._upload_locked()
+        context.upload()
 
     mock_sender.assert_not_called()
 
 
+def _module_scope(name: str = "test") -> Scope:
+    return Scope(
+        scope_type=ScopeType.MODULE,
+        name=name,
+        source_file=__file__,
+        start_line=0,
+        end_line=0,
+        symbols=[],
+        scopes=[],
+    )
+
+
+def test_scope_context_add_scope_starts_no_thread():
+    """Adding a scope runs on importing application threads, so it must not start a thread."""
+    from ddtrace.internal._threads import periodic_threads
+
+    context = ScopeContext()
+    before = set(periodic_threads)
+
+    with mock.patch.object(ScopeContext, "_send_batch"):
+        context.add_scope(_module_scope())
+
+    assert set(periodic_threads) == before
+
+
+def test_scope_context_sends_size_limit_batch_without_the_lock():
+    """Importing threads take the lock, so no thread may hold it while it sends a batch."""
+    context = ScopeContext()
+    context.__scope_limit__ = 1
+    held = []
+
+    def send_batch(batch):
+        if batch is not None:
+            held.append(context._scopes_lock._is_owned())
+
+    with mock.patch.object(ScopeContext, "_send_batch", side_effect=send_batch):
+        context.add_scope(_module_scope("first"))
+        context.add_scope(_module_scope("second"))
+
+    assert held == [False]
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_symbols_uploader_debounces_uploads():
+    """The installed uploader has the debouncer upload its scopes, and leaves it dormant when uninstalled."""
+    from unittest import mock
+
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.symbol_db.symbols import ScopeContext
+    from ddtrace.internal.symbol_db.symbols import ScopeType
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    with mock.patch.object(ScopeContext, "upload"):
+        SymbolDatabaseUploader.install()
+        uploader = SymbolDatabaseUploader._instance
+        assert isinstance(uploader, SymbolDatabaseUploader)
+        debouncer = SymbolDatabaseUploader._upload_debouncer
+        assert debouncer is not None and debouncer.status is ServiceStatus.RUNNING
+        assert debouncer.target == uploader._context.upload
+
+        # Each added scope touches the debouncer.
+        with mock.patch.object(debouncer, "touch") as touch, mock.patch.object(ScopeContext, "_send_batch"):
+            uploader._add_scope(
+                Scope(
+                    scope_type=ScopeType.MODULE,
+                    name="test",
+                    source_file=__file__,
+                    start_line=0,
+                    end_line=0,
+                    symbols=[],
+                    scopes=[],
+                )
+            )
+        touch.assert_called_once_with()
+
+        # Uninstalling uploads what is pending, and leaves the debouncer dormant rather than stopped.
+        with mock.patch.object(ScopeContext, "upload") as upload:
+            SymbolDatabaseUploader.uninstall()
+        upload.assert_called_once_with()
+        assert debouncer.target is None
+        assert debouncer.status is ServiceStatus.RUNNING
+
+        # Imports still in flight add no scopes to an uninstalled uploader.
+        pending = len(uploader._context)
+        with mock.patch.object(ScopeContext, "_send_batch"):
+            uploader._add_scope(
+                Scope(
+                    scope_type=ScopeType.MODULE,
+                    name="late",
+                    source_file=__file__,
+                    start_line=0,
+                    end_line=0,
+                    symbols=[],
+                    scopes=[],
+                )
+            )
+        assert len(uploader._context) == pending
+
+        # A new uploader reuses it.
+        SymbolDatabaseUploader.install()
+        reinstalled = SymbolDatabaseUploader._instance
+        assert isinstance(reinstalled, SymbolDatabaseUploader) and reinstalled is not uploader
+        assert SymbolDatabaseUploader._upload_debouncer is debouncer
+        assert debouncer.target == reinstalled._context.upload
+        SymbolDatabaseUploader.uninstall()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_symbols_uploader_collects_loaded_modules_when_installed():
+    """install() makes the uploader the installed one only after its constructor collects loaded modules."""
+    import sys
+    from types import ModuleType
+    from unittest import mock
+
+    from ddtrace.internal.symbol_db import symbols
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.symbol_db.symbols import ScopeContext
+    from ddtrace.internal.symbol_db.symbols import ScopeType
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    loaded = sys.modules["loaded_before_install"] = ModuleType("loaded_before_install")
+    scope = Scope(
+        scope_type=ScopeType.MODULE,
+        name="loaded_before_install",
+        source_file=__file__,
+        start_line=0,
+        end_line=0,
+        symbols=[],
+        scopes=[],
+    )
+
+    with (
+        mock.patch.object(symbols, "is_module_included", side_effect=lambda m: m is loaded),
+        mock.patch.object(Scope, "from_module", return_value=scope),
+        mock.patch.object(ScopeContext, "upload"),
+        mock.patch.object(ScopeContext, "_send_batch"),
+    ):
+        SymbolDatabaseUploader.install()
+        uploader = SymbolDatabaseUploader._instance
+        assert isinstance(uploader, SymbolDatabaseUploader)
+        assert len(uploader._context) == 1
+        SymbolDatabaseUploader.uninstall()
+
+
 def test_scope_context_upload_metadata():
     """ScopeContext exposes the upload metadata fields on the event envelope,
-    and _upload_locked populates per-batch fields on both the event and the
+    and _take_batch_locked populates per-batch fields on both the event and the
     attachment payload, advancing batchNum across uploads.
     """
     from ddtrace.internal.symbol_db.symbols import ScopeContext
@@ -419,7 +563,7 @@ def test_scope_context_upload_metadata():
         # same upload metadata as the event envelope.
         with ctx._scopes_lock:
             ctx._scopes.append(make_scope("first"))
-            ctx._upload_locked()
+        ctx.upload()
 
         assert ctx._event_data["uploadId"] == expected_upload_id
         assert ctx._event_data["batchNum"] == 1
@@ -436,7 +580,7 @@ def test_scope_context_upload_metadata():
         # and the attachment payload.
         with ctx._scopes_lock:
             ctx._scopes.append(make_scope("second"))
-            ctx._upload_locked()
+        ctx.upload()
 
         assert ctx._event_data["batchNum"] == 2
         attachment = get_attachment()
@@ -834,8 +978,8 @@ def test_scope_context_usable_in_child_when_forked_while_locks_held():
     release = Event()
 
     def hold():
-        # Mirrors the nesting in add_scope -> _set_timer -> Timer.start/reset.
-        with context._scopes_lock, context._timer_lock:
+        # Mirrors add_scope holding the lock on an importing thread.
+        with context._scopes_lock:
             held.set()
             release.wait(timeout=10)
 
@@ -846,9 +990,8 @@ def test_scope_context_usable_in_child_when_forked_while_locks_held():
     pid = os.fork()
     if pid == 0:
         try:
-            for lock in (context._scopes_lock, context._timer_lock):
-                assert lock.acquire(timeout=2), "lock inherited locked"
-                lock.release()
+            assert context._scopes_lock.acquire(timeout=2), "lock inherited locked"
+            context._scopes_lock.release()
 
             scope = Scope(
                 scope_type=ScopeType.MODULE,
@@ -859,10 +1002,9 @@ def test_scope_context_usable_in_child_when_forked_while_locks_held():
                 symbols=[],
                 scopes=[],
             )
-            with mock.patch.object(ScopeContext, "_upload_locked"):
+            with mock.patch.object(ScopeContext, "_send_batch"):
                 context.add_scope(scope)
-                assert context._timer is not None
-                context._timer.stop()
+                assert len(context) == 1
         except BaseException:
             import traceback
 

@@ -436,11 +436,21 @@ class Tracer:
 
     def _child_after_fork(self):
         self._pid = getpid()
-        # Celery and other process managers close inherited file descriptors after Python's
-        # at-fork callbacks return. Recreating the native writer here would start Tokio early
-        # enough for those descriptor sweeps to invalidate its I/O driver.
+        # The rebuild below takes the aggregator lock, which the parent might have forked while
+        # another of its threads held it.
+        self._span_aggregator.reset_lock_after_fork()
         self._span_aggregator.reset_trace_buffer_after_fork()
+        # Rebuild the inherited writer here rather than on the first span start, so that no
+        # application thread starts the writer thread. Process managers that close inherited
+        # file descriptors after the fork, like Celery, pause the native runtime around the
+        # sweep (see the Celery integration).
         self._post_fork_writer_pending = True
+        try:
+            self._ensure_post_fork_writer()
+        except Exception:
+            log.error("Failed to rebuild the trace writer after fork", exc_info=True)
+            # Do not leave the rebuild to the span start path.
+            self._post_fork_writer_pending = False
         self._new_process = True
         self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.

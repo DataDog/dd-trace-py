@@ -46,6 +46,7 @@ from .. import forksafe
 from .. import periodic
 from .. import process_tags
 from .. import service
+from .. import uwsgi
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
@@ -455,15 +456,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _write_with_client(self, client: WriterClientBase, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is None:
             return
-
-        if self._sync_mode is False:
-            # Start the HTTPWriter on first write.
-            try:
-                if self.status != service.ServiceStatus.RUNNING:
-                    self.start()
-
-            except service.ServiceStatusError:
-                pass
 
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
@@ -1033,15 +1025,52 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
         self._accepting_writes = True
         self._exporter_dropped = False
+        # A fork child leaves the exporter it inherits to the parent, see recreate().
+        self._pid = os.getpid()
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
         # overlapping mutable borrows.
         self._exporter_lock = forksafe.RLock()
-        # MicroVM stop must close publication without waiting on an exporter send or build.
-        self._exporter_lifecycle_lock = forksafe.RLock() if self._writer_lock is not None else self._exporter_lock
+        # Stop must close publication without waiting on an exporter send or build. Only writers
+        # whose stop closes it (see _begin_shutdown) need a lock of their own.
+        self._exporter_lifecycle_lock = (
+            forksafe.RLock() if self._writer_lock is not None or self._sync_mode else self._exporter_lock
+        )
         self._exporter_stopping = False
-        self._exporter = self._create_exporter()
+        # Native workers must not be rebuilt while the child fork hooks run: process managers like
+        # Celery close inherited file descriptors after the hooks return. A writer built in a child
+        # hook builds its exporter on its first flush instead, see _ensure_exporter.
+        self._exporter: Optional[native.TraceExporter] = None if forksafe.in_child_hook() else self._create_exporter()
+
+    def _ensure_exporter(self) -> bool:
+        """Build the exporter of a writer built in a child fork hook. Return whether it can send."""
+        if self._exporter is not None:
+            return True
+        if forksafe.in_child_hook():
+            return False
+        # Built outside the exporter lock, as in _downgrade(): _create_exporter() can take the
+        # telemetry enable lock, whose holder notifies _on_telemetry_worker_changed(), which takes
+        # the exporter lock.
+        try:
+            new_exporter = self._create_exporter()
+        except BaseException as e:
+            if not (isinstance(e, Exception) or is_panic_exception(e)):
+                raise
+            # Keep the payloads, and the writer thread: the next flush tries again.
+            _safelog(log.warning, "failed to build the trace exporter, retrying on the next flush", exc_info=True)
+            return False
+        with self._exporter_lock, self._exporter_lifecycle_lock:
+            # A build that finishes after stop() or a refresh must not install an exporter.
+            installed = self._exporter is None and not self._discarded_by_refresh and not self._exporter_stopping
+            if installed:
+                self._exporter = new_exporter
+        if not installed:
+            if self._discarded_by_refresh:
+                new_exporter.drop()
+            else:
+                self._shutdown_exporter(new_exporter)
+        return self._exporter is not None
 
     def __del__(self) -> None:
         # WorkerHandle must be explicitly stopped; dropping the native exporter leaves its
@@ -1110,7 +1139,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
         try:
             with self._exporter_lock:
-                self._exporter.set_telemetry_handle(worker)
+                if (exporter := self._exporter) is not None:
+                    exporter.set_telemetry_handle(worker)
         except Exception:
             log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
@@ -1139,10 +1169,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         new_exporter = self._create_exporter()
         with self._exporter_lock:
             old_exporter, self._exporter = self._exporter, new_exporter
-        self._shutdown_exporter(old_exporter)
+        if old_exporter is not None:
+            self._shutdown_exporter(old_exporter)
 
     def _begin_shutdown(self) -> None:
-        if self._writer_lock is not None:
+        # An async writer still builds a deferred exporter for its final flush. A sync writer has
+        # sent everything on write, and must not build one after shutdown, e.g. on a later flush.
+        if self._writer_lock is not None or self._sync_mode:
             with self._exporter_lifecycle_lock:
                 self._exporter_stopping = True
 
@@ -1155,21 +1188,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         """Tear down the native exporter without going through ``stop()``."""
         self._begin_shutdown()
         if self._writer_lock is None:
-            self._shutdown_exporter(self._exporter, timeout)
+            if (exporter := self._exporter) is not None:
+                self._shutdown_exporter(exporter, timeout)
             return
         with self._exporter_lock:
             if self._discarded_by_refresh:
                 self._drop_exporter()
-            else:
+            elif (exporter := self._exporter) is not None:
                 # Refresh can close the gate after this check. Current libdatadog cannot
                 # cancel native shutdown, so a racing shutdown may still flush old stats.
-                self._shutdown_exporter(self._exporter, timeout)
+                self._shutdown_exporter(exporter, timeout)
 
     def _drop_exporter(self) -> None:
         with self._exporter_lock:
             # The refresh, the finishing sender, and on_shutdown() may all get here; only one drops.
             if not self._exporter_dropped:
-                self._exporter.drop()
+                if (exporter := self._exporter) is not None:
+                    exporter.drop()
                 self._exporter_dropped = True
 
     def _try_drop_exporter(self) -> None:
@@ -1194,9 +1229,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
-            # Writers like AgentWriter may not start until the first trace is encoded.
-            # Stopping them before that will raise a ServiceStatusError.
-            if not exporter_dropped and not self._discarded_by_refresh:
+            # A writer that was never started, e.g. in sync mode or one that was not
+            # created by create_trace_writer, raises a ServiceStatusError when stopped.
+            # A fork child skips the shutdown, which would send the stats of the parent
+            # again, from its fork hook.
+            if not exporter_dropped and not self._discarded_by_refresh and os.getpid() == self._pid:
                 self.shutdown_exporter()
 
         return self._recreate(appsec_enabled, llmobs_enabled, compute_stats_enabled, stats_opt_out)
@@ -1221,7 +1258,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_metrics_endpoint = _drop_conflicting_otlp_metrics_endpoint(
                 agentless_stats_endpoint, otlp_metrics_endpoint
             )
-        return self.__class__(
+        replacement = self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
             compute_stats_enabled=(
@@ -1243,6 +1280,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             agentless_stats_endpoint=agentless_stats_endpoint,
             resource_attributes=self._resource_attributes,
         )
+        start_writer(replacement)
+        return replacement
 
     def _downgrade(self, status, client):
         if self._discarded_by_refresh:
@@ -1275,7 +1314,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 # race shutdown. Always drop here; a flushing shutdown could outlive the refresh.
                 # Without a refresh this leaves the old exporter's native workers running (see the
                 # MicroVM known gap); a writer downgrades at most once, so at most one set leaks.
-                if self._writer_lock is not None:
+                if old_exporter is None:
+                    pass
+                elif self._writer_lock is not None:
                     old_exporter.drop()
                 else:
                     self._shutdown_exporter(old_exporter)
@@ -1341,11 +1382,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             with self._exporter_lock:
                 # drop_buffered_traces() closes the gate before taking this lock, so no send
                 # starts after a refresh and none reaches a dropped exporter.
-                if self._discarded_by_refresh:
+                if self._discarded_by_refresh or (exporter := self._exporter) is None:
                     return
                 if self._otlp_endpoint is not None:
-                    self._exporter.set_otlp_resource_attributes(self._resource_attributes)
-                response_body = self._exporter.send(payload)
+                    exporter.set_otlp_resource_attributes(self._resource_attributes)
+                response_body = exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -1426,16 +1467,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if spans is None:
             return
 
-        if self._sync_mode is False:
-            # Start the Writer on first write.
-            try:
-                if self.status != service.ServiceStatus.RUNNING:
-                    self.start()
-
-            except service.ServiceStatusError:
-                # Another thread may have started the writer after the status check.
-                pass
-
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
@@ -1475,6 +1506,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Not under the writer lock: span finishes take it under the span aggregator lock, so it
         # must not be held across send() retries. _send_payload() rechecks the gate atomically.
         if self._discarded_by_refresh:
+            return
+        if not self._ensure_exporter():
+            # Keep the payloads until the exporter can be built, after the child fork hooks.
             return
         try:
             for client in self._clients:
@@ -1649,7 +1683,59 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         self._successor: Optional[NativeTraceBuffer] = None
         self._telemetry_worker: Optional[native.TelemetryWorker] = None
         self._telemetry_worker_changed = False
-        self._install_buffer()
+        # Serializes building the buffer on first use, so that two threads cannot both build one.
+        # Reentrant because stop() also takes it, and a signal handler that shuts the tracer down
+        # can run stop() on the thread that is building the buffer.
+        self._buffer_build_lock = forksafe.RLock()
+        self._building_buffer = False
+        self._buffer_value: Optional[native.TraceBuffer] = None
+        # Native workers must not be rebuilt while the child fork hooks run: process managers like
+        # Celery close inherited file descriptors after the hooks return. A writer built in a child
+        # hook builds its buffer on first use instead, see _buffer.
+        if not forksafe.in_child_hook():
+            self._install_buffer()
+
+    @property
+    def _buffer(self) -> "native.TraceBuffer":
+        if (buffer := self._usable_buffer()) is None:
+            raise RuntimeError("the native trace buffer is not available")
+        return buffer
+
+    @_buffer.setter
+    def _buffer(self, buffer: "native.TraceBuffer") -> None:
+        self._buffer_value = buffer
+
+    def _usable_buffer(self) -> "Optional[native.TraceBuffer]":
+        """Return the buffer, building it if this writer was built in a child fork hook.
+
+        Return None while the child fork hooks run, once the writer is stopped without a buffer, and
+        when the build fails, which the next call retries.
+        """
+        if (buffer := self._buffer_value) is not None:
+            return buffer
+        if forksafe.in_child_hook():
+            return None
+        with self._buffer_build_lock:
+            # stop() sets the flag under this lock, so a buffer is never built after it.
+            if self._buffer_value is None and not self._stopped:
+                self._building_buffer = True
+                try:
+                    self._install_buffer()
+                except BaseException as e:
+                    if not (isinstance(e, Exception) or is_panic_exception(e)):
+                        raise
+                    # The callers are span finishes and flushes, which must not fail on this.
+                    _safelog(
+                        log.warning, "failed to build the native trace buffer, retrying on next use", exc_info=True
+                    )
+                finally:
+                    self._building_buffer = False
+                if self._stopped and (buffer := self._buffer_value) is not None:
+                    # stop() ran on this thread, from a signal handler, during the build. It left
+                    # the shutdown of the buffer to this call.
+                    self._buffer_value = None
+                    self._discard_buffer(buffer)
+            return self._buffer_value
 
     def _create_buffer(self) -> "native.TraceBuffer":
         shared_worker = telemetry_writer._get_shared_worker() if config._telemetry_enabled else None
@@ -1689,13 +1775,14 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
 
     def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
         self._resource_attributes = _string_attributes(attributes)
-        if self._otlp_endpoint is not None:
-            self._buffer.set_otlp_resource_attributes(self._resource_attributes)
+        # A buffer built later gets the attributes in _create_buffer.
+        if self._otlp_endpoint is not None and (buffer := self._buffer_value) is not None:
+            buffer.set_otlp_resource_attributes(self._resource_attributes)
 
     def __del__(self) -> None:
         # Dropping the native buffer leaves its workers registered on the process-wide runtime.
         try:
-            buffer = getattr(self, "_buffer", None)
+            buffer = getattr(self, "_buffer_value", None)
             if buffer is not None:
                 self._discard_buffer(buffer)
         except Exception:  # nosec B110 - destructors must not raise
@@ -1705,8 +1792,8 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         """Build a buffer and make it the current one. Return the buffer it replaces."""
         buffer = self._create_buffer()
         with self._buffer_lock:
-            old_buffer = getattr(self, "_buffer", None)
-            self._buffer = buffer
+            old_buffer = self._buffer_value
+            self._buffer_value = buffer
             # A worker change during _create_buffer reached the old buffer only.
             if self._telemetry_worker_changed:
                 buffer.set_telemetry_handle(self._telemetry_worker)
@@ -1717,8 +1804,8 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         with self._buffer_lock:
             self._telemetry_worker = worker
             self._telemetry_worker_changed = True
-            # The first _create_buffer subscribes before __init__ sets _buffer.
-            buffer = getattr(self, "_buffer", None)
+            # The first _create_buffer subscribes before __init__ sets the buffer.
+            buffer = getattr(self, "_buffer_value", None)
             if buffer is None:
                 return
             try:
@@ -1737,9 +1824,9 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         SpanAggregator samples a trace before it calls write(), so the first trace after an update
         still uses the old rates. A process that sends no traces keeps its old rates.
         """
-        if self._response_cb is None:
+        if self._response_cb is None or (buffer := self._buffer_value) is None:
             return
-        body = self._buffer.take_agent_response()
+        body = buffer.take_agent_response()
         if not body:
             return
         try:
@@ -1764,8 +1851,10 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             # The refresh discards this writer's traces without sending them. Closing the gate does
             # not reach the buffer, whose worker would still export its queue and whose shutdown
             # would flush it.
+            if (buffer := self._buffer_value) is None:
+                return
             try:
-                self._buffer.discard(3_000_000_000)
+                buffer.discard(3_000_000_000)
             except Exception:
                 _safelog(log.warning, "failed to discard the native trace buffer", exc_info=True)
 
@@ -1783,6 +1872,11 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
 
     def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if not spans:
+            return
+        if self._usable_buffer() is None:
+            # A trace finished while the child fork hooks run, or after the writer stopped before
+            # it built its buffer, cannot reach a buffer.
+            _safelog(log.debug, "dropping a trace that finished without a native trace buffer")
             return
         # This writer has no periodic thread. Each write() adds the buckets that the periodic flush of
         # NativeWriter adds, so the keep rate of both writers moves at the same pace.
@@ -1871,8 +1965,10 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             _safelog(log.warning, "native trace buffer dropped spans: %s", reason)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
+        if (buffer := self._usable_buffer()) is None:
+            return
         try:
-            self._buffer.flush(_flush_timeout_ns())
+            buffer.flush(_flush_timeout_ns())
         except Exception as exc:
             if raise_exc:
                 raise
@@ -1899,13 +1995,20 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         # The shutdown blocks on an export already in flight, so a caller that passes no timeout still
         # gets a bound. atexit and SpanAggregator.shutdown both reach here.
         timeout_ns = int(timeout * 1e9) if timeout is not None else 3_000_000_000
-        self._stopped = True
+        # Under the build lock, so that a buffer is either built before, and shut down here, or never.
+        with self._buffer_build_lock:
+            self._stopped = True
+            if self._building_buffer:
+                # Reentered from a signal handler on the building thread: waiting for the build
+                # would never return. The build shuts its buffer down when it resumes.
+                return
+            buffer = self._buffer_value
         # A forked child that never rebuilt its writer still holds the buffer of the parent. See
         # _discard_buffer for why that buffer must not shut down here.
-        if os.getpid() != self._pid:
+        if os.getpid() != self._pid or buffer is None:
             return
         try:
-            self._buffer.shutdown(timeout_ns)
+            buffer.shutdown(timeout_ns)
         except Exception:
             # Raising here would skip the rest of the caller's teardown and leave libdatadog's
             # workers running.
@@ -1993,7 +2096,8 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         inherited spans belong to the parent.
         """
         replacement = self._recreate(appsec_enabled, llmobs_enabled, compute_stats_enabled, stats_opt_out)
-        self._discard_buffer(self._buffer)
+        if (buffer := self._buffer_value) is not None:
+            self._discard_buffer(buffer)
         return replacement
 
 
@@ -2067,10 +2171,43 @@ def _drop_conflicting_otlp_metrics_endpoint(
     return otlp_metrics_endpoint
 
 
+def start_writer(writer: TraceWriter) -> None:
+    """Start the background thread of a writer that is created for use.
+
+    Writers start when they are created for use, never on their first write: writes come
+    from application threads, which must not start ddtrace threads, as they might be holding
+    locks of their own, e.g. logging's while the application configures logging.
+    """
+    if not isinstance(writer, periodic.PeriodicService) or getattr(writer, "_sync_mode", False):
+        return
+    if writer.status == service.ServiceStatus.RUNNING:
+        return
+    if uwsgi.will_fork_without_fork_hooks():
+        # A worker forked while a thread of the master holds the GIL hangs. Each worker
+        # rebuilds and starts the writer from the fork hooks that uwsgi runs after the fork.
+        return
+    try:
+        writer.start()
+    except service.ServiceStatusError:
+        # Another thread started it after the status check.
+        pass
+
+
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
     resource_attributes: Optional[dict[str, str]] = None,
+) -> TraceWriter:
+    """Create the trace writer for the current configuration, with its background thread running."""
+    writer = _create_trace_writer(response_callback, agentless, resource_attributes)
+    start_writer(writer)
+    return writer
+
+
+def _create_trace_writer(
+    response_callback: Optional[Callable[[AgentResponse], None]],
+    agentless: bool,
+    resource_attributes: Optional[dict[str, str]],
 ) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()

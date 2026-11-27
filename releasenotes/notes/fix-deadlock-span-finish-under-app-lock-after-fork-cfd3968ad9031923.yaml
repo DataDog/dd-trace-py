@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where a forked process, such as a gunicorn worker, could hang at startup when
+    the application finished a span while configuring logging, for example from a logging handler that
+    makes a traced call.

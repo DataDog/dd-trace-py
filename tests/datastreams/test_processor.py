@@ -466,3 +466,18 @@ def test_dsm_pathway_codec_decode_no_context():
     assert ctx.hash == processor.new_pathway().hash
     assert ctx.pathway_start_sec == mocked_time
     assert ctx.current_edge_start_sec == mocked_time
+
+
+def test_reset_shuts_down_the_replaced_processor():
+    from ddtrace.internal.datastreams import data_streams_processor
+    from tests.utils import override_global_config
+
+    with override_global_config(dict(_data_streams_enabled=True)):
+        replaced = data_streams_processor(reset=True)
+        assert replaced is not None
+        with mock.patch.object(replaced, "shutdown") as shutdown:
+            replacement = data_streams_processor(reset=True)
+        shutdown.assert_called_once_with(timeout=5)
+        assert replacement is not replaced
+        replaced.stop()
+        replacement.shutdown(timeout=5)

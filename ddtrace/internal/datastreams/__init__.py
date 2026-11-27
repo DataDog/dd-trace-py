@@ -4,6 +4,9 @@ import importlib
 from typing import TYPE_CHECKING
 from typing import Optional
 
+from ddtrace.internal import forksafe
+from ddtrace.internal import uwsgi
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 
 from ...internal.utils.importlib import require_modules
@@ -30,11 +33,47 @@ if config._data_streams_enabled:
                 importlib.import_module(path_f % (integration_module,))
 
 
-def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor]:
-    global _processor
-    if config._data_streams_enabled and (not _processor or reset):
-        from . import processor
+def _create_processor() -> DataStreamsProcessor:
+    # Imported here so that processes without data streams monitoring do not load the
+    # processor and its dependencies (startup cost).
+    from . import processor
 
-        _processor = processor.DataStreamsProcessor()
+    return processor.DataStreamsProcessor()
+
+
+def _create_processor_in_worker() -> None:
+    global _processor
+
+    _processor = _create_processor()
+    forksafe.unregister(_create_processor_in_worker)
+
+
+if config._data_streams_enabled:
+    # Create, and so start, the processor when ddtrace is imported, rather than on the first
+    # checkpoint: an application thread must not start ddtrace threads, as it might be holding
+    # locks of its own.
+    if uwsgi.will_fork_without_fork_hooks():
+        # A worker forked while a thread of the master holds the GIL hangs. Create the processor
+        # in each worker instead, from the fork hooks that uwsgi runs after the fork.
+        forksafe.register(_create_processor_in_worker)
+    else:
+        _processor = _create_processor()
+
+
+def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor]:
+    """Return the data streams processor, which exists when data streams monitoring is enabled.
+
+    reset creates a new processor, e.g. for tests that enable data streams monitoring at runtime.
+    """
+    global _processor
+    if reset and config._data_streams_enabled:
+        replaced, _processor = _processor, _create_processor()
+        if replaced is not None:
+            # Do not leave the replaced processor running.
+            try:
+                replaced.shutdown(timeout=5)
+            except ServiceStatusError:
+                # Already shut down, e.g. by a test that owned it.
+                pass
 
     return _processor

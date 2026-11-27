@@ -741,7 +741,9 @@ class TracerTestCases(TracerTestCase):
         # After shutdown, the wrap executor should be reset
         assert self.tracer._wrap_executor is None
 
-    def test_tracer_defers_writer_recreation_after_fork(self):
+    def test_tracer_recreates_writer_in_child_after_fork(self):
+        # The child fork hook rebuilds the writer, so that spans never start the writer thread
+        # on an application thread.
         aggregator = self.tracer._span_aggregator
         inherited_writer = aggregator.writer
         with (
@@ -752,8 +754,9 @@ class TracerTestCases(TracerTestCase):
             mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as flush_queue,
         ):
             self.tracer._child_after_fork()
-            recreate.assert_not_called()
+            recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
             reset_trace_buffer.assert_called_once_with()
+            assert not self.tracer._post_fork_writer_pending
 
             for _ in range(10):
                 with self.trace("child-span"):
@@ -794,7 +797,8 @@ class TracerTestCases(TracerTestCase):
         self.tracer.context_provider.activate(None)
 
     def test_tracer_post_fork_writer_recreation_is_single_flight(self):
-        self.tracer._child_after_fork()
+        # A pending rebuild, as left by a failed runtime identity refresh.
+        self.tracer._post_fork_writer_pending = True
         recreate_entered = threading.Event()
         release_recreate = threading.Event()
         second_thread_started = threading.Event()
@@ -836,10 +840,12 @@ class TracerTestCases(TracerTestCase):
         assert len(recreate_calls) == 1
         assert not self.tracer._new_process
 
-    def test_tracer_shutdown_after_fork_does_not_recreate_writer(self):
+    def test_tracer_shutdown_with_pending_writer_rebuild_does_not_recreate_writer(self):
         writer = self.tracer._span_aggregator.writer
         with mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate:
-            self.tracer._child_after_fork()
+            # A pending rebuild, as left by a failed runtime identity refresh.
+            self.tracer._post_fork_writer_pending = True
+            self.tracer._new_process = True
             self.tracer.shutdown()
 
         recreate.assert_not_called()
@@ -847,7 +853,8 @@ class TracerTestCases(TracerTestCase):
         assert not self.tracer._new_process
 
     def test_tracer_shutdown_waits_for_in_flight_post_fork_writer_recreation(self):
-        self.tracer._child_after_fork()
+        # A pending rebuild, as left by a failed runtime identity refresh.
+        self.tracer._post_fork_writer_pending = True
         aggregator = self.tracer._span_aggregator
         inherited_writer = aggregator.writer
         recreate_entered = threading.Event()
@@ -890,7 +897,8 @@ class TracerTestCases(TracerTestCase):
 
     def test_tracer_shutdown_timeout_does_not_bound_post_fork_wait_outside_microvm(self):
         # Only MicroVM bounds this wait by the shutdown timeout; elsewhere shutdown still waits out the rebuild.
-        self.tracer._child_after_fork()
+        # A pending rebuild, as left by a failed runtime identity refresh.
+        self.tracer._post_fork_writer_pending = True
         recreate_entered = threading.Event()
         release_recreate = threading.Event()
         recreate = self.tracer._recreate
@@ -2400,3 +2408,154 @@ def test_standalone_shadows_compute_stats(tracer, initial_compute_stats, stats_w
                 assert config._trace_compute_stats is expected_stats
             finally:
                 tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30, err=None)
+def test_span_finished_under_logging_lock_after_fork_does_not_deadlock():
+    """Finishing a span must not start ddtrace threads on the application's thread.
+
+    After a fork, the thread restart timer logs while holding the fork lock, and a cold logger
+    cache makes that take logging's lock. If finishing a span started the trace writer, an
+    application thread holding logging's lock, e.g. inside logging.config.dictConfig, would wait
+    for the fork lock while the timer waits for logging's lock.
+    """
+    import ddtrace.auto  # noqa:F401,I001
+
+    import logging
+    import os
+    import time
+
+    from ddtrace.internal.threads import PeriodicThread
+    from ddtrace.trace import tracer
+
+    # A running periodic thread makes the fork arm the thread restart timer.
+    worker = PeriodicThread(60, lambda: None, name="test-worker")
+    worker.start()
+
+    pid = os.fork()
+    if pid == 0:
+        # As logging.config.dictConfig does, clear the level caches and hold logging's lock past
+        # the restart timer's tick, finishing a span meanwhile.
+        logging.Logger.manager._clear_cache()
+        with logging._lock:
+            time.sleep(0.2)
+            with tracer.trace("child"):
+                pass
+            time.sleep(0.2)
+        os._exit(0)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+    worker.stop()
+    worker.join()
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=60, err=None)
+def test_writer_is_rebuilt_in_children_forked_repeatedly_from_threads():
+    """Every child, whichever thread forks it, gets a running writer of its own from the fork hooks."""
+    import ddtrace.auto  # noqa:F401,I001
+
+    import os
+    import threading
+
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.trace import tracer
+
+    parent_writer = tracer._span_aggregator.writer
+    failures = []
+
+    def fork_children():
+        for _ in range(3):
+            pid = os.fork()
+            if pid == 0:
+                writer = tracer._span_aggregator.writer
+                rebuilt = (
+                    writer is not parent_writer
+                    and writer.status is ServiceStatus.RUNNING
+                    and not tracer._post_fork_writer_pending
+                )
+                with tracer.trace("child"):
+                    pass
+                os._exit(0 if rebuilt else 1)
+            _, status = os.waitpid(pid, 0)
+            if not (os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0):
+                failures.append(status)
+
+    forkers = [threading.Thread(target=fork_children) for _ in range(2)]
+    for forker in forkers:
+        forker.start()
+    for forker in forkers:
+        forker.join()
+
+    assert failures == []
+    assert tracer._span_aggregator.writer is parent_writer
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30, err=None)
+def test_child_fork_hook_does_not_wait_for_an_aggregator_lock_held_at_fork():
+    """The child rebuilds its writer in its fork hook, which must not wait for a lock another thread held."""
+    import ddtrace.auto  # noqa:F401,I001
+
+    import os
+    import threading
+
+    from ddtrace.trace import tracer
+
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold():
+        with tracer._span_aggregator._lock:
+            held.set()
+            release.wait(timeout=10)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=5)
+
+    pid = os.fork()
+    if pid == 0:
+        with tracer.trace("child"):
+            pass
+        os._exit(0)
+
+    release.set()
+    holder.join()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30, err=None)
+def test_child_fork_hook_does_not_wait_for_a_writer_service_lock_held_at_fork():
+    """The rebuild in the child fork hook stops the inherited writer, which takes its service lock."""
+    import ddtrace.auto  # noqa:F401,I001
+
+    import os
+    import threading
+
+    from ddtrace.trace import tracer
+
+    held = threading.Event()
+    release = threading.Event()
+
+    def hold():
+        with tracer._span_aggregator.writer._service_lock:
+            held.set()
+            release.wait(timeout=10)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(timeout=5)
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+
+    release.set()
+    holder.join()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, status
