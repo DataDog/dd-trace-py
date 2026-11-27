@@ -303,11 +303,16 @@ def _call_handlers(self: logging.Logger, record: logging.LogRecord) -> None:
 def enable_agentless_log_submission() -> bool:
     """Start submitting log records to the logs intake; return whether submission was enabled."""
     if config._otel_logs_enabled:
+        if not agentless_config._log_submission:
+            # DD_AGENTLESS_ENABLED alone leaves logs to OpenTelemetry, which exports them agentlessly too.
+            return False
+        # Explicitly requested: it wins over OpenTelemetry, as in dd-trace-js. The OpenTelemetry logs
+        # provider is only set up once opentelemetry is imported, after this.
         logger.warning(
-            "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is ignored because DD_LOGS_OTEL_ENABLED is set; "
-            "logs are exported through OpenTelemetry instead."
+            "DD_LOGS_OTEL_ENABLED is ignored because DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set; "
+            "logs are submitted to the Datadog logs intake instead."
         )
-        return False
+        config._otel_logs_enabled = False
     if not agentless_config.api_key:
         logger.warning(
             "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_API_KEY is not set; logs will not be submitted."

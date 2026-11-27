@@ -371,18 +371,48 @@ class TestEnable:
         assert agentless_logs._handler is None
         assert logging.Logger.callHandlers is agentless_logs._original_call_handlers
 
-    def test_enable_with_otel_logs_warns_and_installs_nothing(self):
+    @pytest.mark.parametrize(
+        "env, expected",
+        [
+            ({}, False),
+            ({"DD_AGENTLESS_ENABLED": "true"}, True),
+            ({"DD_AGENTLESS_LOG_SUBMISSION_ENABLED": "true"}, True),
+            ({"DD_AGENTLESS_ENABLED": "true", "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": "false"}, False),
+        ],
+    )
+    def test_setting_follows_the_global_switch(self, env, expected):
+        remove = tuple(k for k in ("DD_AGENTLESS_ENABLED", "DD_AGENTLESS_LOG_SUBMISSION_ENABLED") if k not in env)
+        with agentless_settings(dict(env, DD_API_KEY="test-key"), remove=remove) as settings:
+            assert settings.log_submission is expected
+
+    def test_explicit_setting_wins_over_otel_logs(self):
         with (
             agentless_settings(self._enable_env()),
             mock.patch.object(ddtrace.config, "_otel_logs_enabled", True),
             mock.patch("ddtrace.internal.logs.logger") as mock_logger,
             mock.patch("ddtrace.internal.logs.LogsIntakeWriter"),
         ):
-            assert not enable_agentless_log_submission()
+            assert enable_agentless_log_submission()
+            assert ddtrace.config._otel_logs_enabled is False
         mock_logger.warning.assert_called_once()
-        assert "DD_LOGS_OTEL_ENABLED" in mock_logger.warning.call_args[0][0]
+        assert "DD_LOGS_OTEL_ENABLED is ignored" in mock_logger.warning.call_args[0][0]
+        assert agentless_logs._handler is not None
+
+    def test_global_switch_leaves_logs_to_otel(self):
+        with (
+            agentless_settings(
+                {"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "test-key"},
+                remove=("DD_AGENTLESS_LOG_SUBMISSION_ENABLED",),
+            ),
+            mock.patch.object(ddtrace.config, "_otel_logs_enabled", True),
+            mock.patch("ddtrace.internal.logs.logger") as mock_logger,
+            mock.patch("ddtrace.internal.logs.LogsIntakeWriter") as writer_cls,
+        ):
+            assert not enable_agentless_log_submission()
+            assert ddtrace.config._otel_logs_enabled is True
+        writer_cls.assert_not_called()
+        mock_logger.warning.assert_not_called()
         assert agentless_logs._handler is None
-        assert logging.Logger.callHandlers is agentless_logs._original_call_handlers
 
     def test_enable_submits_records_reaching_root(self):
         with (
@@ -470,16 +500,55 @@ def test_no_api_key_warns_without_handler_in_subprocess():
     ddtrace_run=True,
     env=dict(
         DD_AGENTLESS_LOG_SUBMISSION_ENABLED="true",
+        DD_AGENTLESS_LOG_SUBMISSION_URL="http://127.0.0.1:9",
         DD_LOGS_OTEL_ENABLED="true",
         DD_API_KEY="test-key",
     ),
-    err=lambda err: "DD_LOGS_OTEL_ENABLED" in err,
+    err=lambda err: "DD_LOGS_OTEL_ENABLED is ignored because DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set" in err,
 )
-def test_otel_logs_takes_precedence_in_subprocess():
-    """With DD_LOGS_OTEL_ENABLED, OpenTelemetry wins: nothing is submitted, plus a startup warning."""
+def test_explicit_setting_wins_over_otel_logs_in_subprocess():
+    """An explicit DD_AGENTLESS_LOG_SUBMISSION_ENABLED wins over DD_LOGS_OTEL_ENABLED, with a startup warning."""
+    from ddtrace import config
+    from ddtrace.internal import logs
+
+    assert logs._handler is not None, "log submission not enabled"
+    assert config._otel_logs_enabled is False, "OpenTelemetry logs still enabled"
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_AGENTLESS_ENABLED="true",
+        DD_AGENTLESS_LOG_SUBMISSION_ENABLED=None,
+        DD_AGENTLESS_LOG_SUBMISSION_URL="http://127.0.0.1:9",
+        DD_LOGS_OTEL_ENABLED=None,
+        DD_API_KEY="test-key",
+    ),
+)
+def test_global_switch_enables_submission_in_subprocess():
+    """DD_AGENTLESS_ENABLED alone turns log submission on."""
+    from ddtrace.internal import logs
+
+    assert logs._handler is not None, "log submission not enabled by DD_AGENTLESS_ENABLED"
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_AGENTLESS_ENABLED="true",
+        DD_AGENTLESS_LOG_SUBMISSION_ENABLED=None,
+        DD_LOGS_OTEL_ENABLED="true",
+        DD_API_KEY="test-key",
+    ),
+    err=lambda err: "DD_LOGS_OTEL_ENABLED is ignored" not in err,
+)
+def test_global_switch_leaves_logs_to_otel_in_subprocess():
+    """With DD_AGENTLESS_ENABLED and DD_LOGS_OTEL_ENABLED, logs stay with OpenTelemetry, without a warning."""
+    from ddtrace import config
     from ddtrace.internal import logs
 
     assert logs._handler is None, "log submission enabled despite DD_LOGS_OTEL_ENABLED"
+    assert config._otel_logs_enabled is True
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_AGENTLESS_LOG_SUBMISSION_ENABLED=None))

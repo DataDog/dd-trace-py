@@ -1304,9 +1304,11 @@ Agent
          ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
          startup. ``DD_SITE`` selects the intake to submit to.
 
-         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and
-         ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this value and can each be set explicitly to
-         override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
+         It also turns on log submission (see ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED``).
+
+         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED``,
+         ``DD_LLMOBS_AGENTLESS_ENABLED`` and ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED`` default to this
+         value and can each be set explicitly to override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
          specific variants, likewise keeps OpenTelemetry data going to your own collector.
 
          Health metrics, profiling and tracer flares require an agent and thus have no effect
@@ -1389,14 +1391,16 @@ Logs
 
    DD_AGENTLESS_LOG_SUBMISSION_ENABLED:
      type: Boolean
-     default: False
+     default: (the value of DD_AGENTLESS_ENABLED)
 
      description: |
-        When set to ``true`` together with ``DD_API_KEY``, records emitted through Python's
-        standard ``logging`` module are submitted directly to the Datadog logs intake
+        When enabled, together with ``DD_API_KEY``, records emitted through Python's standard
+        ``logging`` module are submitted directly to the Datadog logs intake
         (``https://http-intake.logs.<DD_SITE>/api/v2/logs``) instead of through the Datadog
         Agent. The tracer must be installed via ``ddtrace-run`` or ``import ddtrace.auto``.
-        The global agentless switch (``DD_AGENTLESS_ENABLED``) is not required.
+        ``DD_AGENTLESS_ENABLED`` turns it on; set this option to ``false`` to opt out while
+        running agentless, or to ``true`` to submit logs without making anything else
+        agentless.
 
         Records that propagate to the root logger are batched and sent asynchronously,
         enriched with service, environment, version, hostname and, when a trace is active and
@@ -1422,8 +1426,10 @@ Logs
         (``DD_CIVISIBILITY_AGENTLESS_ENABLED=true`` or ``DD_AGENTLESS_ENABLED=true``), the plugin
         submits them with this same variable.
 
-        If ``DD_LOGS_OTEL_ENABLED`` is also set, OpenTelemetry log export takes precedence:
-        nothing is submitted by this option and a warning is logged at startup.
+        If ``DD_LOGS_OTEL_ENABLED`` is also set, ``DD_AGENTLESS_ENABLED`` leaves logs to
+        OpenTelemetry, which then exports them to the Datadog intake too. An explicit
+        ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED=true`` takes precedence instead: OpenTelemetry log
+        export is turned off and a warning is logged at startup.
 
      version_added:
         v4.8.0: |

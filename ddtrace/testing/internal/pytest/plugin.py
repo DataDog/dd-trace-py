@@ -425,16 +425,19 @@ class TestOptPlugin(TestOptPluginProtocol):
         if asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
             self.enable_ddtrace_trace_filter = True
 
-        # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
+        # Agentless log submission: DD_AGENTLESS_LOG_SUBMISSION_ENABLED, defaulting to DD_AGENTLESS_ENABLED.
         # Requires agentless mode (i.e. DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED)
-        self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
+        self.enable_agentless_log_submission = agentless_config.log_submission
         if self.enable_agentless_log_submission:
             if not agentless_config.ci_visibility:
-                log.warning(
-                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but agentless mode is not enabled. "
-                    "Set DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED; "
-                    "logs will not be forwarded."
-                )
+                # Only an explicit setting warrants a warning: DD_AGENTLESS_ENABLED with
+                # DD_CIVISIBILITY_AGENTLESS_ENABLED=false just opts Test Optimization out.
+                if agentless_config._log_submission:
+                    log.warning(
+                        "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but agentless mode is not enabled. "
+                        "Set DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED; "
+                        "logs will not be forwarded."
+                    )
                 self.enable_agentless_log_submission = False
             elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
                 # Agentless log submission needs a real ddtrace span to carry trace/span IDs.

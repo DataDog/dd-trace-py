@@ -40,6 +40,8 @@ def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("_CI_DD_API_KEY", raising=False)
     monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
     monkeypatch.setenv("DD_API_KEY", "test-key")
+    # The global switch now also turns log submission on; tests opt in explicitly.
+    monkeypatch.delenv("DD_AGENTLESS_ENABLED", raising=False)
 
 
 # Infrastructure mock plugin — loaded via "-p dd_log_corr_infra".
@@ -349,6 +351,34 @@ class TestAgentlessLogSubmission:
 
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_AGENTLESS_HANDLER_INSTALLED)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_handler_installed_by_the_global_agentless_flag_alone(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """DD_AGENTLESS_ENABLED turns log submission on without DD_AGENTLESS_LOG_SUBMISSION_ENABLED."""
+        monkeypatch.delenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", raising=False)
+        monkeypatch.delenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", raising=False)
+        monkeypatch.setenv("DD_AGENTLESS_ENABLED", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_AGENTLESS_HANDLER_INSTALLED)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_global_agentless_flag_opted_out_of_log_submission(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """DD_AGENTLESS_LOG_SUBMISSION_ENABLED=false opts out of log submission under DD_AGENTLESS_ENABLED."""
+        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "false")
+        monkeypatch.setenv("DD_AGENTLESS_ENABLED", "true")
+        monkeypatch.setenv("DD_LOGS_INJECTION", "false")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
