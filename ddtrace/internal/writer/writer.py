@@ -1170,7 +1170,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._shutdown_exporter(old_exporter)
 
     def _begin_shutdown(self) -> None:
-        if self._writer_lock is not None:
+        # An async writer still builds a deferred exporter for its final flush. A sync writer has
+        # sent everything on write, and must not build one after shutdown, e.g. on a later flush.
+        if self._writer_lock is not None or self._sync_mode:
             with self._exporter_lifecycle_lock:
                 self._exporter_stopping = True
 

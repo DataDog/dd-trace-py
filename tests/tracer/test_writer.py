@@ -26,6 +26,7 @@ from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import _opentelemetry
 from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
@@ -2931,3 +2932,16 @@ def test_sync_writer_recreated_in_a_fork_child_leaves_the_inherited_exporter_alo
     with mock.patch.object(NativeWriter, "shutdown_exporter") as shutdown_exporter:
         writer.recreate()
     shutdown_exporter.assert_called_once_with()
+
+
+def test_sync_writer_stopped_before_building_its_deferred_exporter_never_builds_it():
+    """A sync writer built in a child fork hook must not build its exporter on a flush after shutdown."""
+    with mock.patch("ddtrace.internal.forksafe.in_child_hook", return_value=True):
+        writer = NativeWriter("http://dne:1234", sync_mode=True)
+    assert writer._exporter is None
+
+    with pytest.raises(ServiceStatusError):
+        writer.stop()  # a sync writer never starts its periodic service
+    writer.flush_queue()
+
+    assert writer._exporter is None
