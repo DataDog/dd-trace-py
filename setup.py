@@ -1837,8 +1837,8 @@ else:
 if not IS_PYSTON:
     ext_modules: list[t.Union[Extension, CythonExtension, RustExtension]] = [
         Extension(
-            "ddtrace.internal._threads",
-            sources=["ddtrace/internal/_threads.cpp"],
+            "ddtrace.internal.native._threads",
+            sources=["ddtrace/internal/native/_threads.cpp"],
             extra_compile_args=(
                 ["-std=c++20", "-Wall", "-Wextra"] + fast_build_args
                 if CURRENT_OS != "Windows"

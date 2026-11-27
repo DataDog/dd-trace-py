@@ -16,7 +16,7 @@ the general vicinity of this code the harness is designed to catch:
   acquiring the GIL to build PyRef.
 - PR 17707 / 18040 - PeriodicThread.awake() blocked forever after stop().
 
-If you are modifying ddtrace/internal/_threads.cpp (or the lifecycle of
+If you are modifying ddtrace/internal/native/_threads.cpp (or the lifecycle of
 ddtrace/internal/periodic.py), run this file with a larger budget before
 opening a PR:
 

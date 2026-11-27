@@ -167,7 +167,7 @@ FS-10 Application threads never wait on ddtrace threads
 Code that runs on application threads while the application is serving work
 (instrumentation, tracer API calls such as starting and finishing spans, probes) hands work over
 without blocking: ``awake()`` is non-blocking by contract (see ``PeriodicThread_awake`` in
-``ddtrace/internal/_threads.cpp``), queues are unbounded or drop on overflow, and nothing calls
+``ddtrace/internal/native/_threads.cpp``), queues are unbounded or drop on overflow, and nothing calls
 ``join()`` or waits on an event owned by a ddtrace thread. A blocked application thread can also
 be the thread that forks, which deadlocks the fork.
 

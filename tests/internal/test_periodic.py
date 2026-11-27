@@ -61,8 +61,8 @@ def test_periodic_thread_gilstate_reentry_during_thread_state_cleanup():
     import ctypes
     import threading
 
-    from ddtrace.internal._threads import PERIODIC_STOP
-    from ddtrace.internal._threads import PeriodicThread
+    from ddtrace.internal.native._threads import PERIODIC_STOP
+    from ddtrace.internal.native._threads import PeriodicThread
 
     ensure = ctypes.pythonapi.PyGILState_Ensure
     ensure.argtypes = []
@@ -137,7 +137,7 @@ def test_periodic_thread_dealloc_does_not_evict_reused_ident():
     """
     import gc
 
-    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.native._threads import periodic_threads
     from ddtrace.internal.periodic import PeriodicThread
 
     class Holder:
@@ -383,8 +383,9 @@ def test_periodic_service_stop_with_unstarted_worker() -> None:
     s.join()
 
     worker.stop.assert_not_called()
-    assert s._worker is None
     assert s.status == service.ServiceStatus.STOPPED
+    # Last: mypy narrows _worker to the mock assigned above and flags anything after this as unreachable.
+    assert s._worker is None
 
 
 def test_periodic_service_stop_cancels_worker_start_deferred_by_fork() -> None:
@@ -878,7 +879,7 @@ def test_periodic_service_stopped_before_restart_after_fork_stays_stopped():
 
     from ddtrace.internal import periodic
     from ddtrace.internal import threads
-    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.native._threads import periodic_threads
 
     # Widen the window between the fork and the restart so that stop() always lands in it.
     threads.ThreadRestartTimer.__timeout__ = int(1e9)
@@ -933,7 +934,7 @@ def test_periodic_service_fork_during_on_shutdown_does_not_restart():
     from time import sleep
 
     from ddtrace.internal import periodic
-    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.native._threads import periodic_threads
 
     in_periodic = Event()
     release_periodic = Event()
@@ -1000,7 +1001,7 @@ def test_periodic_service_fork_during_restart_for_shutdown_stays_stopped():
 
     from ddtrace.internal import periodic
     from ddtrace.internal import threads
-    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.native._threads import periodic_threads
 
     # Widen the window between the fork and the restart so that stop() always lands in it.
     threads.ThreadRestartTimer.__timeout__ = int(1e9)
@@ -1246,7 +1247,7 @@ def test_writer_recreate_fork_child_does_not_deadlock():
     """Regression: a forked child must not hang joining a periodic thread that an
     identity-blind registry delete dropped after a recycled thread id.
 
-    Root cause (ddtrace/internal/_threads.cpp): entries in the module-level
+    Root cause (ddtrace/internal/native/_threads.cpp): entries in the module-level
     ``periodic_threads`` dict were deleted by thread ident without checking that
     the entry still belonged to the deleting thread. Thread ids are recyclable,
     so this sequence corrupted the registry and deadlocked a fork child:
@@ -1289,7 +1290,7 @@ def test_writer_recreate_fork_child_does_not_deadlock():
     import time
 
     import ddtrace.auto  # noqa: F401  # start tracer + periodic threads
-    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.native._threads import periodic_threads
     from ddtrace.trace import tracer
 
     NFORKS = 25
@@ -1386,7 +1387,7 @@ def test_recycled_ident_dealloc_does_not_evict_live_worker():
     evicting the live worker's entry. Post-fix, the delete is guarded by an
     identity check, so the live worker's entry survives.
     """
-    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.native._threads import periodic_threads
 
     live = periodic.PeriodicThread(1.0, lambda: None)
     live.start()

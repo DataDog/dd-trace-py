@@ -60,7 +60,7 @@ extension suffixes vary by platform and Python version.
 
 | Binary or symbol clue | Source starting point |
 |-----------------------|-----------------------|
-| `_threads`; `PeriodicThread_*`, `GILGuard`, `AllowThreads` | `ddtrace/internal/_threads.cpp`; lifecycle callers in `ddtrace/internal/threads.py` |
+| `_threads`; `PeriodicThread_*`, `GILGuard`, `AllowThreads` | `ddtrace/internal/native/_threads.cpp`; lifecycle callers in `ddtrace/internal/threads.py` |
 | `_native` under `ddtrace/internal/native/`; `TraceExporterPy`, crashtracker symbols | Rust in `src/native/`, especially `data_pipeline/mod.rs` and `crashtracker.rs`; dependency symbols may belong to a pinned crate |
 | `_memalloc`; `memalloc_*` | `ddtrace/profiling/collector/_memalloc.cpp`, `_memalloc_tb.cpp`, and adjacent allocator helpers |
 | `_ddup`; `ddup_*` | `ddtrace/internal/datadog/profiling/ddup/` and the C++ interface in `ddtrace/internal/datadog/profiling/dd_wrapper/` |
