@@ -229,12 +229,13 @@ def build_memory_annotation(
     explicit_tokens = _as_float(memory.get("injected_tokens"))
     if explicit_tokens is not None:
         metrics[MEMORY_INJECTED_TOKENS_METRIC_KEY] = explicit_tokens
-    elif total_chars > 0:
-        metrics[MEMORY_INJECTED_TOKENS_METRIC_KEY] = float(math.ceil(total_chars / 4))
-    elif isinstance(content, str) and content:
-        metrics[MEMORY_INJECTED_TOKENS_METRIC_KEY] = float(estimate_tokens(content))
-    elif records_seq is not None and operation in MEMORY_READ_OPERATIONS:
-        metrics[MEMORY_INJECTED_TOKENS_METRIC_KEY] = 0.0
+    elif operation in MEMORY_READ_OPERATIONS:
+        if total_chars > 0:
+            metrics[MEMORY_INJECTED_TOKENS_METRIC_KEY] = float(math.ceil(total_chars / 4))
+        elif isinstance(content, str) and content:
+            metrics[MEMORY_INJECTED_TOKENS_METRIC_KEY] = float(estimate_tokens(content))
+        elif records_seq is not None:
+            metrics[MEMORY_INJECTED_TOKENS_METRIC_KEY] = 0.0
 
     explicit_dups = _as_float(memory.get("duplicate_count"))
     if explicit_dups is not None:

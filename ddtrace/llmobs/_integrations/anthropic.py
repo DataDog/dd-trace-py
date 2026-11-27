@@ -248,13 +248,14 @@ class AnthropicIntegration(BaseLLMIntegration):
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
 
         memory_tags: Optional[dict[str, str]] = None
-        tools = kwargs.get("tools") or (extra_body.get("tools") if isinstance(extra_body, dict) else None)
-        memory_telemetry = _extract_anthropic_memory_telemetry(tools, response)
-        if memory_telemetry is not None:
-            mem_meta, memory_tags, mem_metrics = memory_telemetry
-            parameters["memory"] = mem_meta
-            if mem_metrics:
-                metrics = {**(metrics or {}), **mem_metrics}
+        if span_kind != "workflow":
+            tools = kwargs.get("tools") or (extra_body.get("tools") if isinstance(extra_body, dict) else None)
+            memory_telemetry = _extract_anthropic_memory_telemetry(tools, response)
+            if memory_telemetry is not None:
+                mem_meta, memory_tags, mem_metrics = memory_telemetry
+                parameters["memory"] = mem_meta
+                if mem_metrics:
+                    metrics = {**(metrics or {}), **mem_metrics}
 
         _annotate_llmobs_span_data(
             span,

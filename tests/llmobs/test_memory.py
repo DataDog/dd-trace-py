@@ -173,6 +173,12 @@ class TestMemoryHelpers:
         assert "memory_size_delta_bytes" not in delta_overflow_metrics
         json.dumps(delta_overflow_metrics, allow_nan=False)
 
+        _, _, write_metrics, _, _ = build_memory_annotation(
+            {"operation": "create_memory", "content": "persisted user preference text"}
+        )
+        assert "memory_injected_tokens" not in write_metrics
+        assert write_metrics["memory_record_count"] == 1.0
+
         for bad_score in (float("nan"), float("inf"), float("-inf"), 10**400):
             rec = _extract_store_item_record(_MockStoreItem(namespace=("u",), key="k", value={"a": 1}, score=bad_score))
             assert "score" not in rec
