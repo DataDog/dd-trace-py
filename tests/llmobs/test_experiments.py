@@ -101,7 +101,7 @@ def dummy_evaluator_multi_no_prefix(input_data, output_data, expected_output):
 def dummy_evaluator_multi_with_inner_result(input_data, output_data, expected_output):
     return MultiEvaluatorResult(
         {
-            "precision": EvaluatorResult(value=0.9, reasoning="close match", assessment="pass"),
+            "precision": EvaluatorResult(value=0.9, reasoning="close match", assessment="pass", higher_is_better=True),
             "recall": 0.7,
         }
     )
@@ -126,7 +126,9 @@ def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected
 def dummy_summary_evaluator_multi(inputs, outputs, expected_outputs, evaluators_results):
     return MultiEvaluatorResult(
         {
-            "precision": EvaluatorResult(value=0.9, reasoning="summary precision", assessment="pass"),
+            "error_rate": EvaluatorResult(
+                value=0.9, reasoning="summary error rate", assessment="pass", higher_is_better=False
+            ),
             "recall": 0.7,
         }
     )
@@ -1824,6 +1826,7 @@ def test_experiment_run_evaluators_multi_value_with_inner_result(llmobs, test_da
                 "error": None,
                 "reasoning": "close match",
                 "assessment": "pass",
+                "higher_is_better": True,
             },
             "dummy_evaluator_multi_with_inner_result-recall": {"value": 0.7, "error": None},
         },
@@ -1850,6 +1853,26 @@ def test_experiment_generate_metrics_multi_value(llmobs, test_dataset_one_record
     assert precision_metric["score_value"] == 0.9
     assert precision_metric["reasoning"] == "close match"
     assert precision_metric["assessment"] == "pass"
+    assert precision_metric["higher_is_better"] is True
+    assert "higher_is_better" not in next(m for m in metrics if m["label"].endswith("-recall"))
+
+
+def test_evaluator_higher_is_better_is_independent_of_metadata():
+    result = EvaluatorResult(value=0, metadata={"higher_is_better": True}, higher_is_better=False)
+    assert result.higher_is_better is False
+    assert result.metadata == {"higher_is_better": True}
+    assert EvaluatorResult(value=0, metadata=result.metadata).higher_is_better is None
+
+
+def test_evaluator_higher_is_better_requires_boolean():
+    with pytest.raises(TypeError, match="must be a boolean"):
+        EvaluatorResult(value=5, higher_is_better="false")
+
+
+@pytest.mark.parametrize("value", [True, "pass", None, {}])
+def test_evaluator_higher_is_better_requires_score(value):
+    with pytest.raises(TypeError, match="numeric score"):
+        EvaluatorResult(value=value, higher_is_better=False)
 
 
 def test_multi_evaluator_result_validation():
@@ -1945,11 +1968,12 @@ def test_experiment_run_summary_evaluators_multi_value(llmobs, test_dataset_one_
     assert summary_eval_results[0] == {
         "idx": 0,
         "evaluations": {
-            "dummy_summary_evaluator_multi-precision": {
+            "dummy_summary_evaluator_multi-error_rate": {
                 "value": 0.9,
                 "error": None,
-                "reasoning": "summary precision",
+                "reasoning": "summary error rate",
                 "assessment": "pass",
+                "higher_is_better": False,
             },
             "dummy_summary_evaluator_multi-recall": {"value": 0.7, "error": None},
         },
@@ -1975,13 +1999,14 @@ def test_experiment_generate_metrics_summary_multi_value(llmobs, test_dataset_on
 
     summary_labels = sorted(m["label"] for m in metrics if m["label"].startswith("dummy_summary_evaluator_multi-"))
     assert summary_labels == [
-        "dummy_summary_evaluator_multi-precision",
+        "dummy_summary_evaluator_multi-error_rate",
         "dummy_summary_evaluator_multi-recall",
     ]
-    precision_metric = next(m for m in metrics if m["label"] == "dummy_summary_evaluator_multi-precision")
-    assert precision_metric["score_value"] == 0.9
-    assert precision_metric["reasoning"] == "summary precision"
-    assert precision_metric["assessment"] == "pass"
+    error_metric = next(m for m in metrics if m["label"] == "dummy_summary_evaluator_multi-error_rate")
+    assert error_metric["score_value"] == 0.9
+    assert error_metric["reasoning"] == "summary error rate"
+    assert error_metric["assessment"] == "pass"
+    assert error_metric["higher_is_better"] is False
 
 
 def test_experiment_run_summary_evaluators_label_collision_warns(llmobs, test_dataset_one_record, caplog):
@@ -5910,7 +5935,12 @@ class TestParseExperimentResult:
                         _span(
                             "s1",
                             [
-                                {"label": "score_metric", "metric_type": "score", "score_value": 0.95},
+                                {
+                                    "label": "score_metric",
+                                    "metric_type": "score",
+                                    "score_value": 0.95,
+                                    "higher_is_better": True,
+                                },
                                 {"label": "bool_metric", "metric_type": "boolean", "boolean_value": False},
                                 {"label": "cat_metric", "metric_type": "categorical", "categorical_value": "good"},
                                 {"label": "json_metric", "metric_type": "json", "json_value": {"k": "v"}},
@@ -5926,6 +5956,7 @@ class TestParseExperimentResult:
         evals = result["runs"][0].rows[0]["evaluations"]
         assert evals["score_metric"] == {
             "value": 0.95,
+            "higher_is_better": True,
             "type": "score",
             "reasoning": None,
             "assessment": None,
@@ -5966,7 +5997,12 @@ class TestParseExperimentResult:
                 "attributes": {
                     "spans": [],
                     "summary_metrics": [
-                        {"label": "overall_score", "metric_type": "score", "score_value": 0.88},
+                        {
+                            "label": "overall_score",
+                            "metric_type": "score",
+                            "score_value": 0.88,
+                            "higher_is_better": False,
+                        },
                         {"label": "overall_pass", "metric_type": "boolean", "boolean_value": True},
                         {"label": "quality", "metric_type": "categorical", "categorical_value": "high"},
                     ],
@@ -5978,6 +6014,7 @@ class TestParseExperimentResult:
         summary_evals = result["runs"][0].summary_evaluations
         assert summary_evals["overall_score"] == {
             "value": 0.88,
+            "higher_is_better": False,
             "type": "score",
             "reasoning": None,
             "assessment": None,

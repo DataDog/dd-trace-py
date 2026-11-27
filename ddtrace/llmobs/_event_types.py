@@ -69,6 +69,7 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     label: str
     categorical_value: str
     score_value: float
+    higher_is_better: bool
     boolean_value: bool
     json_value: dict[str, JSONType]
     status: str
