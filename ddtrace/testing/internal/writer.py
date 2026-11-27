@@ -497,6 +497,19 @@ class TestCoverageWriter(BaseWriter):
         }
         self.put_event(event)
 
+    def put_shared_coverage(
+        self, session: TestSession, part: str, coverage_bitmaps: t.Iterable[tuple[str, bytes]]
+    ) -> None:
+        """Emit one part of the lines this process ran outside every test.
+
+        Sent once per process. The record carries no span id and no suite id; part is "init",
+        "suiteSetup" or "unowned".
+        """
+        files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
+        if not files:
+            return
+        self.put_event({"test_session_id": session.item_id, "shared": part, "files": files})
+
     def _encode_events(self, events: list[Event]) -> bytes:
         return msgpack_packb({"version": 2, "coverages": events})
 

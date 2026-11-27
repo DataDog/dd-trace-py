@@ -52,6 +52,7 @@ from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
+from ddtrace.testing.internal.pytest.fixture_coverage import install_fixture_tracking
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
@@ -79,8 +80,11 @@ from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import CoverageData
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import get_shared_coverage_bitmaps
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_enabled
+from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_requested
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 from ddtrace.testing.internal.utils import TestContext
@@ -579,6 +583,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             self.manager.cleanup_upload_artifacts()
 
         if self.manager.settings.coverage_enabled:
+            self._put_shared_coverage()
             uninstall_coverage()
 
         if self._logs_handler is not None:
@@ -596,6 +601,14 @@ class TestOptPlugin(TestOptPluginProtocol):
             # All workers have finished, so the generated manifest cache is no longer needed.
             cleanup_xdist_manifest(self.xdist_manifest, self.manager.env_tags)
             self.xdist_manifest = None
+
+    def _put_shared_coverage(self) -> None:
+        """Send, once per process, the lines that ran outside every test."""
+        try:
+            for part, bitmaps in get_shared_coverage_bitmaps().items():
+                self.manager.coverage_writer.put_shared_coverage(self.session, part, bitmaps)
+        except Exception:
+            log.debug("Could not send shared coverage", exc_info=True)
 
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
@@ -844,8 +857,10 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             coverage_enabled = self.manager.settings.coverage_enabled
+            # Only the import-only mode anchors the test's own file, so native collection skips the lookup.
+            needs_test_file = coverage_enabled and not native_line_coverage_enabled()
             with _maybe_collect_coverage(
-                coverage_enabled, test_file=_test_file(item) if coverage_enabled else None
+                coverage_enabled, test_file=_test_file(item) if needs_test_file else None
             ) as coverage_data:
                 yield
 
@@ -1777,6 +1792,10 @@ def pytest_load_initial_conftests(
     # The coverage.py startup itself is handled later in pytest_configure.
     if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
+        if native_line_coverage_requested():
+            fixture_plugin = install_fixture_tracking()
+            if fixture_plugin is not None:
+                early_config.pluginmanager.register(fixture_plugin, "ddtrace-fixture-coverage")
 
     yield
 

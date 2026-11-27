@@ -17,6 +17,7 @@ from bytecode import Bytecode
 
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
@@ -221,6 +222,9 @@ def _ensure_registered() -> bool:
         return False
 
     mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
+    if not _USE_FILE_LEVEL_COVERAGE and native_lines.init(_DD_TOOL_ID):
+        log.debug("Registered native line-level coverage tool (tool_id=%d)", _DD_TOOL_ID)
+        return True
     log.debug("Registered %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
     sys.monitoring.register_callback(_DD_TOOL_ID, EVENT, _event_handler)
     return True
@@ -248,6 +252,12 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     returns None instead, trading some performance for compatibility with other sys.monitoring tools.
     """
     if not _ensure_registered():
+        return code, CoverageLines()
+
+    if native_lines.enabled():
+        # Native collection instruments the whole code tree in one call. It reports executed lines
+        # only, so it needs neither executable lines nor import metadata.
+        native_lines.instrument(code, path)
         return code, CoverageLines()
 
     return _instrument_with_monitoring(code, hook, path, package)
