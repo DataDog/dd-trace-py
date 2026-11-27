@@ -30,14 +30,10 @@ def create_validator(
     """Create a validator function wrapper that marks arguments as secure for a specific vulnerability type."""
     # Apply the validator function
     result = wrapped(*args, **kwargs)
-    i = 0
-    for arg in args:
-        if parameter_positions != [] and isinstance(parameter_positions, list):
-            if i not in parameter_positions:
-                i += 1
-                continue
+    for position, arg in enumerate(args):
+        if parameter_positions != [] and isinstance(parameter_positions, list) and position not in parameter_positions:
+            continue
         add_secure_mark(arg, vulnerability_types)
-        i += 1
 
     keyword_positions = _keyword_positions(wrapped, instance, kwargs) if parameter_positions and kwargs else {}
     for name, arg in kwargs.items():
