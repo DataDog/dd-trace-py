@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import contextlib
-import gzip
-import http.server
-import json
 import logging
 import os
-import threading
 from typing import Any
 from unittest import mock
 
@@ -22,6 +18,7 @@ from ddtrace.internal.logs import AgentlessLogsHandler
 from ddtrace.internal.logs import LogsIntakeWriter
 from ddtrace.internal.logs import disable_agentless_log_submission
 from ddtrace.internal.logs import enable_agentless_log_submission
+from tests.utils import logs_intake_receiver
 
 
 # An unreachable local URL, used wherever a writer must not reach the network.
@@ -74,64 +71,10 @@ def restore_logging_state():
     root.setLevel(level)
 
 
-class _Request:
-    def __init__(self, path: str, headers: dict[str, str], body: bytes) -> None:
-        self.path = path
-        self.headers = headers
-        self.body = body
-
-
-class _LogIntakeReceiver:
-    """A local HTTP server that records gzipped POST bodies."""
-
-    def __init__(self) -> None:
-        self.requests: list[_Request] = []
-
-        class Handler(http.server.BaseHTTPRequestHandler):
-            intake = self
-
-            def do_POST(self) -> None:  # noqa: N802
-                length = int(self.headers.get("Content-Length", 0))
-                body = self.rfile.read(length)
-                if self.headers.get("Content-Encoding") == "gzip":
-                    body = gzip.decompress(body)
-                self.intake.requests.append(_Request(self.path, {k.lower(): v for k, v in self.headers.items()}, body))
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(b"{}")
-
-            def log_message(self, *args: Any) -> None:
-                pass
-
-        self._server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-        self.port = self._server.server_address[1]
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
-
-    @property
-    def url(self) -> str:
-        return "http://127.0.0.1:%d" % self.port
-
-    def events(self) -> list[dict[str, Any]]:
-        """All events POSTed to the logs intake endpoint (the tracer may reuse the receiver)."""
-        events = []
-        for request in self.requests:
-            if request.path == "/api/v2/logs":
-                events.extend(json.loads(request.body))
-        return events
-
-    def close(self) -> None:
-        self._server.shutdown()
-        self._server.server_close()
-
-
 @pytest.fixture
 def log_intake_receiver():
-    receiver = _LogIntakeReceiver()
-    try:
+    with logs_intake_receiver() as receiver:
         yield receiver
-    finally:
-        receiver.close()
 
 
 def _make_writer(**kwargs: Any) -> LogsIntakeWriter:
@@ -610,3 +553,98 @@ if __name__ == "__main__":
     messages = [event["message"] for event in log_intake_receiver.events()]
     assert messages.count("from process") == 1, messages
     assert messages.count("from pool") == 1, messages
+
+
+@pytest.mark.usefixtures("log_intake_receiver")
+def test_logging_reconfiguration_keeps_submission(ddtrace_run_python_code_in_subprocess, log_intake_receiver, tmp_path):
+    """basicConfig(force=True), dictConfig() and fileConfig() replace the root handlers; submission must survive."""
+    config_file = tmp_path / "logging.ini"
+    config_file.write_text(
+        "[loggers]\nkeys=root\n\n"
+        "[handlers]\nkeys=console\n\n"
+        "[formatters]\nkeys=\n\n"
+        "[logger_root]\nlevel=WARNING\nhandlers=console\n\n"
+        "[handler_console]\nclass=StreamHandler\nargs=(sys.stderr,)\n"
+    )
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": "true",
+            "DD_API_KEY": "test-key",
+            "DD_AGENTLESS_LOG_SUBMISSION_URL": log_intake_receiver.url,
+            "DD_TRACE_AGENT_URL": log_intake_receiver.url,
+        }
+    )
+    env.pop("DD_LOGS_OTEL_ENABLED", None)
+
+    _, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+import logging.config
+
+logger = logging.getLogger("reconfigured.app")
+
+logging.basicConfig(force=True)
+logger.warning("after basicConfig force")
+
+logging.config.dictConfig({"version": 1, "disable_existing_loggers": False, "root": {"handlers": []}})
+logger.warning("after dictConfig")
+
+logging.config.fileConfig(%r, disable_existing_loggers=False)
+logger.warning("after fileConfig")
+"""
+        % str(config_file),
+        env=env,
+    )
+    assert status == 0, err
+
+    messages = [event["message"] for event in log_intake_receiver.events()]
+    for message in ("after basicConfig force", "after dictConfig", "after fileConfig"):
+        assert messages.count(message) == 1, messages
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires the fork start method")
+@pytest.mark.usefixtures("log_intake_receiver")
+def test_multiprocessing_fork_workers_submit_logs_with_module_cloning(
+    ddtrace_run_python_code_in_subprocess, log_intake_receiver
+):
+    """With module cloning, the application uses a later copy of threading; fork workers must still flush."""
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": "true",
+            "DD_API_KEY": "test-key",
+            "DD_AGENTLESS_LOG_SUBMISSION_URL": log_intake_receiver.url,
+            "DD_TRACE_AGENT_URL": log_intake_receiver.url,
+            "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "true",
+        }
+    )
+    env.pop("DD_LOGS_OTEL_ENABLED", None)
+
+    _, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+import multiprocessing
+import threading
+
+from ddtrace.internal import threads
+
+# Module cloning must have given the application its own copy of threading.
+assert threading is not threads._threading
+
+
+def work(message):
+    logging.getLogger("mp.app").warning(message)
+
+
+if __name__ == "__main__":
+    process = multiprocessing.get_context("fork").Process(target=work, args=("from cloned process",))
+    process.start()
+    process.join()
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+    messages = [event["message"] for event in log_intake_receiver.events()]
+    assert messages.count("from cloned process") == 1, messages

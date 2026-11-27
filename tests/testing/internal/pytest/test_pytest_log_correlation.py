@@ -16,6 +16,8 @@ import os
 from _pytest.pytester import Pytester
 import pytest
 
+from tests.utils import logs_intake_receiver
+
 
 @pytest.fixture()
 def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -249,9 +251,14 @@ def test_root_level_filters_child_logger_records():
 # Loaded with "-p", so it is imported before the plugin's pytest_load_initial_conftests runs: it
 # records whether the ddtrace bootstrap (ddtrace-run) had started APM agentless log submission.
 _APM_LOGS_PROBE_PLUGIN = """\
+import logging
+
 from ddtrace.internal import logs
 
 ENABLED_AT_STARTUP = logs._handler is not None
+
+# Buffered by the APM writer before the plugin turns it off; it must be discarded, not sent.
+logging.getLogger("pre_session").warning("pre-session record")
 """
 
 _TEST_APM_LOG_SUBMISSION_DISABLED = """\
@@ -426,13 +433,12 @@ class TestAgentlessLogSubmission:
 
         DD_AGENTLESS_LOG_SUBMISSION_ENABLED also enables APM log submission in any process started
         with ddtrace-run. Test sessions must keep submitting logs only through the plugin's own
-        LogsHandler, and nothing at all without agentless mode, as before APM support existed.
+        LogsHandler, and nothing at all without agentless mode, as before APM support existed. Records
+        the APM writer buffered before the session are discarded, not sent to the APM intake.
         """
         import ddtrace.bootstrap
 
         monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
-        # Records buffered by the APM writer are discarded, but keep its intake local regardless.
-        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_URL", "http://127.0.0.1:9")
         if not civisibility_agentless:
             monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "false")
             monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://127.0.0.1:9")
@@ -445,7 +451,11 @@ class TestAgentlessLogSubmission:
             test_file=_TEST_APM_LOG_SUBMISSION_DISABLED.format(expected_logs_handlers=int(civisibility_agentless))
         )
 
-        result = pytester.runpytest_subprocess(
-            "--ddtrace", "-p", "dd_apm_logs_probe", "-p", "dd_log_corr_infra", "-v", "-s"
-        )
+        with logs_intake_receiver() as apm_intake:
+            monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_URL", apm_intake.url)
+            result = pytester.runpytest_subprocess(
+                "--ddtrace", "-p", "dd_apm_logs_probe", "-p", "dd_log_corr_infra", "-v", "-s"
+            )
         result.assert_outcomes(passed=1)
+        submitted = [event["message"] for event in apm_intake.events()]
+        assert "pre-session record" not in submitted, submitted
