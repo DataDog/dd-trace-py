@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.internal import _service_state
 from ddtrace.internal import process_tags
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_MODULE
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
@@ -22,9 +23,13 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
 def _restore_process_tags():
     original = process_tags.process_tags
     original_list = process_tags.process_tags_list
+    original_service_state = _service_state._is_user_provided_service
+    # Config instances in other tests can leave the process-global service flag set.
+    _service_state.set_is_user_provided_service(_service_state._service_provided_early())
     yield
     process_tags.process_tags = original
     process_tags.process_tags_list = original_list
+    _service_state._is_user_provided_service = original_service_state
 
 
 @pytest.mark.parametrize(
