@@ -50,6 +50,32 @@ HOUR = 60 * MINUTE
 DAY = 24 * HOUR
 
 
+# Code moved out of ddtrace into packages logs under the module path it had inside ddtrace, so it stays under the
+# `ddtrace` logger (handlers and levels) and keeps its `_DD_<PRODUCT>_LOG_LEVEL` setting name. A package root that
+# is not listed here maps to `ddtrace.<root without the prefix>`, e.g. `_ddtrace_foo.x` logs as `ddtrace.foo.x`.
+_PACKAGE_PREFIX = "_ddtrace_"
+_PACKAGE_PATHS = {
+    "_ddtrace_internal": "ddtrace.internal",
+    "_ddtrace_coverage": "ddtrace.internal.coverage",
+    "_ddtrace_native": "ddtrace.internal.native",
+}
+
+
+def logger_name(name: str) -> str:
+    """Return the ddtrace logger name for the module ``name`` (e.g. ``_ddtrace_coverage.code`` ->
+    ``ddtrace.internal.coverage.code``). Names outside the ``_ddtrace_<package>`` roots are returned unchanged.
+
+    Modules that log through stdlib ``logging`` instead of ``get_logger`` use it as
+    ``logging.getLogger(logger_name(__name__))``, so they stay under the ``ddtrace`` logger once they move into a
+    package.
+    """
+    root, dot, rest = name.partition(".")
+    if not root.startswith(_PACKAGE_PREFIX) or root == _PACKAGE_PREFIX:
+        return name
+    path = _PACKAGE_PATHS.get(root) or f"ddtrace.{root[len(_PACKAGE_PREFIX) :]}"
+    return f"{path}{dot}{rest}"
+
+
 @dataclass
 class LoggerPrefix:
     prefix: str
@@ -108,7 +134,10 @@ def get_logger(name: str) -> logging.Logger:
 
     Configure all loggers with a rate limiter filter to prevent excessive logging.
 
+    The name of a module moved into a package is normalized to its former ddtrace path (see ``_PACKAGE_PATHS``), so
+    ``get_logger("_ddtrace_coverage.code")`` returns the ``ddtrace.internal.coverage.code`` logger.
     """
+    name = logger_name(name)
     logger = logging.getLogger(name)
     # addFilter will only add the filter if it is not already present
     logger.addFilter(log_filter)
