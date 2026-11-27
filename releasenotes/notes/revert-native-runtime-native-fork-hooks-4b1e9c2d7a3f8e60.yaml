@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    internal: The shared native runtime now handles process forks only through Python fork hooks.
+    Native fork handlers are no longer installed. Processes forked outside of Python, such as
+    uWSGI workers, no longer pause and resume the native runtime around the fork.

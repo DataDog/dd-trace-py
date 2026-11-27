@@ -248,7 +248,7 @@ impl TraceBufferPy {
         synchronous_export: bool,
         synchronous_export_timeout_ns: Option<u64>,
     ) -> PyResult<Self> {
-        let runtime = shared_runtime.as_arc()?.clone();
+        let runtime = shared_runtime.as_arc().clone();
         let inner = builder
             .builder
             .take()
@@ -513,7 +513,7 @@ impl TraceBufferPy {
         &self,
         worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
     ) -> PyResult<()> {
-        let telemetry_handle = worker.map(|worker| worker.clone_handle()).transpose()?;
+        let telemetry_handle = worker.map(|worker| worker.clone_handle());
         let exporter = self.exporter.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(exporter) = exporter.as_ref() {
             exporter.set_telemetry_handle(telemetry_handle);

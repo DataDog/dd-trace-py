@@ -215,21 +215,6 @@ class SharedRuntime:
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
         ...
-    def defer_after_fork_child(self) -> None:
-        """Prevent lazy runtime restart while Python child hooks run."""
-        ...
-    def before_python_fork(self) -> None:
-        """Mark a Python-managed fork so native preparation does not pause workers."""
-        ...
-    def after_python_fork_parent(self) -> None:
-        """Clear the Python-managed fork mark in the parent."""
-        ...
-    def allow_after_fork_child(self) -> None:
-        """Allow lazy runtime restart after Python child hooks finish."""
-        ...
-    def register_at_fork(self) -> None:
-        """Register native fork handlers for this shared runtime."""
-        ...
     def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         """Gracefully shut down the shared runtime.
 
