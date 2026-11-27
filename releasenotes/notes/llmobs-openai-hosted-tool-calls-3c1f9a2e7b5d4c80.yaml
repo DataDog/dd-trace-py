@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI and OpenAI Agents integrations now record OpenAI hosted tools
+    (``web_search_call``, ``file_search_call`` and ``code_interpreter_call`` items from the Responses API)
+    as a tool call and tool result on the LLM span. The tool call carries the search queries or code, and
+    the tool result carries the status and the sources, file matches or code outputs. Previously these
+    items were recorded as raw text or dropped.

@@ -996,6 +996,64 @@ def openai_get_input_messages_from_response_input(
     return processed
 
 
+_OPENAI_HOSTED_TOOL_NAMES = {
+    "web_search_call": "web_search",
+    "file_search_call": "file_search",
+    "code_interpreter_call": "code_interpreter",
+}
+# Allowlist: SDK models accept extra fields, so new provider fields must not reach the span unreviewed.
+_OPENAI_WEB_SEARCH_ACTION_KEYS = ("type", "query", "queries", "url", "pattern")
+# Code interpreter stdout can be MBs and is replayed as input on later turns; an oversized event drops all I/O.
+_HOSTED_TOOL_LOGS_MAX_CHARS = 4096
+
+
+def _openai_hosted_tool_message(item: Any) -> Message:
+    """Build a tool call + tool result message for a tool OpenAI runs server-side (web/file search, code)."""
+    item_type = str(_get_attr(item, "type", ""))
+    name = _OPENAI_HOSTED_TOOL_NAMES[item_type]
+    tool_id = str(_get_attr(item, "id", ""))
+    status = _get_attr(item, "status", None)
+    result: dict[str, Any] = {"status": status}
+    if item_type == "web_search_call":
+        action = load_data_value(_get_attr(item, "action", None)) or {}
+        arguments = (
+            {k: action[k] for k in _OPENAI_WEB_SEARCH_ACTION_KEYS if k in action} if isinstance(action, dict) else {}
+        )
+        sources = action.get("sources") if isinstance(action, dict) else None
+        if sources:
+            result["sources"] = [
+                {k: s[k] for k in ("url", "title") if isinstance(s, dict) and s.get(k)} for s in sources
+            ]
+    elif item_type == "file_search_call":
+        arguments = {"queries": load_data_value(_get_attr(item, "queries", None)) or []}
+        results = _get_attr(item, "results", None)
+        if results:
+            result["results"] = [
+                {
+                    k: _get_attr(r, k, None)
+                    for k in ("file_id", "filename", "score")
+                    if _get_attr(r, k, None) is not None
+                }
+                for r in results
+            ]
+    else:
+        arguments = {k: _get_attr(item, k, None) for k in ("code", "container_id") if _get_attr(item, k, None)}
+        outputs = _get_attr(item, "outputs", None)
+        if outputs:
+            result["outputs"] = [
+                str(_get_attr(o, "logs", ""))[:_HOSTED_TOOL_LOGS_MAX_CHARS]
+                if _get_attr(o, "type", None) == "logs"
+                else IMAGE_FALLBACK_MARKER
+                for o in outputs
+            ]
+    return Message(
+        role="assistant",
+        content="",
+        tool_calls=[ToolCall(name=name, arguments=arguments, tool_id=tool_id, type=item_type)],
+        tool_results=[ToolResult(name=name, result=safe_json(result) or "", tool_id=tool_id, type="tool_result")],
+    )
+
+
 def _openai_parse_input_response_messages(
     messages: Optional[Union[str, list[dict[str, Any]]]], system_instructions: Optional[str] = None
 ) -> tuple[list[Message], list[str]]:
@@ -1106,6 +1164,9 @@ def _openai_parse_input_response_messages(
             # this is where it actually arrives. Without a branch here the item matches nothing and
             # is dropped, losing the screenshot entirely.
             processed_item.update({"role": "user", "content": _extract_image_reference(output)})
+        elif item_type in _OPENAI_HOSTED_TOOL_NAMES:
+            # A hosted tool item from a prior turn, passed back as input.
+            processed_item.update(_openai_hosted_tool_message(item))
         if processed_item:
             processed.append(processed_item)
 
@@ -1234,6 +1295,9 @@ def _openai_parse_output_response_messages(
         elif message_type == "computer_call_output":
             # A screenshot's image_url may be an inline data URL, which must not reach the text.
             message.update({"content": _extract_image_reference(_get_attr(item, "output", None)), "role": "user"})
+        elif message_type in _OPENAI_HOSTED_TOOL_NAMES:
+            # Not added to tool_call_outputs: OpenAI runs these itself, so no client tool span will consume the link.
+            message.update(_openai_hosted_tool_message(item))
         else:
             # Bound the catch-all: an unrecognized item may carry a binary payload on any field, and
             # str() of an SDK model renders every value. Truncate rather than leak the next one.
