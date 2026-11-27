@@ -11,17 +11,17 @@ import logging
 from pathlib import Path
 import typing as t
 
-from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _get_coverage_percentage
-from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.internal.coverage.patch import run_coverage_report
-from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 import ddtrace.internal.coverage.installer
 from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.utils.paths import relative_path
+from ddtrace.testing.internal.coverage_py.patch import get_coverage_percentage as _get_coverage_percentage
+from ddtrace.testing.internal.coverage_py.patch import patch as patch_coverage
+from ddtrace.testing.internal.coverage_py.patch import run_coverage_report
+from ddtrace.testing.internal.coverage_py.patch import unpatch as unpatch_coverage
+from ddtrace.testing.internal.coverage_py.utils import _is_coverage_invoked_by_coverage_run
+from ddtrace.testing.internal.coverage_py.utils import _is_coverage_patched
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
 

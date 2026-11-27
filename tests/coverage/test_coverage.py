@@ -816,3 +816,18 @@ def test_report_and_json_report_resolve_symlinked_workspace():
             assert str(alias_ws) not in out, "console report regressed to absolute filenames"
         finally:
             sys.path.remove(str(alias_ws))
+
+
+def test_default_exclude_paths_match_packages_paths():
+    # The coverage module computes the stdlib/site-packages exclusions itself instead of importing
+    # ddtrace.internal.packages; this keeps the two from drifting apart.
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.packages import platlib_path
+    from ddtrace.internal.packages import platstdlib_path
+    from ddtrace.internal.packages import purelib_path
+    from ddtrace.internal.packages import stdlib_path
+
+    collector = object.__new__(ModuleCodeCollector)
+    ModuleCodeCollector.__init__(collector)
+
+    assert collector._exclude_paths[:4] == [stdlib_path, platstdlib_path, platlib_path, purelib_path]

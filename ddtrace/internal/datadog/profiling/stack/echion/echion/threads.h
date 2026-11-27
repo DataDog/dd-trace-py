@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -134,6 +135,8 @@ class ThreadInfo
                                                      PyThreadState* tstate,
                                                      const TaskAddressCallback& callback);
 #if PY_VERSION_HEX >= 0x030e0000
+    // The thread's asyncio_running_task, which may be null, or nullopt when it cannot be read.
+    [[nodiscard]] std::optional<PyObject*> read_asyncio_running_task(EchionSampler&) const;
     [[nodiscard]] Result<void> for_each_task_address_from_thread_list(EchionSampler&,
                                                                       const TaskAddressCallback& callback);
     [[nodiscard]] Result<void> for_each_task_address_from_interpreter_list(EchionSampler&,

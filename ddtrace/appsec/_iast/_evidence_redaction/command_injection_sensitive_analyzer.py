@@ -7,7 +7,6 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-_INSIDE_QUOTES_REGEXP = re.compile(r"^(?:\s*(?:sudo|doas)\s+)?\b\S+\b\s*(.*)")
 COMMAND_PATTERN = r"^(?:\s*(?:sudo|doas)\s+)?\b\S+\b\s(.*)"
 pattern = re.compile(COMMAND_PATTERN, re.IGNORECASE | re.MULTILINE)
 

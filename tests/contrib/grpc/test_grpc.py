@@ -1,3 +1,4 @@
+import gc
 import threading
 import time
 
@@ -286,6 +287,60 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
+
+    def test_server_stream_generator_response(self):
+        # A plain generator response has no done callback: the span is finished on StopIteration.
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
+            stub = HelloStub(grpc.intercept_channel(channel, _GeneratorResponseInterceptor()))
+            assert len(list(stub.SayHelloTwice(HelloRequest(name="test")))) == 2
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
+        self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
+        assert client_span.duration is not None
+
+    def test_server_stream_generator_response_error(self):
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
+            stub = HelloStub(grpc.intercept_channel(channel, _GeneratorResponseInterceptor()))
+            with self.assertRaises(grpc.RpcError):
+                list(stub.SayHelloTwice(HelloRequest(name="exception")))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.error == 1
+        assert client_span.get_tag("grpc.status.code") == "StatusCode.RESOURCE_EXHAUSTED"
+        assert client_span.duration is not None
+
+    def test_server_stream_generator_response_error_then_stopiteration(self):
+        # After RpcError the generator is closed. The next pull raises StopIteration
+        # and must leave the failure status in place.
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
+            stub = HelloStub(grpc.intercept_channel(channel, _GeneratorResponseInterceptor()))
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name="exception"))
+            assert next(responses_iterator).message == "first response"
+            with self.assertRaises(grpc.RpcError):
+                next(responses_iterator)
+            with self.assertRaises(StopIteration):
+                next(responses_iterator)
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.error == 1
+        assert client_span.get_tag("grpc.status.code") == "StatusCode.RESOURCE_EXHAUSTED"
+
+    def test_server_stream_generator_response_dropped(self):
+        # A generator dropped before the end still finishes its span.
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
+            stub = HelloStub(grpc.intercept_channel(channel, _GeneratorResponseInterceptor()))
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name="test"))
+            assert next(responses_iterator).message == "first response"
+            del responses_iterator
+            gc.collect()
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        assert client_span.duration is not None
 
     def test_client_stream(self):
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
@@ -741,3 +796,10 @@ class _SpanActivationClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
+
+
+class _GeneratorResponseInterceptor(grpc.UnaryStreamClientInterceptor):
+    """Returns the streamed response as a plain generator, like client wrapper libraries do."""
+
+    def intercept_unary_stream(self, continuation, client_call_details, request):
+        return (r for r in continuation(client_call_details, request))

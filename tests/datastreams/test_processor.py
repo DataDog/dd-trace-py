@@ -1,3 +1,4 @@
+import contextvars
 import gzip
 import logging
 import os
@@ -161,6 +162,21 @@ def test_data_streams_loop_protection():
     child_hash = processor.set_checkpoint(["direction:out", "topic:topicB", "type:kafka"]).hash
     expected_child_hash = ctx._compute_hash(["direction:out", "topic:topicB", "type:kafka"], parent_hash)
     assert child_hash == expected_child_hash
+
+
+def test_set_checkpoint_leaves_pathways_held_by_copied_contexts_unchanged():
+    p = DataStreamsProcessor("http://localhost:8126")
+    consume = p.set_checkpoint(["direction:in", "topic:topicA", "type:kafka"])
+    consume_hash = consume.hash
+    produce_b = contextvars.copy_context().run(p.set_checkpoint, ["direction:out", "topic:topicB", "type:kafka"])
+    produce_b_hash = produce_b.hash
+    produce_c = contextvars.copy_context().run(p.set_checkpoint, ["direction:out", "topic:topicC", "type:kafka"])
+
+    assert consume.hash == consume_hash
+    assert produce_b.hash == produce_b_hash
+    assert produce_b_hash == consume._compute_hash(["direction:out", "topic:topicB", "type:kafka"], consume_hash)
+    assert produce_c.hash == consume._compute_hash(["direction:out", "topic:topicC", "type:kafka"], consume_hash)
+    assert p._current_context.get() is consume
 
 
 def test_kafka_offset_monitoring():
@@ -450,21 +466,6 @@ def test_dsm_pathway_codec_decode_no_context():
     assert ctx.hash == processor.new_pathway().hash
     assert ctx.pathway_start_sec == mocked_time
     assert ctx.current_edge_start_sec == mocked_time
-
-
-def test_checkpoint_context_storage_is_created_on_first_use():
-    """The processor is created when ddtrace is imported, before gevent can patch threading.
-
-    Its checkpoint context belongs to the greenlet, so its storage is created on first use.
-    """
-    processor = DataStreamsProcessor("http://localhost:8126")
-    try:
-        assert processor._current_context_storage is None
-        storage = processor._current_context
-        assert processor._current_context is storage
-    finally:
-        processor.stop()
-        processor.join()
 
 
 def test_reset_shuts_down_the_replaced_processor():

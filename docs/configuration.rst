@@ -926,11 +926,16 @@ AI Guard
        Enabled by default; set to False to stop sending MCP server details, evaluating MCP approval
        requests and checking the calls of Anthropic SDK and LangChain MCP tools. When AI Guard is enabled,
        evaluations of remote MCP tools run by the OpenAI Responses API (tools of type ``mcp``)
-       identify the MCP server each call goes to: its configured name, the scheme, host and port of
-       its URL, and the tools called through it.
-       Credentials, headers, and the user information, path, query string and fragment of the server
-       URL are never sent. This setting does not change blocking, which still follows the evaluation
-       verdict and DD_AI_GUARD_BLOCK.
+       identify the MCP server each call goes to: its configured name, its URL, and the tools called
+       through it. Server URLs are sent with their scheme, host, port and path, normalized by the WHATWG
+       URL Standard, so a token in the URL path is sent with the path. The tool ``authorization`` value
+       and headers, and the user information, query string and fragment of the URL, are never sent. This
+       setting does not change blocking, which still follows the evaluation verdict and DD_AI_GUARD_BLOCK.
+
+       Evaluations of tool calls run by the Anthropic MCP connector (``mcp_servers`` of
+       ``client.beta.messages.create``) identify their MCP server the same way, from its name and URL;
+       its ``authorization_token`` is never sent. Anthropic has already run these calls when the response
+       arrives, so a blocking verdict withholds the response but cannot stop the call.
 
        Tools of MCP servers configured in the OpenAI Agents SDK (MCPServerStdio, MCPServerSse,
        MCPServerStreamableHttp) are evaluated before each call reaches the server, whether the
@@ -946,21 +951,22 @@ AI Guard
        is false.
        Responses read through ``with_raw_response`` or ``with_streaming_response`` are not evaluated.
 
-       MCP tools converted with the Anthropic SDK ``mcp_tool`` and ``async_mcp_tool`` helpers are
-       evaluated before each call is sent to the MCP server, unless the model response that requested
-       that call was already evaluated with its MCP server details. The server is identified from the
-       MCP SDK client transport of its session: the scheme, host and port of a streamable HTTP or SSE
-       URL, or the command and package or module name of a stdio server. Headers, environment variables
-       and other command arguments are never sent. Sessions on in-memory or unrecognized transports, or
-       on a transport opened before the Anthropic integration was patched, get no MCP server details and
-       no call check. The non-streaming tool runner calls ``messages.parse``, which is not instrumented,
-       so its MCP tool calls are checked without the conversation that requested them.
+       MCP tools converted with the Anthropic SDK ``mcp_tool`` and ``async_mcp_tool`` helpers are evaluated
+       before each call is sent to the MCP server, without the conversation that requested the call. The
+       model response is evaluated as for any other tool, except in the non-streaming
+       ``beta.messages.tool_runner`` of Anthropic SDK versions before 2.2.0: it calls
+       ``beta.messages.parse``, which is not instrumented, so only its MCP tool calls are checked. The
+       server is identified from the MCP SDK client transport of its session: the URL of a streamable HTTP
+       or SSE server, or the command and package or module name of a stdio server. Headers, environment
+       variables and other command arguments are never sent. Calls of sessions on in-memory or
+       unrecognized transports, or on a transport opened before the Anthropic integration was patched, are
+       checked as ordinary tool calls, without MCP server details.
 
        LangChain tool calls to MCP tools loaded with ``langchain-mcp-adapters`` (0.2.0 or later) are
-       evaluated with their MCP server: its configured name, transport, the scheme, host and port of
-       its URL or, for stdio servers, the command and package or module name, and the tools called
-       through it. Calls made outside an agent are evaluated before the MCP request is sent. Headers,
-       environment variables and other command arguments are never sent.
+       evaluated with their MCP server: its configured name, transport, its URL or, for stdio servers,
+       the command and package or module name, and the tools called through it. Calls made outside an
+       agent are evaluated before the MCP request is sent. Headers, environment variables and other
+       command arguments are never sent.
 
 Code Security
 -------------
@@ -1010,7 +1016,7 @@ Code Security
      type: String
 
      default: |
-       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:(?!ey[I-L][\w=-])[\w=-])+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
 
      description: |
         Regular expression containing value style strings matched against vulnerability origin and evidence texts.

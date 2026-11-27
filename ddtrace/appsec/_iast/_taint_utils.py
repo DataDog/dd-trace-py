@@ -278,9 +278,11 @@ class LazyTaintList:
         if _is_tainted_struct(other):
             other = other._obj
         self._obj += other
+        return self
 
     def __imul__(self, other):
         self._obj *= other
+        return self
 
     def __iter__(self):
         return (self[i] for i in range(len(self._obj)))
@@ -445,6 +447,7 @@ class LazyTaintDict:
         if _is_tainted_struct(other):
             other = other._obj
         self._obj |= other
+        return self
 
     def __iter__(self):
         return iter(self.keys())

@@ -96,7 +96,7 @@ setup.py                            @DataDog/apm-python-guild
 /requirements.csv                   @DataDog/apm-python-guild
 /SECURITY.md                        @DataDog/apm-python-guild
 # ddtrace files
-ddtrace/_logger.py                  @DataDog/apm-python-guild  @DataDog/apm-core-python
+ddtrace/internal/logger/setup.py    @DataDog/apm-python-guild  @DataDog/apm-core-python
 ddtrace/auto.py                     @DataDog/apm-python-guild  @DataDog/apm-core-python
 ddtrace/bootstrap/                  @DataDog/apm-python-guild  @DataDog/apm-core-python
 ddtrace/commands/                   @DataDog/apm-python-guild  @DataDog/apm-core-python
@@ -158,6 +158,7 @@ ddtrace/testing/                                      @DataDog/ci-app-libraries
 tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries
 tests/contrib/freezegun                               @DataDog/ci-app-libraries
+tests/contrib/internal/coverage                       @DataDog/ci-app-libraries
 tests/contrib/selenium                                @DataDog/ci-app-libraries
 tests/contrib/unittest                                @DataDog/ci-app-libraries
 tests/coverage                                        @DataDog/ci-app-libraries

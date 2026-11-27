@@ -1,8 +1,17 @@
 from unittest import mock
 
+import pydantic_ai
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+
+PYDANTIC_AI_VERSION = parse_version(pydantic_ai.__version__)
+
+# 2.x rejects a model name without a provider prefix, and its "openai:" prefix selects the Responses
+# API. "openai-chat:" keeps the Chat Completions requests the cassettes recorded.
+MODEL = "openai-chat:gpt-4o" if PYDANTIC_AI_VERSION >= (2, 0, 0) else "gpt-4o"
 
 
 PYDANTIC_AI_TAGS = {
@@ -15,9 +24,55 @@ PYDANTIC_AI_TAGS = {
 # pydantic-ai's own defaults for an agent that configures none of these, at the locked suite versions.
 # pins. They are framework defaults rather than caller choices, which is why they are asserted here
 # once instead of being repeated per test. They are NOT a framework invariant: end_strategy defaults
-# to "graceful" at 2.x, so adding a 2.x pin will fail here on purpose.
+# to "graceful" from 2.x on.
 DEFAULT_DATA_CONTRACTS = {"output": {"name": "str"}}
-DEFAULT_AGENT_SETTINGS = {"retries": 1, "tool_retries": 1, "end_strategy": "early"}
+DEFAULT_AGENT_SETTINGS = {
+    "retries": 1,
+    "tool_retries": 1,
+    "end_strategy": "graceful" if PYDANTIC_AI_VERSION >= (2, 0, 0) else "early",
+}
+
+
+# 2.x moved these Agent arguments onto capabilities and a retries mapping. Each helper returns the
+# Agent kwargs that configure the same thing on the installed version.
+def history_processors_kwargs(*processors):
+    if PYDANTIC_AI_VERSION >= (2, 0, 0):
+        from pydantic_ai.capabilities import ProcessHistory
+
+        return {"capabilities": [ProcessHistory(processor) for processor in processors]}
+    return {"history_processors": list(processors)}
+
+
+def prepare_tools_kwargs(prepare_func):
+    if PYDANTIC_AI_VERSION >= (2, 0, 0):
+        from pydantic_ai.capabilities import PrepareTools
+
+        return {"capabilities": [PrepareTools(prepare_func)]}
+    return {"prepare_tools": prepare_func}
+
+
+def builtin_tools_kwargs(*tools):
+    if PYDANTIC_AI_VERSION >= (2, 0, 0):
+        from pydantic_ai.capabilities import NativeTool
+
+        return {"capabilities": [NativeTool(tool) for tool in tools]}
+    return {"builtin_tools": list(tools)}
+
+
+def retries_kwargs(retries=None, output_retries=None):
+    if PYDANTIC_AI_VERSION >= (2, 0, 0):
+        budgets = {}
+        if retries is not None:
+            budgets["tools"] = budgets["output"] = retries
+        if output_retries is not None:
+            budgets["output"] = output_retries
+        return {"retries": budgets}
+    kwargs = {}
+    if retries is not None:
+        kwargs["retries"] = retries
+    if output_retries is not None:
+        kwargs["output_retries"] = output_retries
+    return kwargs
 
 
 def expected_calculate_square_tool():
@@ -215,9 +270,16 @@ def _escalate(reason: str) -> str:
 
 
 def _builtin_web_search():
-    from pydantic_ai.builtin_tools import WebSearchTool
+    # Exported from the package root on every pin; the module is builtin_tools below 2.x, native_tools after.
+    from pydantic_ai import WebSearchTool
 
     return WebSearchTool(search_context_size="high", max_uses=3)
+
+
+def _web_search_capability():
+    from pydantic_ai.capabilities import WebSearch
+
+    return WebSearch()
 
 
 # One field mapping per case: (kwargs factory, expected manifest subset, minimum pydantic-ai version).
@@ -244,7 +306,7 @@ MANIFEST_FIELD_CASES = [
         id="provider_prefixed_param_drops",
     ),
     pytest.param(
-        lambda: dict(history_processors=[_redact_history]),
+        lambda: history_processors_kwargs(_redact_history),
         {"memory_policies": ["_redact_history"]},
         None,
         id="history_processors_land_in_memory_policies",
@@ -252,7 +314,7 @@ MANIFEST_FIELD_CASES = [
     pytest.param(
         # A processor listed twice runs twice, so it is reported twice: collapsing the repeat would
         # describe a pipeline the agent does not run, the same way reordering it would.
-        lambda: dict(history_processors=[_redact_history, _redact_history]),
+        lambda: history_processors_kwargs(_redact_history, _redact_history),
         {"memory_policies": ["_redact_history", "_redact_history"]},
         None,
         id="repeated_history_processor_is_reported_twice",
@@ -264,10 +326,17 @@ MANIFEST_FIELD_CASES = [
         id="dynamic_toolset_is_a_custom_capability",
     ),
     pytest.param(
-        lambda: dict(builtin_tools=[_builtin_web_search()]),
+        lambda: builtin_tools_kwargs(_builtin_web_search()),
         {"capabilities": [{"name": mock.ANY, "type": "builtin"}]},
         None,
         id="builtin_tool_is_a_capability",
+    ),
+    pytest.param(
+        # A 2.x capability that contributes a native tool without being a NativeTool.
+        lambda: dict(capabilities=[_web_search_capability()]),
+        {"capabilities": [{"name": "web_search", "type": "builtin"}]},
+        (2, 0, 0),
+        id="web_search_capability_is_a_builtin_capability",
     ),
     pytest.param(
         lambda: dict(tool_timeout=12.5, max_concurrency=4),

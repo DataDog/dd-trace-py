@@ -20,6 +20,7 @@ from ddtrace.aiguard._streaming import _is_async_traced_stream
 from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard._streaming import _stream_analysis_enabled
+from ddtrace.aiguard._streaming import _traced_stream_request_kwargs
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 from ddtrace.aiguard.integrations._anthropic_mcp import install_anthropic_mcp
@@ -447,9 +448,11 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
         result = func(*args, **kwargs)
         if not _is_traced_stream(result):
             return result
+        # The contrib's kwargs, which the before-hook listed; these wrapper kwargs can hold exhausted iterators.
+        request_kwargs = _traced_stream_request_kwargs(result, kwargs)
 
         def evaluate(resp: Any) -> Any:
-            return _anthropic_messages_create_after(client, kwargs, resp)
+            return _anthropic_messages_create_after(client, request_kwargs, resp)
 
         if _is_async_traced_stream(result):
             return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
@@ -459,9 +462,11 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
         result = await func(*args, **kwargs)
         if not _is_traced_stream(result):
             return result
+        # The contrib's kwargs, which the before-hook listed; these wrapper kwargs can hold exhausted iterators.
+        request_kwargs = _traced_stream_request_kwargs(result, kwargs)
 
         def evaluate(resp: Any) -> Any:
-            return _anthropic_messages_create_after(client, kwargs, resp)
+            return _anthropic_messages_create_after(client, request_kwargs, resp)
 
         return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
 

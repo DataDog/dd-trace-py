@@ -128,8 +128,8 @@ class XdistTestOptPlugin:
         # nodes are set up (pytest_configure runs before xdist spawns workers).
         can_controller_report_delegated_data = False
         if self._delegate_coverage_upload:
-            from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
-            from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+            from ddtrace.testing.internal.coverage_py.patch import owns_coverage_instance
+            from ddtrace.testing.internal.coverage_py.utils import _is_pytest_cov_enabled
 
             can_controller_report_delegated_data = _is_pytest_cov_enabled(node.config) or owns_coverage_instance()
         node.workerinput[_DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT] = can_controller_report_delegated_data

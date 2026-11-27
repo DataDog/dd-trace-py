@@ -200,14 +200,81 @@ def anthropic_client_tool_use(anthropic_sdk):
 # ---------------------------------------------------------------------------
 
 
-def _sse_event(event_name: str, data: dict) -> bytes:
-    return f"event: {event_name}\ndata: {json.dumps(data)}\n\n".encode()
+def sse(event: str, data: dict) -> bytes:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
+
+
+def stream_body(body: dict) -> bytes:
+    """The SSE events of a message body: text and tool inputs arrive through deltas, tool results whole."""
+    events = [sse("message_start", {"type": "message_start", "message": dict(body, content=[], stop_reason=None)})]
+    for index, block in enumerate(body["content"]):
+        start, delta = block, None
+        if block["type"] == "text":
+            start, delta = {"type": "text", "text": ""}, {"type": "text_delta", "text": block["text"]}
+        elif "input" in block:
+            start = dict(block, input={})
+            delta = {"type": "input_json_delta", "partial_json": json.dumps(block["input"])}
+        events.append(
+            sse("content_block_start", {"type": "content_block_start", "index": index, "content_block": start})
+        )
+        if delta is not None:
+            events.append(sse("content_block_delta", {"type": "content_block_delta", "index": index, "delta": delta}))
+        events.append(sse("content_block_stop", {"type": "content_block_stop", "index": index}))
+    message_delta = {"stop_reason": body["stop_reason"], "stop_sequence": None}
+    events.append(
+        sse("message_delta", {"type": "message_delta", "delta": message_delta, "usage": {"output_tokens": 1}})
+    )
+    events.append(sse("message_stop", {"type": "message_stop"}))
+    return b"".join(events)
+
+
+class MessagesTransport(httpx.BaseTransport, httpx.AsyncBaseTransport):
+    """Anthropic API mock answering the given bodies in order, streamed when the request asks; records the requests."""
+
+    def __init__(self, bodies):
+        self._bodies = list(bodies)
+        self.requests = []
+
+    def _response(self, request):
+        self.requests.append(json.loads(request.content))
+        body = self._bodies.pop(0)
+        if self.requests[-1].get("stream"):
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=stream_body(body))
+        return httpx.Response(200, headers={"content-type": "application/json"}, content=json.dumps(body).encode())
+
+    def handle_request(self, request):
+        return self._response(request)
+
+    async def handle_async_request(self, request):
+        return self._response(request)
+
+
+def _transport(bodies_or_transport):
+    if isinstance(bodies_or_transport, MessagesTransport):
+        return bodies_or_transport
+    return MessagesTransport(bodies_or_transport)
+
+
+def sync_client(sdk, bodies_or_transport):
+    return sdk.Anthropic(
+        api_key="<not-a-real-key>", http_client=httpx.Client(transport=_transport(bodies_or_transport))
+    )
+
+
+def async_client(sdk, bodies_or_transport):
+    transport = _transport(bodies_or_transport)
+    return sdk.AsyncAnthropic(api_key="<not-a-real-key>", http_client=httpx.AsyncClient(transport=transport))
+
+
+def payloads(mock_execute_request):
+    """The data.attributes of each AI Guard evaluation request."""
+    return [call.args[1]["data"]["attributes"] for call in mock_execute_request.call_args_list]
 
 
 def _fake_stream_chunks() -> bytes:
     return b"".join(
         [
-            _sse_event(
+            sse(
                 "message_start",
                 {
                     "type": "message_start",
@@ -223,7 +290,7 @@ def _fake_stream_chunks() -> bytes:
                     },
                 },
             ),
-            _sse_event(
+            sse(
                 "content_block_start",
                 {
                     "type": "content_block_start",
@@ -231,7 +298,7 @@ def _fake_stream_chunks() -> bytes:
                     "content_block": {"type": "text", "text": ""},
                 },
             ),
-            _sse_event(
+            sse(
                 "content_block_delta",
                 {
                     "type": "content_block_delta",
@@ -239,11 +306,11 @@ def _fake_stream_chunks() -> bytes:
                     "delta": {"type": "text_delta", "text": "ok"},
                 },
             ),
-            _sse_event(
+            sse(
                 "content_block_stop",
                 {"type": "content_block_stop", "index": 0},
             ),
-            _sse_event(
+            sse(
                 "message_delta",
                 {
                     "type": "message_delta",
@@ -251,7 +318,7 @@ def _fake_stream_chunks() -> bytes:
                     "usage": {"output_tokens": 1},
                 },
             ),
-            _sse_event("message_stop", {"type": "message_stop"}),
+            sse("message_stop", {"type": "message_stop"}),
         ]
     )
 
