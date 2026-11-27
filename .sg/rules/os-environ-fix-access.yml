@@ -9,6 +9,8 @@ ignores:
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
   - "ddtrace/testing/**"
+  # Runs at the start of child processes, without importing ddtrace.
+  - "ddtrace/internal/coverage/child_bootstrap/**"
 rule:
   pattern: os.environ
 fix: env
