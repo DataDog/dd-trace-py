@@ -1,6 +1,6 @@
 """These tests send requests through the LiteLLM proxy app, which runs in this process.
 
-The tests patch the OpenAI integration and send the OpenAI calls of LiteLLM to an offline stub.
+The tests patch the OpenAI integration and send the model calls of LiteLLM to an offline stub.
 """
 
 import asyncio
@@ -12,6 +12,7 @@ from unittest.mock import patch
 import httpx
 import litellm
 from litellm import Router
+from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 from litellm.proxy import proxy_server
 import openai
 import pytest
@@ -30,9 +31,12 @@ from tests.aiguard.utils import override_ai_guard_config
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 MODEL = "gpt-4o-mini"
+CLAUDE = "claude-3-5-haiku-20241022"
 ANSWER_PARTS = ["Hello", " there!"]
 ANSWER = "".join(ANSWER_PARTS)
 PROMPT = "Say hello"
+# litellm 1.82 sends the /v1/messages requests of OpenAI models to the Responses API, unless this setting is True.
+_MESSAGES_TO_RESPONSES = hasattr(litellm, "use_chat_completions_url_for_anthropic_messages")
 
 # LiteLLM keeps its callbacks in these module lists and adds to them on each call.
 _CALLBACK_LISTS = (
@@ -83,17 +87,65 @@ def _embeddings() -> dict[str, Any]:
     }
 
 
+def _output_message(text: str) -> dict[str, Any]:
+    return {
+        "type": "message",
+        "id": "msg_test",
+        "status": "completed",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": text, "annotations": []}],
+    }
+
+
+def _response(output: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "id": "resp_test",
+        "object": "response",
+        "created_at": 1700000000,
+        "status": "completed",
+        "model": MODEL,
+        "output": output,
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [],
+        "usage": {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+    }
+
+
+def _anthropic_message() -> dict[str, Any]:
+    return {
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "model": CLAUDE,
+        "content": [{"type": "text", "text": ANSWER}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {"input_tokens": 3, "output_tokens": 2},
+    }
+
+
 class OpenAIStub:
-    """This offline OpenAI API answers embeddings and chat completions, with server-sent events for chat streams."""
+    """This offline API answers OpenAI embeddings, chat completions and responses, and Anthropic messages.
+
+    Chat streams use server-sent events. The output field sets the output items of the responses.
+    """
 
     def __init__(self) -> None:
         self.requests: list[dict[str, Any]] = []
+        self.paths: list[str] = []
+        self.output: list[dict[str, Any]] = [_output_message(ANSWER)]
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content or b"{}")
         self.requests.append(body)
+        self.paths.append(request.url.path)
         if request.url.path.endswith("/embeddings"):
             return httpx.Response(200, json=_embeddings())
+        if request.url.path.endswith("/responses"):
+            return httpx.Response(200, json=_response(self.output))
+        if request.url.path.endswith("/v1/messages"):
+            return httpx.Response(200, json=_anthropic_message())
         if not request.url.path.endswith("/chat/completions"):
             return httpx.Response(404, json={"error": {"message": f"no stub for {request.url.path}"}})
         if body.get("stream"):
@@ -111,6 +163,7 @@ def verdicts():
 
     A list gives one action for each call, and an exception makes the call to AI Guard fail.
     """
+    # A value can also be a function that gets the evaluated messages and gives the action.
     return {"prompt": "ALLOW", "answer": "ALLOW"}
 
 
@@ -121,7 +174,13 @@ def evaluated_messages():
 
 
 @pytest.fixture
-def evaluations(verdicts, evaluated_messages):
+def evaluated_payloads():
+    """Record the payload of each AI Guard evaluation request."""
+    return []
+
+
+@pytest.fixture
+def evaluations(verdicts, evaluated_messages, evaluated_payloads):
     """Record (integration, target) for each AI Guard evaluation."""
     calls: list[tuple[Any, str]] = []
     evaluate = AIGuardClient.evaluate
@@ -132,7 +191,10 @@ def evaluations(verdicts, evaluated_messages):
         return evaluate(self, messages, *args, **kwargs)
 
     def verdict(url: str, payload: Any) -> Mock:
+        evaluated_payloads.append(payload)
         action = verdicts[_target(payload["data"]["attributes"]["messages"])]
+        if callable(action):
+            action = action(payload["data"]["attributes"]["messages"])
         if isinstance(action, list):
             action = action.pop(0)
         if isinstance(action, Exception):
@@ -148,14 +210,17 @@ def evaluations(verdicts, evaluated_messages):
 
 @pytest.fixture
 def openai_stub():
-    """Patch the OpenAI integration, and send the OpenAI calls of LiteLLM to the stub."""
+    """Patch the OpenAI integration, and send the model calls of LiteLLM to the stub."""
     stub = OpenAIStub()
     session = litellm.aclient_session
     patch_openai()
     litellm.aclient_session = httpx.AsyncClient(transport=httpx.MockTransport(stub))
     litellm.in_memory_llm_clients_cache.flush_cache()
+    # LiteLLM sends the Responses API and the Anthropic calls with its own HTTP client, not with the SDKs.
+    mock_transport = staticmethod(lambda *args, **kwargs: httpx.MockTransport(stub))
     try:
-        yield stub
+        with patch.object(AsyncHTTPHandler, "_create_async_transport", mock_transport):
+            yield stub
     finally:
         litellm.in_memory_llm_clients_cache.flush_cache()
         litellm.aclient_session = session
@@ -173,7 +238,7 @@ def stream_analysis():
 
 @pytest.fixture
 def litellm_proxy(openai_stub, evaluations, stream_analysis):
-    """Configure the proxy with one OpenAI deployment. Call the fixture value to add the guardrail."""
+    """Configure the proxy with an OpenAI and an Anthropic deployment. Call the fixture value to add the guardrail."""
     saved_lists = {name: list(getattr(litellm, name)) for name in _CALLBACK_LISTS if hasattr(litellm, name)}
     saved_router = proxy_server.llm_router
     proxy_server.llm_router = Router(
@@ -185,7 +250,15 @@ def litellm_proxy(openai_stub, evaluations, stream_analysis):
                     "api_key": "sk-test",
                     "api_base": "http://openai.test/v1",
                 },
-            }
+            },
+            {
+                "model_name": CLAUDE,
+                "litellm_params": {
+                    "model": f"anthropic/{CLAUDE}",
+                    "api_key": "sk-ant-test",
+                    "api_base": "http://anthropic.test",
+                },
+            },
         ]
     )
 
@@ -405,23 +478,327 @@ async def test_pre_call_only_mode_does_not_claim(litellm_proxy, evaluations):
     assert not is_aiguard_context_active()
 
 
-async def test_messages_api_does_not_claim(litellm_proxy, openai_stub, evaluations, monkeypatch):
-    # The post-call hooks do not evaluate Anthropic answers, so the OpenAI listeners keep their evaluations.
-    guardrail = litellm_proxy()
-    # By default, litellm 1.82 sends this request to the Responses API with its own HTTP client.
-    # This setting makes it a chat completion through the OpenAI SDK, like litellm 1.78 always does.
-    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+SYSTEM = "You answer in English."
+TOOL_RESULT = "Say hello in English"
+# This /v1/messages body has a system prompt, a tool call of the model and the result of the tool.
+MESSAGES_BODY = {
+    "max_tokens": 64,
+    "system": SYSTEM,
+    "tools": [
+        {
+            "name": "lookup",
+            "description": "Look up a phrase.",
+            "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}},
+        }
+    ],
+    "messages": [
+        {"role": "user", "content": PROMPT},
+        {
+            "role": "assistant",
+            "content": [{"type": "tool_use", "id": "toolu_1", "name": "lookup", "input": {"query": "hello"}}],
+        },
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": TOOL_RESULT}]},
+    ],
+}
+# The guardrail evaluates MESSAGES_BODY as these messages.
+MESSAGES_PROMPT = [
+    {"role": "system", "content": SYSTEM},
+    {"role": "user", "content": PROMPT},
+    {
+        "role": "assistant",
+        "tool_calls": [{"id": "toolu_1", "function": {"name": "lookup", "arguments": '{"query": "hello"}'}}],
+    },
+    {"role": "tool", "tool_call_id": "toolu_1", "content": TOOL_RESULT},
+]
+# The model, the chat completions setting and the upstream path of each provider path of /v1/messages.
+_MESSAGES_PATHS = [
+    pytest.param(MODEL, True, "/v1/chat/completions", id="openai-chat"),
+    pytest.param(
+        MODEL, False, "/v1/responses" if _MESSAGES_TO_RESPONSES else "/v1/chat/completions", id="openai-default"
+    ),
+    pytest.param(CLAUDE, False, "/v1/messages", id="anthropic"),
+]
 
-    response = await _post(
-        "/v1/messages", {"model": MODEL, "max_tokens": 64, "messages": [{"role": "user", "content": PROMPT}]}
-    )
+
+@pytest.mark.parametrize("model, chat_setting, upstream", _MESSAGES_PATHS)
+async def test_messages_api(
+    litellm_proxy, openai_stub, evaluations, evaluated_messages, monkeypatch, model, chat_setting, upstream
+):
+    guardrail = litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", chat_setting, raising=False)
+
+    response = await _post("/v1/messages", {"model": model, **MESSAGES_BODY})
 
     assert response.status_code == 200, response.text
-    # LiteLLM sends the Anthropic request of an OpenAI model as a chat completion.
-    assert openai_stub.requests[0]["messages"] == [{"role": "user", "content": PROMPT}]
-    assert evaluations == [("litellm", "prompt"), ("openai", "prompt")]
+    assert response.json()["content"][0]["text"] == ANSWER
+    assert openai_stub.paths == [upstream]
+    # The guardrail claims the request, so the OpenAI listener does not evaluate the prompt of the chat completion.
+    assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    assert evaluated_messages == [MESSAGES_PROMPT, MESSAGES_PROMPT + [{"role": "assistant", "content": ANSWER}]]
     # The client sends no metadata. The response header must still show the guardrail.
     assert guardrail.guardrail_name in response.headers.get("x-litellm-applied-guardrails", "").split(",")
+    assert not is_aiguard_context_active()
+
+
+async def test_responses_api(litellm_proxy, openai_stub, evaluations, evaluated_messages):
+    litellm_proxy()
+
+    response = await _post("/v1/responses", {"model": MODEL, "input": PROMPT})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["output"][0]["content"][0]["text"] == ANSWER
+    # LiteLLM sends the Responses API call with its own HTTP client.
+    assert openai_stub.paths == ["/v1/responses"]
+    assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    assert evaluated_messages[1] == [{"role": "user", "content": PROMPT}, {"role": "assistant", "content": ANSWER}]
+    assert not is_aiguard_context_active()
+
+
+@pytest.mark.parametrize(
+    "path, body, chat_setting",
+    [
+        pytest.param("/v1/messages", {"model": MODEL, **MESSAGES_BODY}, True, id="messages-openai-chat"),
+        pytest.param("/v1/messages", {"model": MODEL, **MESSAGES_BODY}, False, id="messages-openai-default"),
+        pytest.param("/v1/messages", {"model": CLAUDE, **MESSAGES_BODY}, False, id="messages-anthropic"),
+        pytest.param("/v1/responses", {"model": MODEL, "input": PROMPT}, False, id="responses"),
+    ],
+)
+async def test_blocked_answer(litellm_proxy, evaluations, verdicts, monkeypatch, path, body, chat_setting):
+    litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", chat_setting, raising=False)
+    verdicts["answer"] = "DENY"
+
+    response = await _post(path, body)
+
+    assert response.status_code == 403, response.text
+    assert "Datadog AI Guard: request blocked" in response.text
+    assert ANSWER not in response.text
+    assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    assert not is_aiguard_context_active()
+
+
+@pytest.mark.parametrize("model", [MODEL, CLAUDE])
+async def test_blocked_messages_prompt(
+    litellm_proxy, openai_stub, evaluations, evaluated_messages, verdicts, monkeypatch, model
+):
+    litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+    verdicts["prompt"] = "DENY"
+
+    response = await _post("/v1/messages", {"model": model, **MESSAGES_BODY})
+
+    assert response.status_code == 403, response.text
+    assert "Datadog AI Guard: request blocked" in response.text
+    assert evaluations == [("litellm", "prompt")]
+    # AI Guard gets the tool result, so it can block a prompt injection there before the model call.
+    assert evaluated_messages == [MESSAGES_PROMPT]
+    assert openai_stub.requests == []
+    assert not is_aiguard_context_active()
+
+
+@pytest.mark.parametrize("model", [MODEL, CLAUDE])
+async def test_blocked_messages_prompt_that_the_anthropic_converter_cannot_read(
+    litellm_proxy, openai_stub, evaluations, evaluated_messages, verdicts, monkeypatch, model
+):
+    litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+    verdicts["prompt"] = "DENY"
+    # The Anthropic converter fails on a system text that is not a string, so the guardrail uses its chat conversion.
+    body = {**MESSAGES_BODY, "system": [{"type": "text", "text": 5}]}
+
+    response = await _post("/v1/messages", {"model": model, **body})
+
+    assert response.status_code == 403, response.text
+    assert "Datadog AI Guard: request blocked" in response.text
+    assert evaluations == [("litellm", "prompt")]
+    assert evaluated_messages[0][0] == {"role": "user", "content": PROMPT}
+    assert openai_stub.requests == []
+    assert not is_aiguard_context_active()
+
+
+# litellm's chat adapter skips a block whose type is a list, but the Anthropic converter cannot read it.
+UNREADABLE_MESSAGES = [
+    {"role": "user", "content": [{"type": "text", "text": PROMPT}, {"type": []}]},
+    *MESSAGES_BODY["messages"][1:],
+]
+# The chat conversion of UNREADABLE_MESSAGES, which the guardrail evaluates instead.
+UNREADABLE_PROMPT = [
+    {"role": "user", "content": [{"type": "text", "text": PROMPT}]},
+    {"role": "assistant"},
+    {"role": "user"},
+]
+
+
+async def test_unreadable_messages_body_is_not_claimed(
+    litellm_proxy, openai_stub, evaluations, evaluated_messages, monkeypatch
+):
+    litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+
+    response = await _post("/v1/messages", {"model": MODEL, **MESSAGES_BODY, "messages": UNREADABLE_MESSAGES})
+
+    assert response.status_code == 200, response.text
+    assert openai_stub.paths == ["/v1/chat/completions"]
+    # The chat conversion misses the system prompt and the tool blocks, so the OpenAI listener also checks the prompt.
+    assert evaluations == [("litellm", "prompt"), ("openai", "prompt"), ("litellm", "answer")]
+    assert evaluated_messages[0] == UNREADABLE_PROMPT
+    assert evaluated_messages[1][-1] == {"role": "tool", "tool_call_id": "toolu_1", "content": TOOL_RESULT}
+    assert SYSTEM in json.dumps(evaluated_messages[1])
+    assert "lookup" in json.dumps(evaluated_messages[1])
+    assert evaluated_messages[2] == UNREADABLE_PROMPT + [{"role": "assistant", "content": ANSWER}]
+    assert not is_aiguard_context_active()
+
+
+async def test_tool_result_of_an_unreadable_messages_body_can_block(
+    litellm_proxy, openai_stub, evaluations, evaluated_messages, verdicts, monkeypatch
+):
+    litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+    verdicts["prompt"] = lambda messages: "DENY" if TOOL_RESULT in json.dumps(messages) else "ALLOW"
+
+    response = await _post("/v1/messages", {"model": MODEL, **MESSAGES_BODY, "messages": UNREADABLE_MESSAGES})
+
+    # The OpenAI listener blocks the model call: litellm 1.78.5 retries it and returns 500, and 1.82.6 returns 400.
+    assert response.status_code in (400, 500), response.text
+    assert "AIGuardAbortError" in response.text
+    assert openai_stub.requests == []
+    assert evaluations[0] == ("litellm", "prompt")
+    assert set(evaluations[1:]) == {("openai", "prompt")}
+    assert TOOL_RESULT in json.dumps(evaluated_messages[1])
+    assert not is_aiguard_context_active()
+
+
+ASSISTANT_TEXT = "I will look it up."
+# litellm sends the string items of these content lists to a chat model as text.
+STRING_ITEMS_MESSAGES = [
+    {"role": "user", "content": PROMPT},
+    {
+        "role": "assistant",
+        "content": [
+            ASSISTANT_TEXT,
+            {"type": "tool_use", "id": "toolu_1", "name": "lookup", "input": {"query": "hello"}},
+        ],
+    },
+    {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": [TOOL_RESULT]}]},
+]
+STRING_ITEMS_PROMPT = MESSAGES_PROMPT[:2] + [{**MESSAGES_PROMPT[2], "content": ASSISTANT_TEXT}, MESSAGES_PROMPT[3]]
+
+
+async def test_messages_string_items_are_evaluated(
+    litellm_proxy, openai_stub, evaluations, evaluated_messages, monkeypatch
+):
+    litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+
+    response = await _post("/v1/messages", {"model": MODEL, **MESSAGES_BODY, "messages": STRING_ITEMS_MESSAGES})
+
+    assert response.status_code == 200, response.text
+    assert openai_stub.paths == ["/v1/chat/completions"]
+    forwarded = json.dumps(openai_stub.requests[0]["messages"])
+    assert ASSISTANT_TEXT in forwarded
+    assert TOOL_RESULT in forwarded
+    # The OpenAI listener skips the claimed request, so the guardrail must evaluate these texts.
+    assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    assert evaluated_messages == [STRING_ITEMS_PROMPT, STRING_ITEMS_PROMPT + [{"role": "assistant", "content": ANSWER}]]
+    assert not is_aiguard_context_active()
+
+
+@pytest.mark.parametrize("model", [MODEL, CLAUDE])
+async def test_post_call_only_evaluates_the_messages_answer_with_the_prompt(
+    litellm_proxy, openai_stub, evaluations, evaluated_messages, monkeypatch, model
+):
+    litellm_proxy(event_hook=("post_call",))
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+
+    response = await _post("/v1/messages", {"model": model, **MESSAGES_BODY})
+
+    assert response.status_code == 200, response.text
+    # Without the pre-call check there is no claim, so the OpenAI listener evaluates the prompt of a chat completion.
+    listener = [("openai", "prompt")] if openai_stub.paths == ["/v1/chat/completions"] else []
+    assert evaluations == listener + [("litellm", "answer")]
+    assert evaluated_messages[-1] == MESSAGES_PROMPT + [{"role": "assistant", "content": ANSWER}]
+
+
+async def test_streamed_messages_answer_passes_through(litellm_proxy, openai_stub, evaluations, monkeypatch):
+    litellm_proxy()
+    monkeypatch.setattr(litellm, "use_chat_completions_url_for_anthropic_messages", True, raising=False)
+
+    response = await _post("/v1/messages", {"model": MODEL, **MESSAGES_BODY, "stream": True})
+
+    assert response.status_code == 200, response.text
+    texts = [event["delta"].get("text") for event in _events(response) if event.get("type") == "content_block_delta"]
+    assert "".join(t for t in texts if t) == ANSWER
+    assert openai_stub.paths == ["/v1/chat/completions"]
+    # The guardrail does not evaluate streamed Anthropic answers, so it does not claim and the OpenAI listener checks.
+    assert evaluations == [("litellm", "prompt"), ("openai", "prompt")]
+    assert not is_aiguard_context_active()
+
+
+# These hosted MCP vectors are copies of the ones of tests/aiguard/openai/test_responses.py.
+MCP_TOOLS = [
+    {
+        "type": "mcp",
+        "server_label": "deepwiki",
+        "server_url": "https://user:secret@MCP.DeepWiki.com:443/mcp?token=abc#frag",
+        "require_approval": "always",
+        "authorization": "oauth-secret",
+        "headers": {"X-Api-Key": "header-secret"},
+    }
+]
+DEEPWIKI_ID = "mcp_58c928ebb7fc7a85"
+DEEPWIKI_SERVER = {
+    "id": DEEPWIKI_ID,
+    "managed_by": "provider",
+    "name": "deepwiki",
+    "url": "https://mcp.deepwiki.com",
+    "transport": "unknown",
+    "tools": {"ask_question": "ask_question"},
+}
+SECRETS = ("secret", "token", "frag", "user:", "X-Api-Key", "oauth")
+MCP_OUTPUT = [
+    {
+        "type": "mcp_list_tools",
+        "id": "mcpl_1",
+        "server_label": "deepwiki",
+        "tools": [{"name": "ask_question", "input_schema": {"type": "object"}}],
+    },
+    {
+        "type": "mcp_call",
+        "id": "mcp_1",
+        "server_label": "deepwiki",
+        "name": "ask_question",
+        "arguments": '{"repoName":"DataDog/dd-trace-py"}',
+        "output": "It is the Python tracer.",
+    },
+    {
+        "type": "mcp_approval_request",
+        "id": "mcpr_1",
+        "server_label": "deepwiki",
+        "name": "ask_question",
+        "arguments": '{"repoName":"DataDog/dd-trace-js"}',
+    },
+    _output_message(ANSWER),
+]
+
+
+async def test_responses_answer_with_hosted_mcp_items(litellm_proxy, openai_stub, evaluations, evaluated_payloads):
+    litellm_proxy()
+    openai_stub.output = MCP_OUTPUT
+
+    response = await _post("/v1/responses", {"model": MODEL, "input": PROMPT, "tools": MCP_TOOLS})
+
+    assert response.status_code == 200, response.text
+    assert openai_stub.paths == ["/v1/responses"]
+    assert evaluations == ONE_PROMPT_AND_ONE_ANSWER
+    answer = evaluated_payloads[1]["data"]["attributes"]
+    assert answer["mcp_servers"] == [DEEPWIKI_SERVER]
+    tool_calls = [tool_call for message in answer["messages"] for tool_call in message.get("tool_calls") or []]
+    assert [(tool_call["id"], tool_call["mcp"]) for tool_call in tool_calls] == [
+        ("mcp_1", {"server_id": DEEPWIKI_ID}),
+        ("mcpr_1", {"server_id": DEEPWIKI_ID}),
+    ]
+    reported = json.dumps(evaluated_payloads)
+    assert [secret for secret in SECRETS if secret in reported] == []
     assert not is_aiguard_context_active()
 
 
