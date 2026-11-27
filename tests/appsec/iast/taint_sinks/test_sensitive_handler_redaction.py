@@ -18,6 +18,11 @@ def _make_source(name="param", value="tainted_value", origin="http.request.param
     return Source(origin=origin, name=name, value=value)
 
 
+def test_default_sensitive_analyzer_without_value():
+    handler = SensitiveHandler()
+    assert default_sensitive_analyzer(Evidence(), handler._name_pattern, handler._value_pattern) == []
+
+
 class TestSensitiveFullyInsideTainted:
     """Sensitive range is fully inside a tainted range — the credential must be redacted."""
 
