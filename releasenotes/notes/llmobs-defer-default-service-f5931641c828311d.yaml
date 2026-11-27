@@ -1,0 +1,4 @@
+other:
+  - |
+    LLM Observability: Reduces application startup delays when LLM Observability
+    is disabled and the Datadog Agent responds slowly.

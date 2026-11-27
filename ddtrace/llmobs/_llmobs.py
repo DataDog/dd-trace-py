@@ -4119,8 +4119,20 @@ class LLMObs(Service):
         cls._instance._activate_llmobs_distributed_context(request_headers, context)
 
 
-# Initialize the default LLMObs instance before exposing the service to integrations.
-LLMObs._instance = LLMObs()
+class _DefaultLLMObsInstance:
+    """Create the disabled service only when an SDK operation needs it."""
+
+    def __get__(self, obj: object, owner: type[LLMObs]) -> LLMObs:
+        with _LIFECYCLE_LOCK:
+            # enable() may have replaced the descriptor while this reader waited.
+            instance = vars(LLMObs)["_instance"]
+            if instance is self:
+                instance = LLMObs()
+                LLMObs._instance = instance
+            return cast(LLMObs, instance)
+
+
+LLMObs._instance = cast(LLMObs, _DefaultLLMObsInstance())
 
 # BaseLLMIntegration depends on this lightweight API instead of importing this
 # module during integration auto-patching. Register only after LLMObs is fully
