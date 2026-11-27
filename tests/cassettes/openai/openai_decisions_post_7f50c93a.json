@@ -1,0 +1,57 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/decisions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "OpenAI/Python 3.52.0",
+      "x-stainless-lang": "python",
+      "x-stainless-package-version": "3.52.0",
+      "x-stainless-os": "MacOS",
+      "x-stainless-arch": "arm64",
+      "x-stainless-runtime": "CPython",
+      "x-stainless-runtime-version": "3.12.8",
+      "x-stainless-async": "false",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "353"
+    },
+    "body": "{\"model\":\"gpt-6-luna\",\"input\":\"I was charged twice for my subscription this month and want the duplicate refunded.\",\"questions\":[{\"type\":\"choice\",\"name\":\"team\",\"instructions\":\"Which team should handle this message?\",\"choices\":[{\"value\":\"billing\",\"description\":\"Payment or refund issues.\"},{\"value\":\"support\",\"description\":\"Product bugs or outages.\"}]}]}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Tue, 17 Nov 2026 16:42:08 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "x-ratelimit-limit-requests": "30000",
+      "x-ratelimit-limit-tokens": "180000000",
+      "x-ratelimit-remaining-requests": "29999",
+      "x-ratelimit-remaining-tokens": "179999865",
+      "x-ratelimit-reset-requests": "2ms",
+      "x-ratelimit-reset-tokens": "0s",
+      "vary": "origin, access-control-request-method, access-control-request-headers",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-request-id,retry-after,server-timing-total, CF-Ray",
+      "server-timing-total": "299.972",
+      "openai-processing-ms": "300",
+      "x-request-id": "req_d9976f62a75544f895b06584fc20b663",
+      "x-openai-proxy-wasm": "v0.1",
+      "Server": "cloudflare",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cf_bm=daBpgRAYJwqCb9KGXfOlTJFZ9hOa0mvwt51DFZJimg0-1794933728.1557767-1.0.1.1-qeUfJoFGSzXF5ThkxFeBOpI4Zxsy1d_agJher2MYi4W9SrRKm5S7jNyfdk2MqmtqA5Zr4khPRH_K9pgEyNWEeZaDa2UJ4z65rMfYGxdZPkxr3U9rr1XuIn5nXhvmWsH2; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=api.openai.com; Expires=Tue, 17 Nov 2026 17:12:08 GMT",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a5c02fd8f8234d14-BOS",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"model\":\"gpt-6-luna\",\"answers\":[{\"type\":\"choice\",\"name\":\"team\",\"choice\":\"billing\",\"probabilities\":[{\"value\":\"billing\",\"probability\":1.0},{\"value\":\"support\",\"probability\":0.0}],\"confidence\":1.0}],\"usage\":{\"input_tokens\":133,\"input_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":133}}"
+  }
+}
