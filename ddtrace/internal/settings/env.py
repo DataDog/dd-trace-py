@@ -160,9 +160,9 @@ def is_sensitive(name: str) -> bool:
 
 
 def is_reportable(name: str) -> bool:
-    """Return whether the value of the configuration ``name`` may be reported, e.g. in telemetry.
+    """Return whether the value of the configuration name may be reported, e.g. in telemetry.
 
-    Unlike ``not is_sensitive(name)``, this fails closed: without a registry nothing is known to be safe, so
+    Unlike not is_sensitive(name), this fails closed: without a registry nothing is known to be safe, so
     nothing is reportable.
     """
     if not _resolved:

@@ -109,7 +109,12 @@ def _find_entry_point() -> Optional[tuple["EntryPoint", "Distribution"]]:
     global _entry_point, _entry_point_looked_up
 
     if not _entry_point_looked_up:
-        found = entry_points_with_distributions(GROUP) or entry_points_with_distributions(FALLBACK_GROUP)
+        try:
+            found = entry_points_with_distributions(GROUP) or entry_points_with_distributions(FALLBACK_GROUP)
+        except Exception:
+            # Malformed metadata of any installed distribution makes the scan raise; that must not break startup.
+            log.debug("Failed to look up the %s entry points", GROUP, exc_info=True)
+            found = []
         _entry_point = found[0] if found else None
         _entry_point_looked_up = True
         if _entry_point is None:
