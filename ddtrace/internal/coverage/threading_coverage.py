@@ -49,8 +49,6 @@ class CoverageCollectingThread(threading.Thread):
             # Native collection credits the thread's lines to the context that started it. A pool
             # worker carries no context of its own: each work item brings the submitter's.
             self._native_parent = None if _is_pool_worker(args, kwargs) else native_lines.ctx_native.get()
-            # A context passed to the thread (Python 3.14+) is the caller's, and stays untouched.
-            self._native_context_given = kwargs.get("context") is not None
             self._should_cover = False
         else:
             self._native_parent = None
@@ -105,15 +103,11 @@ class CoverageCollectingThread(threading.Thread):
 
 
 def _set_in_thread_context(thread, native_parent) -> None:
-    # Python 3.14 runs the target in the context that start() made for the thread, an empty one unless
-    # the interpreter inherits contexts, so the variable set above is not visible there.
-    if sys.version_info >= (3, 14) and not getattr(thread, "_native_context_given", False):
-        context = getattr(thread, "_context", None)
-        if isinstance(context, contextvars.Context):
-            try:
-                context.run(native_lines.ctx_native.set, native_parent)
-            except Exception:
-                log.debug("Could not set the native coverage context in the thread's context", exc_info=True)
+    # Python 3.14 runs the target in the context the caller passed to the thread, or else in the one
+    # start() made for it, an empty one unless the interpreter inherits contexts. The variable set above
+    # is not visible in either.
+    if sys.version_info >= (3, 14):
+        _write_native_context(getattr(thread, "_context", None), native_parent)
 
 
 def _is_pool_worker(args, kwargs) -> bool:
@@ -149,19 +143,19 @@ def _patch_executor_submit(module) -> None:
     executor.submit = submit_in_native_context
 
 
-def _carry_native_context_into(context) -> None:
-    # A task created with an explicit context runs in that context, not in a copy of its creator's, so it
-    # would run for no test. The creator's native context is written into it, unless it names one already.
-    # Copies made of it later, for the tasks and callbacks it starts, carry it too.
-    native_context = native_lines.ctx_native.get()
+def _write_native_context(context, native_context) -> None:
+    # Work that runs in a context of its own, not in a copy of its creator's, would run for no test: a task
+    # or a thread given a context, or a thread's empty context from Python 3.14. The creator's native
+    # context is written into it, unless it names one already: a value the caller set is never changed.
+    # Copies made of it later, for the work it starts, carry it too.
     if native_context is None or not isinstance(context, contextvars.Context):
         return
     if context.get(native_lines.ctx_native) is None:
         try:
             context.run(native_lines.ctx_native.set, native_context)
-        except RuntimeError:
+        except Exception:
             # The context is entered already, here or on another thread.
-            pass
+            log.debug("Could not set the native coverage context in a given context", exc_info=True)
 
 
 def _patch_create_task(loop_type) -> None:
@@ -174,7 +168,7 @@ def _patch_create_task(loop_type) -> None:
     def create_task_in_native_context(self, coro, *args, **kwargs):
         context = kwargs.get("context")
         if context is not None:
-            _carry_native_context_into(context)
+            _write_native_context(context, native_lines.ctx_native.get())
         return create_task(self, coro, *args, **kwargs)
 
     setattr(create_task_in_native_context, DD_PATCH_ATTR, True)
