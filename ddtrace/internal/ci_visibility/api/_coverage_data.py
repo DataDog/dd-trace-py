@@ -2,8 +2,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TypedDict
 
-from ddtrace.internal.ci_visibility.utils import get_relative_path
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace.testing.internal.source_info import get_relative_path
 
 
 class CoverageFilePayload(TypedDict):

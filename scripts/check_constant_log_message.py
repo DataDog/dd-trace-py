@@ -23,7 +23,7 @@ EXCEPTIONS = {
     # we added a constant check for the wrapping method of add_error_log
     "ddtrace/appsec/_iast/_metrics.py:53",
     # _report_converter_error wraps add_error_log; callers pass constant messages
-    "ddtrace/aiguard/integrations/_anthropic.py:67",
+    "ddtrace/aiguard/integrations/_anthropic.py:65",
     # we added a constant check for the wrapping method of iast_error
     "ddtrace/appsec/_iast/_logs.py:41",
     # the non constant part is an object type

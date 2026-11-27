@@ -20,14 +20,6 @@ from _pytest.unittest import TestCaseFunction
 import pluggy
 import pytest
 
-from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
-from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
-from ddtrace.contrib.internal.coverage.patch import stop_coverage
-from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
-from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
-from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
-from ddtrace.internal.ci_visibility.utils import get_relative_path as _cached_relative_path
-from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
@@ -39,6 +31,12 @@ from ddtrace.internal.utils.paths import relative_parts
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.coverage_py.patch import clear_coverage_instance
+from ddtrace.testing.internal.coverage_py.patch import owns_coverage_instance
+from ddtrace.testing.internal.coverage_py.patch import stop_coverage
+from ddtrace.testing.internal.coverage_py.utils import _is_pytest_cov_available
+from ddtrace.testing.internal.coverage_py.utils import _is_pytest_cov_enabled
+from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
@@ -65,6 +63,8 @@ from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.source_info import get_relative_path as _cached_relative_path
+from ddtrace.testing.internal.source_info import get_source_lines_for_test_method
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -76,6 +76,9 @@ from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
+from ddtrace.testing.internal.tracer_api.context import enable_log_correlation
+from ddtrace.testing.internal.tracer_api.context import enable_selenium_integration
+from ddtrace.testing.internal.tracer_api.context import get_tracer
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import CoverageData
@@ -519,20 +522,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         if self.enable_ddtrace_trace_filter:
             install_global_trace_filter(self.manager.writer)
-            try:
-                import ddtrace
-            except ImportError:
-                log.debug("ddtrace is not available, skipping logging patch")
-            else:
-                if ddtrace.config._logs_injection or self.enable_log_submission:
-                    try:
-                        from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
-
-                        _patch_logging()
-                    except ImportError:
-                        log.warning(
-                            "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
-                        )
+            enable_log_correlation(force=self.enable_log_submission)
 
         if self.enable_log_submission:
             from ddtrace.testing.internal.logs import LogsHandler
@@ -549,14 +539,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
         elif self.enable_ddtrace_trace_filter:
-            # Patch Selenium so browser tests get test visibility tags (test.is_browser, test.browser.*).
-            # We create a root span with type=test in trace_context(); Selenium integration checks for that span.
-            try:
-                from ddtrace.contrib.internal.selenium.patch import patch as patch_selenium
-
-                patch_selenium()
-            except Exception:
-                log.debug("Could not patch Selenium for test visibility", exc_info=True)
+            enable_selenium_integration()
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         original_exitstatus = session.exitstatus
@@ -2047,7 +2030,7 @@ def pytest_configure(config: pytest.Config) -> None:
         # NOTE: config.workerinput is set by pytest-xdist before any
         # pytest_configure hook runs, so workers already see the delegation
         # flag their controller published (XdistTestOptPlugin.pytest_configure_node).
-        from ddtrace.contrib.internal.coverage.patch import start_coverage
+        from ddtrace.testing.internal.coverage_py.patch import start_coverage
 
         # Only a delegating worker needs a unique parallel data file for the
         # controller to combine; data_suffix=None leaves the naming to the
@@ -2251,9 +2234,7 @@ def _get_test_custom_tags(item: pytest.Item) -> dict[str, str]:
 @pytest.fixture(scope="session")
 def ddtracer():
     """Return the current tracer instance."""
-    import ddtrace
-
-    return ddtrace.tracer
+    return get_tracer()
 
 
 @pytest.fixture(scope="function")

@@ -17,7 +17,7 @@ def _isolate_coverage_patch_state():
     """
     from coverage import Coverage
 
-    import ddtrace.contrib.internal.coverage.patch as p
+    import ddtrace.testing.internal.coverage_py.patch as p
 
     # Save patch module state.
     saved_instance = p._coverage_instance

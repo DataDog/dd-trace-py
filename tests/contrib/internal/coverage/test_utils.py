@@ -1,5 +1,6 @@
 """Tests for shared coverage utilities."""
 
+import os
 from pathlib import Path
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -12,7 +13,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_successful_upload(self):
         """Test successful coverage report generation and upload."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(return_value=True)
@@ -23,14 +24,14 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nDA:1,1\nDA:2,1\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
             patch(
-                "ddtrace.contrib.internal.coverage.utils._generate_lcov_report",
+                "ddtrace.testing.internal.coverage_py.utils._generate_lcov_report",
                 side_effect=lambda *args, **kwargs: lifecycle_calls.append("report") or 85.5,
             ) as mock_generate,
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink") as mock_unlink,
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             handle_coverage_report(mock_session, mock_upload_func, mock_is_pytest_cov_enabled, mock_stop_coverage)
 
@@ -52,7 +53,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_upload_failure(self):
         """Test handling of upload failure."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(return_value=False)  # Upload fails
@@ -62,11 +63,11 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nDA:1,1\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=75.0),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.generate_lcov_report", return_value=75.0),
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink"),
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             handle_coverage_report(mock_session, mock_upload_func, mock_is_pytest_cov_enabled, mock_stop_coverage)
 
@@ -81,7 +82,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_no_coverage_running(self):
         """Test when coverage is not running."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock()
@@ -89,8 +90,8 @@ class TestCoverageUtils:
         mock_stop_coverage = Mock()
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=False),
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=False),
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             handle_coverage_report(mock_session, mock_upload_func, mock_is_pytest_cov_enabled, mock_stop_coverage)
 
@@ -103,7 +104,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_with_pytest_cov(self):
         """Test coverage upload when pytest-cov is enabled."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(return_value=True)
@@ -113,8 +114,8 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nDA:1,1\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=90.0),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.generate_lcov_report", return_value=90.0),
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink"),
         ):
@@ -128,7 +129,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_pytest_cov_registration(self):
         """Test registration of pytest-cov coverage instance."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(return_value=True)
@@ -151,12 +152,12 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", side_effect=[False, True]),
-            patch("ddtrace.contrib.internal.coverage.utils.set_coverage_instance") as mock_set_coverage,
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=85.0),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", side_effect=[False, True]),
+            patch("ddtrace.testing.internal.coverage_py.utils.set_coverage_instance") as mock_set_coverage,
+            patch("ddtrace.testing.internal.coverage_py.utils.generate_lcov_report", return_value=85.0),
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink"),
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             handle_coverage_report(
                 mock_session,
@@ -173,7 +174,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_exception_during_generation(self):
         """Test exception handling during coverage report generation."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock()
@@ -181,12 +182,12 @@ class TestCoverageUtils:
         mock_stop_coverage = Mock()
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
             patch(
-                "ddtrace.contrib.internal.coverage.utils.generate_lcov_report",
+                "ddtrace.testing.internal.coverage_py.utils.generate_lcov_report",
                 side_effect=RuntimeError("Coverage generation failed"),
             ),
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             # Should not raise exception
             handle_coverage_report(mock_session, mock_upload_func, mock_is_pytest_cov_enabled, mock_stop_coverage)
@@ -202,7 +203,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_exception_during_upload(self):
         """Test exception handling during upload."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(side_effect=RuntimeError("Upload failed"))
@@ -212,11 +213,11 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=80.0),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.generate_lcov_report", return_value=80.0),
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink"),
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             # Should not raise exception
             handle_coverage_report(mock_session, mock_upload_func, mock_is_pytest_cov_enabled, mock_stop_coverage)
@@ -229,7 +230,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_cleanup_failure(self):
         """Test graceful handling of cleanup failure."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(return_value=True)
@@ -239,11 +240,11 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=85.0),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.generate_lcov_report", return_value=85.0),
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink", side_effect=OSError("Permission denied")),
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             # Should not raise exception
             handle_coverage_report(mock_session, mock_upload_func, mock_is_pytest_cov_enabled, mock_stop_coverage)
@@ -258,7 +259,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_no_stop_coverage_function(self):
         """Test when no stop_coverage function is provided."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(return_value=True)
@@ -267,8 +268,8 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=85.0),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.generate_lcov_report", return_value=85.0),
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink"),
         ):
@@ -284,7 +285,7 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_exception_in_stop_coverage(self):
         """Test graceful handling when stop_coverage fails."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock(return_value=True)
@@ -294,11 +295,11 @@ class TestCoverageUtils:
         test_lcov_content = b"SF:test_file.py\nend_of_record\n"
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.generate_lcov_report", return_value=85.0),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.generate_lcov_report", return_value=85.0),
             patch("pathlib.Path.read_bytes", return_value=test_lcov_content),
             patch("pathlib.Path.unlink"),
-            patch("ddtrace.contrib.internal.coverage.utils.log"),
+            patch("ddtrace.testing.internal.coverage_py.utils.log"),
         ):
             # Should not raise exception
             handle_coverage_report(mock_session, mock_upload_func, mock_is_pytest_cov_enabled, mock_stop_coverage)
@@ -308,14 +309,14 @@ class TestCoverageUtils:
 
     def test_handle_coverage_report_top_level_exception(self):
         """Test top-level exception handling."""
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         mock_session = Mock()
         mock_upload_func = Mock()
         mock_is_pytest_cov_enabled = Mock(side_effect=RuntimeError("Unexpected error"))
 
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.log") as mock_log,
+            patch("ddtrace.testing.internal.coverage_py.utils.log") as mock_log,
         ):
             # Should not raise exception
             handle_coverage_report(
@@ -335,7 +336,7 @@ class TestCoverageUtilityFunctions:
 
     def test_is_coverage_loaded(self):
         """Test is_coverage_loaded function."""
-        from ddtrace.contrib.internal.coverage.utils import is_coverage_loaded
+        from ddtrace.testing.internal.coverage_py.utils import is_coverage_loaded
 
         # Test when coverage is not loaded
         with patch.dict("sys.modules", {}, clear=False):
@@ -349,17 +350,17 @@ class TestCoverageUtilityFunctions:
 
     def test_is_coverage_patched(self):
         """Test _is_coverage_patched function."""
-        from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+        from ddtrace.testing.internal.coverage_py.utils import _is_coverage_patched
 
         # Test when coverage is not loaded
-        with patch("ddtrace.contrib.internal.coverage.utils.is_coverage_loaded", return_value=False):
+        with patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_loaded", return_value=False):
             assert _is_coverage_patched() is False
 
         # Test when coverage is loaded but not patched
         mock_coverage = Mock()
         del mock_coverage._datadog_patch  # Ensure attribute doesn't exist
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_loaded", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_loaded", return_value=True),
             patch.dict("sys.modules", {"coverage": mock_coverage}),
         ):
             assert _is_coverage_patched() is False
@@ -367,14 +368,14 @@ class TestCoverageUtilityFunctions:
         # Test when coverage is loaded and patched
         mock_coverage._datadog_patch = True
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_loaded", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_loaded", return_value=True),
             patch.dict("sys.modules", {"coverage": mock_coverage}),
         ):
             assert _is_coverage_patched() is True
 
     def test_command_invokes_coverage_run(self):
         """Test _command_invokes_coverage_run function."""
-        from ddtrace.contrib.internal.coverage.utils import _command_invokes_coverage_run
+        from ddtrace.testing.internal.coverage_py.utils import _command_invokes_coverage_run
 
         # Test positive cases
         assert _command_invokes_coverage_run(["coverage", "run", "-m", "pytest"]) is True
@@ -387,23 +388,23 @@ class TestCoverageUtilityFunctions:
 
     def test_is_coverage_invoked_by_coverage_run(self):
         """Test _is_coverage_invoked_by_coverage_run function."""
-        from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
+        from ddtrace.testing.internal.coverage_py.utils import _is_coverage_invoked_by_coverage_run
 
         # Test with environment variable
-        with patch("ddtrace.contrib.internal.coverage.utils._get_config", return_value=True):
+        with patch.dict(os.environ, {"COVERAGE_RUN": "true"}):
             assert _is_coverage_invoked_by_coverage_run() is True
 
         # Test with command line detection
         with (
-            patch("ddtrace.contrib.internal.coverage.utils._get_config", return_value=False),
-            patch("ddtrace.contrib.internal.coverage.utils._command_invokes_coverage_run", return_value=True),
+            patch.dict(os.environ, {"COVERAGE_RUN": "false"}),
+            patch("ddtrace.testing.internal.coverage_py.utils._command_invokes_coverage_run", return_value=True),
         ):
             assert _is_coverage_invoked_by_coverage_run() is True
 
         # Test negative case
         with (
-            patch("ddtrace.contrib.internal.coverage.utils._get_config", return_value=False),
-            patch("ddtrace.contrib.internal.coverage.utils._command_invokes_coverage_run", return_value=False),
+            patch.dict(os.environ, {"COVERAGE_RUN": "false"}),
+            patch("ddtrace.testing.internal.coverage_py.utils._command_invokes_coverage_run", return_value=False),
         ):
             assert _is_coverage_invoked_by_coverage_run() is False
 
@@ -414,7 +415,7 @@ class TestRemapLcovPaths:
     @pytest.mark.parametrize("checkout_exists", [True, False])
     def test_remap_wheel_installed_paths(self, tmp_path, monkeypatch, checkout_exists):
         """SF: lines with site-packages paths are remapped to repo paths."""
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         config = Path(__file__).resolve().parents[4] / ".coveragerc"
         (tmp_path / ".coveragerc").write_text(config.read_text(), encoding="utf-8")
@@ -460,7 +461,7 @@ class TestRemapLcovPaths:
         """The uploaded report uses aliases even when only installed sources exist."""
         from coverage import Coverage
 
-        from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+        from ddtrace.testing.internal.coverage_py.utils import handle_coverage_report
 
         monkeypatch.chdir(tmp_path)
         # Use a custom config to also verify that the reporting instance owns the aliases.
@@ -494,10 +495,10 @@ class TestRemapLcovPaths:
 
         upload = Mock(return_value=True)
         with (
-            patch("ddtrace.contrib.internal.coverage.utils.is_coverage_running", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.get_coverage_instance", return_value=cov),
-            patch("ddtrace.contrib.internal.coverage.patch.get_coverage_instance", return_value=cov),
-            patch("ddtrace.contrib.internal.coverage.utils._find_pytest_cov_instance", return_value=cov),
+            patch("ddtrace.testing.internal.coverage_py.utils.is_coverage_running", return_value=True),
+            patch("ddtrace.testing.internal.coverage_py.utils.get_coverage_instance", return_value=cov),
+            patch("ddtrace.testing.internal.coverage_py.patch.get_coverage_instance", return_value=cov),
+            patch("ddtrace.testing.internal.coverage_py.utils._find_pytest_cov_instance", return_value=cov),
         ):
             handle_coverage_report(Mock(), upload, lambda config: pytest_cov_enabled)
 
@@ -509,7 +510,7 @@ class TestRemapLcovPaths:
 
     def test_remap_noop_for_repo_paths(self, tmp_path):
         """SF: lines that are already repo-relative are left unchanged."""
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         lcov = "SF:ddtrace/__init__.py\nDA:1,1\nend_of_record\n"
         lcov_file = tmp_path / "test.lcov"
@@ -521,7 +522,7 @@ class TestRemapLcovPaths:
 
     def test_remap_noop_for_non_ddtrace_paths(self, tmp_path):
         """SF: lines for test files (not under site-packages/ddtrace) are left unchanged."""
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         lcov = "SF:tests/test_foo.py\nDA:1,1\nend_of_record\n"
         lcov_file = tmp_path / "test.lcov"
@@ -533,20 +534,20 @@ class TestRemapLcovPaths:
 
     def test_remap_noop_when_no_paths_configured(self, tmp_path):
         """_remap_lcov_paths is a no-op when [paths] has no aliases."""
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         lcov = "SF:foo/bar.py\nDA:1,1\nend_of_record\n"
         lcov_file = tmp_path / "test.lcov"
         lcov_file.write_text(lcov, encoding="utf-8")
 
-        with patch("ddtrace.contrib.internal.coverage.utils._build_path_aliases", return_value=None):
+        with patch("ddtrace.testing.internal.coverage_py.utils._build_path_aliases", return_value=None):
             _remap_lcov_paths(lcov_file)
 
         assert lcov_file.read_text(encoding="utf-8") == lcov
 
     def test_remap_empty_file(self, tmp_path):
         """An empty LCOV file is handled gracefully."""
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         lcov_file = tmp_path / "empty.lcov"
         lcov_file.write_text("", encoding="utf-8")
@@ -557,7 +558,7 @@ class TestRemapLcovPaths:
 
     def test_remap_preserves_non_sf_lines(self, tmp_path):
         """DA, FN, end_of_record, and other lines are preserved unchanged."""
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         lcov = (
             "TN:ddtrace\n"
@@ -588,8 +589,8 @@ class TestRemapLcovPaths:
 
     def test_build_path_aliases_returns_none_when_no_coverage(self):
         """_build_path_aliases returns None when coverage.py is not installed."""
-        with patch("ddtrace.contrib.internal.coverage.utils._Coverage", None):
-            from ddtrace.contrib.internal.coverage.utils import _build_path_aliases
+        with patch("ddtrace.testing.internal.coverage_py.utils._Coverage", None):
+            from ddtrace.testing.internal.coverage_py.utils import _build_path_aliases
 
             assert _build_path_aliases() is None
 
@@ -600,7 +601,7 @@ class TestRemapLcovPaths:
         mock_aliases.aliases = [("pattern", None, "result")]
         mock_cov._make_aliases.return_value = mock_aliases
 
-        from ddtrace.contrib.internal.coverage.utils import _build_path_aliases
+        from ddtrace.testing.internal.coverage_py.utils import _build_path_aliases
 
         result = _build_path_aliases(cov_instance=mock_cov)
 
@@ -611,7 +612,7 @@ class TestRemapLcovPaths:
         """_remap_lcov_paths uses aliases from the provided coverage instance, not the default config."""
         import re
 
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         # Build a mock aliases object with a real regex that maps
         # some/installed/ to custom/ (mimicking a [paths] entry).
@@ -625,7 +626,7 @@ class TestRemapLcovPaths:
         lcov_file = tmp_path / "test.lcov"
         lcov_file.write_text(lcov, encoding="utf-8")
 
-        with patch("ddtrace.contrib.internal.coverage.utils.Path.cwd", return_value=Path("/repo")):
+        with patch("ddtrace.testing.internal.coverage_py.utils.Path.cwd", return_value=Path("/repo")):
             _remap_lcov_paths(lcov_file, cov_instance=mock_cov)
 
         result = lcov_file.read_text(encoding="utf-8")
@@ -650,7 +651,7 @@ class TestRemapLcovPaths:
 
         from coverage.files import CANONICAL_FILENAME_CACHE
 
-        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+        from ddtrace.testing.internal.coverage_py.utils import _remap_lcov_paths
 
         monkeypatch.chdir(tmp_path)
 
