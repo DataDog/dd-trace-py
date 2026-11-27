@@ -1,11 +1,11 @@
 ---
 name: apm-integrations
-description: Create or modify contrib instrumentation, integration registration, manifests, and APM integration tests.
+description: Create, modify, or review contrib instrumentation, integration registration, manifests, and APM integration tests.
 ---
 
 # APM integrations
 
-Use for changes to `ddtrace/contrib/internal/` or integration registration. Read the affected
+Use for changes to or reviews of `ddtrace/contrib/internal/` or integration registration. Read the affected
 integration and its tests first; consult another [reference integration](references/reference-integrations.md)
 when introducing a pattern or resolving a design question.
 
@@ -44,8 +44,10 @@ may have mypy exemptions, so passing checks alone does not establish that new co
 
 - [Implementation guide](references/implementation-guide.md): new integration registration,
   manifests, test environments, and documentation.
+- [Behavioral validation](references/behavioral-validation.md): operation coverage for new integrations;
+  propagation, OpenTelemetry interoperability, and durable-work checks when those paths change.
 - [Anti-patterns](references/anti-patterns.md): patch, configuration, and deferred-event pitfalls.
-- [Design decisions](references/design-decisions.md): event ownership and package boundaries.
+- [Design decisions](references/design-decisions.md): hook selection, event ownership, and package boundaries.
 - [Contributor guide](../../../docs/contributing-integrations.rst): compatibility and manifest policy.
 
 Use `run-tests`, `lint`, and `releasenote` for validation and PR preparation. Version bumps (adding a
