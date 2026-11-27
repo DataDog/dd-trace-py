@@ -257,6 +257,9 @@ def _hiding_otel_config(otel_env, dd_env):
 
 
 def _report_initial_configurations() -> None:
+    # Telemetry disabled means the no-op writer, which discards everything: the providers are not even resolved.
+    if not telemetry_enabled:
+        return
     # The configurations the telemetry providers ask for come before telemetry's own.
     for provided_config in get_configurations():
         report_configuration(provided_config)
@@ -264,4 +267,6 @@ def _report_initial_configurations() -> None:
     report_configuration(process_tags_config)
 
 
+# TODO: Remove this once the telemetry feature is refactored to a better design: the import-time report belongs to
+# the writer's start, so the providers are pulled only when their configurations can actually be sent.
 _report_initial_configurations()

@@ -197,9 +197,25 @@ def provider_set(monkeypatch):
     """Replace the cached providers, as if the entry point group declared exactly these."""
 
     def use(*provider_objects):
-        monkeypatch.setattr(inputs, "_providers", tuple(provider_objects))
+        providers = tuple(provider_objects)
+        monkeypatch.setattr(inputs, "_providers", providers)
+        monkeypatch.setattr(
+            inputs,
+            "_provider_hooks",
+            {
+                name: tuple(hook for hook in (getattr(p, name, None) for p in providers) if callable(hook))
+                for name in inputs._HOOK_NAMES
+            },
+        )
 
     return use
+
+
+@pytest.fixture
+def unresolved_providers(monkeypatch):
+    """Forget the resolved providers, as in a fresh interpreter."""
+    monkeypatch.setattr(inputs, "_providers", None)
+    monkeypatch.setattr(inputs, "_provider_hooks", {})
 
 
 def _declared_providers(*named):
@@ -223,10 +239,9 @@ def test_appsec_provider_is_declared_as_an_entry_point():
     assert appsec_telemetry.provider in inputs.get_providers()
 
 
-def test_providers_are_resolved_on_first_use_and_cached(monkeypatch):
+def test_providers_are_resolved_on_first_use_and_cached(monkeypatch, unresolved_providers):
     first, second = object(), object()
     found, loaded = _declared_providers(("b", second), ("a", first))
-    monkeypatch.setattr(inputs, "_providers", None)
     monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
 
     assert loaded == []
@@ -235,13 +250,27 @@ def test_providers_are_resolved_on_first_use_and_cached(monkeypatch):
     assert loaded == ["a", "b"]
 
 
-def test_a_provider_that_fails_to_load_is_skipped(monkeypatch):
+def test_a_provider_that_fails_to_load_is_skipped(monkeypatch, unresolved_providers):
     found, _ = _declared_providers(("broken", None))
     monkeypatch.setattr(found[0][0], "load", lambda: 1 / 0)
-    monkeypatch.setattr(inputs, "_providers", None)
     monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: found)
 
     assert inputs.get_providers() == ()
+
+
+def test_broken_installed_metadata_means_no_provider(monkeypatch, unresolved_providers):
+    """A broken entry_points.txt must not keep the library importing telemetry from starting."""
+
+    def broken(group):
+        raise ValueError("malformed entry_points.txt")
+
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", broken)
+
+    assert inputs.get_providers() == ()
+    assert inputs.dependency_metadata_enabled() is False
+    assert inputs.endpoint_collection_enabled() is True
+    assert inputs.endpoint_collection_limit() == 300
+    assert inputs.get_configurations() == ()
 
 
 def test_importing_ddtrace_does_not_register_the_appsec_inputs():
@@ -261,6 +290,33 @@ def test_importing_ddtrace_does_not_register_the_appsec_inputs():
         "assert loads == [('appsec', True)], loads\n"
     ) % inputs.PROVIDERS_GROUP
     subprocess.run([sys.executable, "-I", "-c", script], check=True)
+
+
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+def test_importing_ddtrace_with_telemetry_off_resolves_no_providers():
+    import ddtrace  # noqa: F401
+    from ddtrace.internal.telemetry import inputs
+
+    assert inputs._providers is None
+
+
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"})
+def test_importing_ddtrace_with_telemetry_on_resolves_the_providers():
+    import ddtrace  # noqa: F401
+    from ddtrace.internal.telemetry import inputs
+
+    assert inputs._providers is not None
+
+
+def test_initial_configurations_are_skipped_when_telemetry_is_disabled(monkeypatch):
+    monkeypatch.setattr(telemetry, "telemetry_enabled", False)
+    monkeypatch.setattr(telemetry, "get_configurations", lambda: pytest.fail("providers resolved"))
+    reported = []
+    monkeypatch.setattr(telemetry, "report_configuration", reported.append)
+
+    telemetry._report_initial_configurations()
+
+    assert reported == []
 
 
 def test_dependency_metadata_is_disabled_without_a_provider(provider_set):
@@ -290,6 +346,18 @@ def test_endpoint_collection_follows_the_appsec_settings_on_each_use(monkeypatch
 
     assert inputs.endpoint_collection_enabled() is False
     assert inputs.endpoint_collection_limit() == 42
+
+
+def test_the_hook_lists_are_resolved_with_the_providers(monkeypatch, unresolved_providers):
+    """Using the hooks does not resolve the providers again on each call."""
+    monkeypatch.setattr(inputs, "entry_points_with_distributions", lambda group: [])
+    inputs.get_providers()
+    monkeypatch.setattr(inputs, "get_providers", lambda: pytest.fail("resolved again"))
+
+    assert inputs.dependency_metadata_enabled() is False
+    assert inputs.endpoint_collection_enabled() is True
+    assert inputs.endpoint_collection_limit() == 300
+    assert inputs.get_configurations() == ()
 
 
 def test_a_provider_may_define_only_some_hooks(provider_set):

@@ -20,9 +20,9 @@ point, for tests and for callers that know their identity better than their meta
 **Providers**, declared in the ``ddtrace_internal.telemetry_providers`` group, e.g.
 ``appsec = "ddtrace.internal.settings.appsec_telemetry:provider"``. A provider is an object with optional hooks:
 ``configurations()``, ``dependency_metadata_enabled()``, ``endpoint_collection_enabled()`` and
-``endpoint_collection_limit()``. The providers are loaded in entry point name order, and the hooks are called on each
-use, so runtime changes to the settings behind them apply. A missing provider or hook means the documented default
-applies.
+``endpoint_collection_limit()``. The providers are loaded in entry point name order, and their hooks are resolved with
+them and called on each use, so runtime changes to the settings behind the hooks apply. A missing provider or hook
+means the documented default applies. Broken installed metadata means no provider, like the settings registry.
 
 Importing this module resolves nothing, and everything resolved is cached.
 """
@@ -179,30 +179,55 @@ def get_integration(filename: str) -> Optional[str]:
 
 _providers: Optional[tuple[Any, ...]] = None
 
+# The hooks of the resolved providers, by name, so the hot paths read a tuple instead of rebuilding the lists.
+_provider_hooks: dict[str, tuple[Callable[[], Any], ...]] = {}
+_HOOK_NAMES = (
+    "configurations",
+    "dependency_metadata_enabled",
+    "endpoint_collection_enabled",
+    "endpoint_collection_limit",
+)
+
 # What telemetry does when no provider says otherwise.
 DEFAULT_ENDPOINT_COLLECTION_LIMIT = 300
 
 
 def get_providers() -> tuple[Any, ...]:
     """Return the loaded telemetry providers, in entry point name order. Resolved on first call, then cached."""
-    global _providers
+    global _providers, _provider_hooks
 
     # No lock: two threads resolving at once load the same entry points, and the last assignment wins, equal to the
     # first.
     if _providers is None:
+        try:
+            declared = entry_points_with_distributions(PROVIDERS_GROUP)
+        except Exception:
+            # Broken installed metadata, e.g. a hand-edited or half-written entry_points.txt, must not keep the
+            # library importing telemetry from starting. Degrade the way the settings registry does: no provider,
+            # the documented defaults apply.
+            log.debug("Failed to list the %s entry points: no provider applies", PROVIDERS_GROUP, exc_info=True)
+            declared = []
         providers = []
-        for entry_point, _ in sorted(entry_points_with_distributions(PROVIDERS_GROUP), key=lambda ep: ep[0].name):
+        for entry_point, _ in sorted(declared, key=lambda ep: ep[0].name):
             try:
                 providers.append(entry_point.load())
             except Exception:
                 log.debug("Failed to load the %s entry point %s", PROVIDERS_GROUP, entry_point.value, exc_info=True)
+        # The hooks are resolved with the providers and only called afterwards; caching the calls' results instead
+        # would freeze the settings the hooks read on each call.
+        _provider_hooks = {
+            name: tuple(hook for hook in (getattr(provider, name, None) for provider in providers) if callable(hook))
+            for name in _HOOK_NAMES
+        }
         _providers = tuple(providers)
     return _providers
 
 
-def _get_hooks(name: str) -> list[Callable[[], Any]]:
-    """Return the hook ``name`` of every provider that defines it."""
-    return [hook for hook in (getattr(p, name, None) for p in get_providers()) if callable(hook)]
+def _get_hooks(name: str) -> tuple[Callable[[], Any], ...]:
+    """Return the hook ``name`` of every provider that defines it, as resolved with the providers."""
+    if _providers is None:
+        get_providers()
+    return _provider_hooks.get(name, ())
 
 
 def get_configurations() -> tuple[Any, ...]:
