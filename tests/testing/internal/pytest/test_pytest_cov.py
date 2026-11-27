@@ -4,7 +4,7 @@ from _pytest.pytester import Pytester
 import pytest
 from pytest import MonkeyPatch
 
-from ddtrace.contrib.internal.coverage.patch import reset_all_coverage_state
+from ddtrace.testing.internal.coverage_py.patch import reset_all_coverage_state
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
