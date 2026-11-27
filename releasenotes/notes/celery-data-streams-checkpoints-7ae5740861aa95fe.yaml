@@ -1,0 +1,16 @@
+---
+features:
+  - |
+    celery: Adds Data Streams Monitoring support for Celery tasks on RabbitMQ and Redis brokers. With
+    ``DD_DATA_STREAMS_ENABLED=true``, publishing a task and running it on a worker now show as a
+    pathway between the caller and the worker, without patching kombu.
+upgrade:
+  - |
+    kombu: When both the Celery and kombu integrations are enabled, the produce checkpoint for a
+    Celery task now comes from the Celery integration and is tagged with the task's routing key and
+    broker type, so existing Data Streams pathways for those tasks change.
+fixes:
+  - |
+    kombu: Data Streams Monitoring no longer reports Celery's internal event and remote control
+    exchanges when Celery is instrumented, and no longer sets a second produce checkpoint for
+    Celery tasks sent with task protocol 2.
