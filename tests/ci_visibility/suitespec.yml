@@ -62,7 +62,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest --no-cov {cmdargs} tests/coverage -s
-      variants: [{name: dd_coverage, dependencies: [asgiref]}]
+      variants: [{name: dd_coverage, dependencies: [asgiref, freezegun, pyfakefs]}]
   pytest_benchmark:
     paths:
       - '@pytest'
