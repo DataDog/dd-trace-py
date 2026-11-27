@@ -1032,8 +1032,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Native exporter methods require exclusive access because PyO3 rejects
         # overlapping mutable borrows.
         self._exporter_lock = forksafe.RLock()
-        # MicroVM stop must close publication without waiting on an exporter send or build.
-        self._exporter_lifecycle_lock = forksafe.RLock() if self._writer_lock is not None else self._exporter_lock
+        # Stop must close publication without waiting on an exporter send or build. Only writers
+        # whose stop closes it (see _begin_shutdown) need a lock of their own.
+        self._exporter_lifecycle_lock = (
+            forksafe.RLock() if self._writer_lock is not None or self._sync_mode else self._exporter_lock
+        )
         self._exporter_stopping = False
         # Native workers must not be rebuilt while the child fork hooks run: process managers like
         # Celery close inherited file descriptors after the hooks return. A writer built in a child

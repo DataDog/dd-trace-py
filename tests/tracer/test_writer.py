@@ -2945,3 +2945,31 @@ def test_sync_writer_stopped_before_building_its_deferred_exporter_never_builds_
     writer.flush_queue()
 
     assert writer._exporter is None
+
+
+def test_sync_writer_stop_does_not_wait_for_a_send_in_flight():
+    """A send holds the exporter lock for the whole request, which stop() must not wait for."""
+    import threading
+
+    writer = NativeWriter("http://dne:1234", sync_mode=True)
+    sending = threading.Event()
+    release = threading.Event()
+
+    def send():
+        with writer._exporter_lock:
+            sending.set()
+            release.wait(timeout=10)
+
+    sender = threading.Thread(target=send)
+    sender.start()
+    try:
+        assert sending.wait(timeout=5)
+        stopper = threading.Thread(target=lambda: pytest.raises(ServiceStatusError, writer.stop, 0))
+        stopper.start()
+        stopper.join(timeout=2)
+        assert not stopper.is_alive(), "stop() waited for the send in flight"
+        assert writer._exporter_stopping
+    finally:
+        release.set()
+        sender.join()
+        writer.shutdown_exporter()
