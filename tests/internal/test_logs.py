@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 from typing import Any
@@ -118,6 +119,35 @@ class TestLogsIntakeWriter:
         for pack, num in packs:
             assert len(pack) <= writer._MAX_REQUEST_BYTES
             assert num <= writer._MAX_EVENTS_PER_REQUEST
+
+    def test_packs_encode_non_ascii_as_utf8(self):
+        writer = _make_writer()
+        # Escaped as \uXXXX, these would take 6 bytes each and exceed the 5MB request limit.
+        message = "\u4e2d" * (1024 * 1024)
+        ((pack, num),) = writer._encode_packs([{"message": message}])
+        assert num == 1
+        assert len(pack) <= writer._MAX_REQUEST_BYTES
+        assert json.loads(pack) == [{"message": message}]
+
+    def test_packs_drop_event_larger_than_request(self):
+        writer = _make_writer()
+        # Control characters still expand to 6 bytes each once JSON-escaped.
+        oversized = {"message": "\x00" * (1024 * 1024)}
+        with mock.patch("ddtrace.internal.logs.logger") as mock_logger:
+            packs = writer._encode_packs([oversized, {"message": "kept"}])
+        assert packs == [(b'[{"message": "kept"}]', 1)]
+        mock_logger.warning.assert_called_once()
+
+    def test_flush_and_stop_waits_for_send_in_progress(self):
+        writer = _make_writer()
+        calls = mock.Mock()
+        with (
+            mock.patch.object(writer, "stop", calls.stop),
+            mock.patch.object(writer, "join", calls.join),
+            mock.patch.object(writer, "periodic", calls.periodic),
+        ):
+            writer.flush_and_stop()
+        assert calls.mock_calls == [mock.call.stop(), mock.call.join(writer._timeout), mock.call.periodic()]
 
     def test_periodic_posts_gzipped_batches(self, log_intake_receiver):
         writer = _make_writer(intake_url=log_intake_receiver.url)
@@ -236,6 +266,13 @@ class TestAgentlessLogsHandler:
         (event,) = mock_writer.enqueue.call_args[0]
         assert event["message"].endswith("... [truncated]")
         assert len(event["message"]) <= handler._MAX_MESSAGE_BYTES
+
+    def test_truncates_huge_non_ascii_message_by_bytes(self, handler, mock_writer):
+        logging.getLogger("test.app").setLevel(logging.DEBUG)
+        logging.getLogger("test.app").warning("\u4e2d" * (1024 * 1024))
+        (event,) = mock_writer.enqueue.call_args[0]
+        assert event["message"].endswith("... [truncated]")
+        assert len(event["message"].encode("utf-8")) <= handler._MAX_MESSAGE_BYTES
 
     def test_uses_injected_trace_attributes(self, handler, mock_writer):
         record = logging.LogRecord("test.app", logging.WARNING, "path", 1, "m", (), None)
@@ -529,15 +566,29 @@ def test_multiprocessing_fork_workers_submit_logs(ddtrace_run_python_code_in_sub
         """
 import logging
 import multiprocessing
+import threading
+import time
 
 
 def work(message):
     logging.getLogger("mp.app").warning(message)
 
 
+def work_in_thread():
+    def log_late():
+        time.sleep(0.2)
+        logging.getLogger("mp.app").warning("from non-daemon thread")
+
+    # Still logging after the target returns; the process joins it before exiting.
+    threading.Thread(target=log_late).start()
+
+
 if __name__ == "__main__":
     context = multiprocessing.get_context("fork")
     process = context.Process(target=work, args=("from process",))
+    process.start()
+    process.join()
+    process = context.Process(target=work_in_thread)
     process.start()
     process.join()
     # close() and join() let the worker exit normally; the context manager would terminate it.
@@ -552,6 +603,7 @@ if __name__ == "__main__":
 
     messages = [event["message"] for event in log_intake_receiver.events()]
     assert messages.count("from process") == 1, messages
+    assert messages.count("from non-daemon thread") == 1, messages
     assert messages.count("from pool") == 1, messages
 
 

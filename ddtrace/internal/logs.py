@@ -24,6 +24,7 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
@@ -37,8 +38,9 @@ _TRUNCATION_SUFFIX = "... [truncated]"
 class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
     """Buffers log events and periodically sends them to the logs intake.
 
-    Requests respect the intake limits of 1000 entries and 5MB each. A batch that fails to send
-    is dropped: log submission is best-effort.
+    Requests respect the intake limits of 1000 entries and 5MB each; an event too large to fit
+    in a request on its own is dropped. A batch that fails to send is dropped too: log
+    submission is best-effort.
     """
 
     _MAX_EVENTS_PER_REQUEST = 1000
@@ -61,19 +63,37 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
 
     def start(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().start(*args, **kwargs)
-        # multiprocessing children started with fork leave through os._exit(), which skips
-        # atexit but still runs the shutdown callbacks of the application's threading module.
-        # With module cloning that is a later copy of threading, hence the import hook.
-        ModuleWatchdog.register_module_hook("threading", self._flush_at_threading_shutdown)
-        # atexit also flushes what is logged later in the parent's shutdown.
-        atexit.register(self.periodic)
+        # multiprocessing children started with fork or forkserver leave through os._exit() as
+        # soon as their bootstrap returns, skipping atexit. With module cloning the application
+        # imports its own copy of multiprocessing, hence the import hook.
+        ModuleWatchdog.register_module_hook("multiprocessing.process", self._flush_after_process_bootstrap)
+        atexit.register(self.flush_and_stop)
 
-    def _flush_at_threading_shutdown(self, threading: ModuleType) -> None:
+    def flush_and_stop(self) -> None:
+        """Send everything buffered at process exit, after any send already in progress."""
         try:
-            threading._register_atexit(self.periodic)
-        except RuntimeError:
-            # The interpreter is already shutting down; atexit still flushes.
+            self.stop()
+        except ServiceStatusError:
             pass
+        else:
+            self.join(self._timeout)
+        self.periodic()
+
+    def _flush_after_process_bootstrap(self, process: ModuleType) -> None:
+        bootstrap = process.BaseProcess._bootstrap
+
+        def _bootstrap(process_self: t.Any, *args: t.Any, **kwargs: t.Any) -> t.Any:
+            try:
+                return bootstrap(process_self, *args, **kwargs)
+            finally:
+                # The bootstrap has run threading's shutdown, which joins the child's non-daemon
+                # threads, so nothing is logged after this flush.
+                try:
+                    self.flush_and_stop()
+                except Exception:
+                    logger.debug("failed to flush logs at process exit", exc_info=True)
+
+        process.BaseProcess._bootstrap = _bootstrap
 
     def enqueue(self, event: dict[str, t.Any]) -> None:
         with self._lock:
@@ -93,13 +113,18 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
         for pack, count in self._encode_packs(events):
             self._post(pack, count)
 
-    def _encode_packs(self, events: list[dict[str, t.Any]]) -> list[tuple[str, int]]:
-        packs: list[list[str]] = []
-        current: list[str] = []
+    def _encode_packs(self, events: list[dict[str, t.Any]]) -> list[tuple[bytes, int]]:
+        packs: list[list[bytes]] = []
+        current: list[bytes] = []
         size = 2  # the enclosing brackets
+        dropped = 0
         for event in events:
-            # ASCII-only output (the json default), so the length is the size in bytes.
-            encoded = json.dumps(event)
+            # Plain UTF-8 rather than \uXXXX escapes, which take 6 bytes per non-ASCII character.
+            encoded = json.dumps(event, ensure_ascii=False).encode("utf-8", "replace")
+            if len(encoded) + 2 > self._MAX_REQUEST_BYTES:
+                # Possible despite message truncation when JSON escapes expand it (control characters).
+                dropped += 1
+                continue
             if current and (
                 len(current) >= self._MAX_EVENTS_PER_REQUEST or size + len(encoded) + 1 > self._MAX_REQUEST_BYTES
             ):
@@ -109,12 +134,14 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
             size += len(encoded) + 1
         if current:
             packs.append(current)
-        return [("[%s]" % ",".join(pack), len(pack)) for pack in packs]
+        if dropped:
+            logger.warning("dropped %d log(s) larger than the %d byte request limit", dropped, self._MAX_REQUEST_BYTES)
+        return [(b"[" + b",".join(pack) + b"]", len(pack)) for pack in packs]
 
-    def _post(self, pack: str, count: int) -> None:
+    def _post(self, pack: bytes, count: int) -> None:
         conn = get_connection(self._intake_url, self._timeout)
         try:
-            conn.request("POST", self._endpoint, gzip.compress(pack.encode("utf-8")), self._headers)
+            conn.request("POST", self._endpoint, gzip.compress(pack), self._headers)
             resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
@@ -154,8 +181,12 @@ class LogsIntakeHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             message = self._FORMATTER.format(record)
-            if len(message) > self._MAX_MESSAGE_BYTES:
-                message = message[: self._MAX_MESSAGE_BYTES - len(_TRUNCATION_SUFFIX)] + _TRUNCATION_SUFFIX
+            # A character takes at most 4 bytes in UTF-8, so only longer messages can exceed the limit.
+            if len(message) > self._MAX_MESSAGE_BYTES // 4:
+                encoded = message.encode("utf-8", "replace")
+                if len(encoded) > self._MAX_MESSAGE_BYTES:
+                    kept = encoded[: self._MAX_MESSAGE_BYTES - len(_TRUNCATION_SUFFIX)]
+                    message = kept.decode("utf-8", "ignore") + _TRUNCATION_SUFFIX
 
             self._submit(
                 {
@@ -267,5 +298,5 @@ def disable_agentless_log_submission() -> None:
         logging.Logger.callHandlers = _original_call_handlers  # type: ignore[method-assign]
     writer = handler._writer
     writer.reset()
-    atexit.unregister(writer.periodic)
+    atexit.unregister(writer.flush_and_stop)
     writer.stop()
