@@ -368,3 +368,27 @@ The following is the check list for ensuring you have all of the components to h
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
 - A release note for your addition generated with ``uvx --from 'reno==4.1.0' reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.
+
+
+Demonstrating synchronous request inspection
+-------------------------------------------
+
+Bottle dispatches ``WebFrameworkRequestInspectEvent`` from
+``ddtrace.contrib._events.web_framework`` before the matched callback, inside its
+existing request context. A subscriber reads metadata from ``request_event`` and
+leaves ``response`` unset to run the callback, or supplies a tuple of status code,
+header mapping, and byte body. Bottle converts the tuple to an ``HTTPResponse``
+and skips the callback; the shared ``WebFrameworkRequestSubscriber`` still owns
+propagation, spans, HTTP tags, and completion.
+
+``ExampleRequestBlockingSubscriber`` in
+``tests/contrib/bottle/test_request_hooks.py`` supplies a test-only blocking
+policy. Products own subscriber registration and teardown. Subscribers should
+finish evaluation before assigning a response: a later listener exception does
+not clear it.
+
+This demonstration does not enable production AppSec support. Tracing-disabled
+requests bypass inspection. Bodies, unmatched routes, later Bottle hooks,
+response inspection, SDK blocking, and streaming remain outside its scope.
+Production support needs product activation, policy evaluation, protection when
+tracing is disabled, and end-to-end validation.
