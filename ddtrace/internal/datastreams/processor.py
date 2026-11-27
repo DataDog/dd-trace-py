@@ -15,6 +15,7 @@ from typing import Union
 
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
+from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -120,9 +121,7 @@ class DataStreamsProcessor(PeriodicService):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns: int = int(interval * 1e9)
-        self._buckets: defaultdict[int, Bucket] = defaultdict(
-            lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
-        )
+        self._buckets: defaultdict[int, Bucket] = self._new_buckets()
         self._version = __version__
         self._headers: dict[str, str] = {
             "Datadog-Meta-Lang": "python",
@@ -143,9 +142,18 @@ class DataStreamsProcessor(PeriodicService):
             initial_wait=0.618 * self.interval / (1.618**retry_attempts) / 2,
         )(self._flush_stats)
 
+        forksafe.register(self._reset_after_fork)
         register_on_exit_signal(partial(_atexit, obj=self))
         ddtrace_atexit.register(partial(_atexit, obj=self))
         self.start()
+
+    @staticmethod
+    def _new_buckets() -> defaultdict[int, Bucket]:
+        return defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))
+
+    def _reset_after_fork(self) -> None:
+        self._lock = Lock()
+        self._buckets = self._new_buckets()
 
     def on_checkpoint_creation(
         self,

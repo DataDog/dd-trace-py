@@ -76,12 +76,20 @@ def traced_queue_enqueue_job(func, instance, args, kwargs):
                 JOB_FUNC_NAME: job.func_name,
             },
         ) as ctx,
-        span_from_context(ctx),
+        span_from_context(ctx) as span,
     ):
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async:
+            core.dispatch("rq.queue.enqueue_job.dsm", (instance, job, span))
             core.dispatch("rq.queue.enqueue_job", (ctx, job.meta))
         return func(*args, **kwargs)
+
+
+def traced_queue_create_job(func, instance, args, kwargs):
+    job = func(*args, **kwargs)
+    if instance.is_async:
+        core.dispatch("rq.queue.create_job", (instance, job))
+    return job
 
 
 def traced_queue_fetch_job(func, instance, args, kwargs):
@@ -123,8 +131,9 @@ def traced_perform_job(func, instance, args, kwargs):
                     JOB_ID: job.id,
                 },
             ) as ctx,
-            span_from_context(ctx),
+            span_from_context(ctx) as span,
         ):
+            core.dispatch("rq.worker.perform_job.start", (job, span))
             try:
                 return func(*args, **kwargs)
             finally:
@@ -185,6 +194,7 @@ def patch():
         return
 
     trace_utils.wrap(rq.job, "Job.perform", traced_job_perform)
+    trace_utils.wrap("rq.queue", "Queue.create_job", traced_queue_create_job)
     trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job)
     trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job)
     trace_utils.wrap(_worker_perform_job_owner(rq), "perform_job", traced_perform_job)
@@ -199,6 +209,7 @@ def unpatch():
         return
 
     trace_utils.unwrap(rq.job.Job, "perform")
+    trace_utils.unwrap(rq.queue.Queue, "create_job")
     trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
     trace_utils.unwrap(rq.queue.Queue, "fetch_job")
     trace_utils.unwrap(_worker_perform_job_owner(rq), "perform_job")

@@ -466,3 +466,22 @@ def test_dsm_pathway_codec_decode_no_context():
     assert ctx.hash == processor.new_pathway().hash
     assert ctx.pathway_start_sec == mocked_time
     assert ctx.current_edge_start_sec == mocked_time
+
+
+@pytest.mark.subprocess(err=None)
+def test_fork_child_starts_with_empty_buckets():
+    import os
+
+    from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+    processor = DataStreamsProcessor("http://localhost:8126")
+    processor.set_checkpoint(["direction:out", "topic:parent", "type:kafka"])
+    assert processor._buckets
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0 if not processor._buckets else 1)
+    _, status = os.waitpid(pid, 0)
+    assert os.WEXITSTATUS(status) == 0
+    assert processor._buckets
+    processor._buckets.clear()

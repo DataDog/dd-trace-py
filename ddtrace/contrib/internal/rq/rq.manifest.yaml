@@ -2,7 +2,7 @@ _v: 1
 name: rq
 display_name: RQ
 description: Instruments RQ job enqueueing, fetching, and execution across queues and workers, including distributed trace
-  context propagation.
+  context propagation and data-stream pathway checkpoints.
 packages:
 - name: rq
 category:
