@@ -3,6 +3,8 @@ import os
 import struct
 from time import sleep
 
+import pytest
+
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -666,3 +668,68 @@ HTTPPropagator.extract(malformed_headers)
     assert malformed_metrics[0]["type"] == "count"
     assert malformed_metrics[0]["points"][0][1] == 1.0
     assert "header_style:baggage" in malformed_metrics[0]["tags"]
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_recorder_lock_is_reentrant():
+    """Recording a metric while the recorder lock is held must not deadlock.
+
+    Span finish records telemetry metrics, and integrations finish spans from weakref.finalize
+    callbacks, which the cyclic GC can run on a thread already holding the recorder lock. Runs in a
+    subprocess so a regression fails on the timeout instead of wedging the lock for the whole suite.
+    """
+    from ddtrace.internal.telemetry import metrics
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+    class _FakeWorker:
+        def __init__(self):
+            self.points = []
+
+        def register_metric_context(self, *args):
+            return "ctx"
+
+        def add_point(self, context, value):
+            self.points.append((context, value))
+
+    worker = _FakeWorker()
+    recorder = metrics.get_metric_recorder(TELEMETRY_NAMESPACE.TRACERS, "test.reentrant_recorder_lock")
+    recorder._rebind(worker)
+
+    with metrics._recorder_lock:
+        assert metrics.get_metric_recorder(TELEMETRY_NAMESPACE.TRACERS, "test.reentrant_recorder_lock") is recorder
+        recorder.add(2)
+
+    assert worker.points == [("ctx", 2)]
+
+
+def test_pending_registration_reentered_uses_one_context():
+    """A point recorded from inside the first registration must land on the same context.
+
+    Simulates a GC finalizer that records the same metric while the pending worker is still
+    registering the recorder's context.
+    """
+    from ddtrace.internal.telemetry import metrics
+
+    recorder = metrics.get_metric_recorder(TELEMETRY_NAMESPACE.TRACERS, "test.reentrant_registration")
+
+    class _ReenteringWorker:
+        def __init__(self):
+            self.registrations = 0
+            self.points = []
+
+        def register_metric_context(self, *args):
+            self.registrations += 1
+            context = "ctx-%d" % self.registrations
+            if self.registrations == 1:
+                recorder.add(1)  # the "finalizer" fires mid-registration
+            return context
+
+        def add_point(self, context, value):
+            self.points.append((context, value))
+
+    worker = _ReenteringWorker()
+    recorder._rebind(worker)
+    recorder.add(5)
+
+    assert worker.points == [("ctx-2", 1), ("ctx-2", 5)]
+    assert recorder._context == "ctx-2" and recorder._worker is worker

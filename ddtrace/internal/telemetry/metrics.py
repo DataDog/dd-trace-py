@@ -128,8 +128,14 @@ class _PendingWorker:
                 # Fall back to the noop rather than retrying the registration on every point.
                 recorder._worker = _NOOP_WORKER
                 return
-            recorder._context = context
-            recorder._worker = worker
+            if recorder._worker is self:
+                recorder._context = context
+                recorder._worker = worker
+            elif recorder._context is not None:
+                # A GC finalizer on this thread recorded the same metric while we were
+                # registering, and bound the recorder first. Use its context so all points
+                # land on one context; ours is never written to.
+                context = recorder._context
         worker.add_point(context, value)
 
 
@@ -143,7 +149,8 @@ class _PendingWorker:
 _RecorderKey = tuple[TELEMETRY_NAMESPACE, str, str, MetricTagType]
 _metric_recorders: "weakref.WeakValueDictionary[_RecorderKey, MetricRecorder]" = weakref.WeakValueDictionary()
 # Guards the registry and every transition of a recorder's binding.
-_recorder_lock = forksafe.Lock()
+# Reentrant: GC finalizers that finish spans can record metrics on a thread already holding it.
+_recorder_lock = forksafe.RLock()
 # Typed as object to avoid circular imports.
 _active_writer: Optional[object] = None
 _active_worker: Optional["TelemetryWorker"] = None
@@ -160,9 +167,14 @@ def get_metric_recorder(
     with _recorder_lock:
         recorder = _metric_recorders.get(key)
         if recorder is None:
-            recorder = _metric_recorders[key] = MetricRecorder(namespace, name, metric_type, tags)
-            if _active_worker is not None:
-                recorder._rebind(_active_worker)
+            new_recorder = MetricRecorder(namespace, name, metric_type, tags)
+            # Constructing can trigger GC, and a finalizer on this thread may have created the
+            # same recorder meanwhile (the lock is reentrant). Keep that one rather than replacing it.
+            recorder = _metric_recorders.get(key)
+            if recorder is None:
+                recorder = _metric_recorders[key] = new_recorder
+                if _active_worker is not None:
+                    recorder._rebind(_active_worker)
         return recorder
 
 

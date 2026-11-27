@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes a rare hang that could occur when a span is finished during garbage collection.
