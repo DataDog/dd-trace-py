@@ -169,6 +169,9 @@ from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import on_bidirectional_stream
 from ddtrace.llmobs._integrations.elevenlabs import create_conversation_state
+from ddtrace.llmobs._memory import MEMORY_DETECTION_SOURCE_TAG_KEY
+from ddtrace.llmobs._memory import build_memory_annotation
+from ddtrace.llmobs._memory import resolve_memory_span_kind
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -205,6 +208,7 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
+from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
@@ -229,9 +233,11 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import Agent
 from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType as PromptJSONType
+from ddtrace.llmobs.types import MemoryAnnotation
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
@@ -548,6 +554,46 @@ def _build_llmobs_span(
         llmobs_span.output = [Message(content=doc.get("text", ""), role="") for doc in output_documents]
 
     return llmobs_span, input_type, output_type
+
+
+_DOCUMENT_KEYS = frozenset({"text", "name", "id", "score"})
+
+
+def _is_document_dict(obj: object) -> bool:
+    if not isinstance(obj, dict) or not obj or not set(obj).issubset(_DOCUMENT_KEYS):
+        return False
+    if not isinstance(obj.get("text"), str):
+        return False
+    for key in ("name", "id"):
+        val = obj.get(key)
+        if val is not None and not isinstance(val, str):
+            return False
+    score = obj.get("score")
+    if score is not None and (not isinstance(score, (int, float)) or isinstance(score, bool)):
+        return False
+    return True
+
+
+def _format_memory_document(doc: dict[str, Any]) -> Document:
+    formatted = Document(text=doc["text"])
+    if doc.get("name"):
+        formatted["name"] = doc["name"]
+    if doc.get("id"):
+        formatted["id"] = doc["id"]
+    score = doc.get("score")
+    if score is not None:
+        formatted["score"] = score
+    return formatted
+
+
+def _extract_memory_documents(output_data: Any) -> Optional[list[Document]]:
+    if isinstance(output_data, Documents):
+        return output_data.documents
+    if _is_document_dict(output_data):
+        return [_format_memory_document(output_data)]
+    if isinstance(output_data, list) and output_data and all(_is_document_dict(item) for item in output_data):
+        return [_format_memory_document(item) for item in output_data]
+    return None
 
 
 def _reconstruct_documents(meta_io: _MetaIO, messages: list[Message]) -> None:
@@ -3218,6 +3264,78 @@ class LLMObs(Service):
         )
 
     @classmethod
+    def memory(
+        cls,
+        operation: str,
+        name: Optional[str] = None,
+        store_id: Optional[str] = None,
+        memory_type: Optional[str] = None,
+        scope: Optional[str] = None,
+        provider: str = "custom",
+        principal: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        namespace: Optional[str] = None,
+        provenance_source: Optional[str] = None,
+        provenance_span_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        agent_service: Optional[str] = None,
+        _decorator: bool = False,
+    ) -> Span:
+        """Trace an agent memory operation.
+
+        :param str operation: Canonical memory operation name (e.g. ``search_memory``, ``create_memory``).
+        :param str name: The name of the traced operation. Defaults to ``operation``.
+        :param str store_id: Identifier of the memory store.
+        :param str memory_type: Memory type (``working``, ``episodic``, ``semantic``, ``procedural``).
+        :param str scope: Memory scope (``session``, ``user``, ``agent``, ``org``, ``global``).
+        :param str provider: Memory provider name. Defaults to ``"custom"``.
+        :param str principal: Principal/user identifier; hashed via SHA-256 before recording.
+        :param str tenant_id: Tenant/org identifier; hashed via SHA-256 before recording.
+        :param str namespace: Memory namespace.
+        :param str provenance_source: Provenance source of the memory record.
+        :param str provenance_span_id: Originating span ID for the memory record.
+        :param str session_id: The ID of the underlying user session.
+        :param str ml_app: Deprecated. Use ``agent_service`` instead.
+        :param str agent_service: The agent service that this span belongs to.
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        has_parent = cls._instance._llmobs_context_provider.active() is not None
+        span_kind = resolve_memory_span_kind(operation, has_parent=has_parent)
+        span = cls._instance._start_span(
+            span_kind,
+            name=name or operation,
+            session_id=session_id,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
+            _decorator=_decorator,
+        )
+        if cls.enabled:
+            initial_memory: dict[str, Any] = {"operation": operation}
+            if store_id:
+                initial_memory["store_id"] = store_id
+            if memory_type:
+                initial_memory["memory_type"] = memory_type
+            if scope:
+                initial_memory["scope"] = scope
+            if provider:
+                initial_memory["provider"] = provider
+            if principal:
+                initial_memory["principal"] = principal
+            if tenant_id:
+                initial_memory["tenant_id"] = tenant_id
+            if namespace:
+                initial_memory["namespace"] = namespace
+            if provenance_source:
+                initial_memory["provenance_source"] = provenance_source
+            if provenance_span_id:
+                initial_memory["provenance_span_id"] = provenance_span_id
+            mem_meta, mem_tags, _, _, _ = build_memory_annotation(initial_memory)
+            _annotate_llmobs_span_data(span, metadata={"memory": mem_meta}, tags=mem_tags)
+        return span
+
+    @classmethod
     def _experiment(
         cls,
         name: Optional[str] = None,
@@ -3290,6 +3408,7 @@ class LLMObs(Service):
         tool_definitions: Optional[list[dict[str, Any]]] = None,
         cost_tags: Optional[list[str]] = None,
         agent: Optional[Union[dict[str, Any], Agent]] = None,
+        memory: Optional[Union[dict[str, Any], MemoryAnnotation]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
@@ -3343,6 +3462,9 @@ class LLMObs(Service):
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
+                           - memory spans: a document dictionary or list of document dictionaries (with ``text`` and
+                                           optional ``name``, ``id``, ``score``) stored in ``output.documents``,
+                                           or any other JSON serializable type stored in ``output.value``.
                            - other: any JSON serializable type.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
@@ -3368,6 +3490,10 @@ class LLMObs(Service):
                       manifest, on agent spans only. All keys are optional; unreportable values are
                       dropped, not raised, and an unset value leaves what an earlier annotation
                       declared in place.
+        :param memory: Dictionary describing an agent memory operation (see ``ddtrace.llmobs.MemoryAnnotation``).
+                       Records normalized metadata under ``metadata["memory"]``, memory tags/metrics, and—for
+                       non-LLM/embedding spans when ``input_data``/``output_data`` are unset—normalized query/content
+                       input and record output.
         """
         error = None
         try:
@@ -3436,6 +3562,36 @@ class LLMObs(Service):
                 if validated_tool_definitions:
                     _annotate_llmobs_span_data(span, tool_definitions=validated_tool_definitions)
             span_kind = get_llmobs_span_kind(span)
+            if memory is not None:
+                memory_arg: object = memory
+                if not isinstance(memory_arg, dict):
+                    error = "invalid_memory"
+                    raise LLMObsAnnotateSpanError("memory must be a dictionary")
+                existing_metadata = get_llmobs_metadata(span) or {}
+                existing_memory = existing_metadata.get("memory")
+                if not isinstance(existing_memory, dict):
+                    existing_memory = {}
+                effective_memory: dict[str, Any] = dict(memory)
+                if not effective_memory.get("operation") and existing_memory.get("operation"):
+                    effective_memory["operation"] = existing_memory["operation"]
+                mem_meta, mem_tags, mem_metrics, mem_input, mem_output = build_memory_annotation(effective_memory)
+                existing_tags = get_llmobs_tags(span) or {}
+                if "detection_source" not in memory and MEMORY_DETECTION_SOURCE_TAG_KEY in existing_tags:
+                    mem_tags.pop(MEMORY_DETECTION_SOURCE_TAG_KEY, None)
+                merged_memory = {**existing_memory, **mem_meta}
+                filtered_tags = {k: v for k, v in mem_tags.items() if not (tags and k in tags)}
+                filtered_metrics = {k: v for k, v in mem_metrics.items() if not (metrics and k in metrics)}
+                _annotate_llmobs_span_data(
+                    span,
+                    metadata={"memory": merged_memory},
+                    tags=filtered_tags or None,
+                    metrics=filtered_metrics or None,
+                )
+                if span_kind not in ("llm", "embedding"):
+                    if input_data is None and mem_input is not None:
+                        input_data = mem_input
+                    if output_data is None and mem_output is not None:
+                        output_data = mem_output
             if _name is not None:
                 span.name = _name
                 _annotate_llmobs_span_data(span, name=str(_name))
@@ -3476,6 +3632,8 @@ class LLMObs(Service):
                     annotation_error_message, error = cls._tag_retrieval_io(
                         span, input_text=input_data, output_documents=output_data
                     )
+                elif span_kind == "memory":
+                    cls._tag_memory_io(span, input_value=input_data, output_data=output_data)
                 elif span_kind == "experiment":
                     cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
@@ -3606,6 +3764,27 @@ class LLMObs(Service):
         except TypeError:
             return "Failed to parse output documents.", "invalid_retrieval_io"
         return None, None
+
+    @classmethod
+    def _tag_memory_io(cls, span: Span, input_value: Any = None, output_data: Any = None) -> None:
+        if input_value is not None:
+            _annotate_llmobs_span_data(span, input_value=safe_json(input_value))
+        if output_data is None:
+            return
+        docs = _extract_memory_documents(output_data)
+        if docs is not None:
+            if docs:
+                llmobs_data = _get_llmobs_data_metastruct(span)
+                meta_output = llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT)
+                if isinstance(meta_output, dict) and meta_output.pop(LLMOBS_STRUCT.VALUE, None) is not None:
+                    span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
+                _annotate_llmobs_span_data(span, output_documents=docs)
+            return
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        meta_output = llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT)
+        if isinstance(meta_output, dict) and meta_output.pop(LLMOBS_STRUCT.DOCUMENTS, None) is not None:
+            span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
+        _annotate_llmobs_span_data(span, output_value=safe_json(output_data))
 
     @classmethod
     def _tag_text_io(cls, span: Span, input_value: Any = None, output_value: Any = None) -> None:
@@ -3812,7 +3991,7 @@ class LLMObs(Service):
         :param str span_id: Filter to a specific span by ID.
         :param str query: Filter spans using EVP query syntax.
         :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
-                               ``tool``, ``task``, ``embedding``, ``retrieval``.
+                               ``tool``, ``task``, ``embedding``, ``retrieval``, ``memory``.
         :param str span_name: Filter by span name.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: Filter by agent service name. Defaults to ``DD_LLMOBS_ML_APP``,

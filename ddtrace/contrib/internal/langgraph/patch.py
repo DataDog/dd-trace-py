@@ -346,6 +346,83 @@ def patched_pregel_loop_tick(func, instance, args, kwargs):
     return result
 
 
+_STORE_SYNC_METHODS = ("get", "search", "put", "delete")
+_STORE_ASYNC_METHODS = ("aget", "asearch", "aput", "adelete")
+_IN_STORE_CALL_CTX_KEY = "langgraph.in_store_call"
+
+
+def _make_traced_store_sync(method_name: str):
+    operation = f"store.{method_name}"
+
+    def traced_store_sync(func, instance, args, kwargs):
+        # Avoid duplicate spans when async store methods delegate to sync counterparts or super().
+        if core.find_item(_IN_STORE_CALL_CTX_KEY):
+            return func(*args, **kwargs)
+        event = _request_event(_resource(instance, method_name), operation, args, kwargs, instance=instance)
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            ctx.set_item(_IN_STORE_CALL_CTX_KEY, True)
+            try:
+                event.response = func(*args, **kwargs)
+                return event.response
+            except (DDBlockException, Exception) as e:
+                _record_error(ctx, e)
+                raise
+            finally:
+                ctx.dispatch_ended_event()
+
+    return traced_store_sync
+
+
+def _make_traced_store_async(method_name: str):
+    operation = f"store.{method_name}"
+
+    async def traced_store_async(func, instance, args, kwargs):
+        if core.find_item(_IN_STORE_CALL_CTX_KEY):
+            return await func(*args, **kwargs)
+        event = _request_event(_resource(instance, method_name), operation, args, kwargs, instance=instance)
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            ctx.set_item(_IN_STORE_CALL_CTX_KEY, True)
+            try:
+                event.response = await func(*args, **kwargs)
+                return event.response
+            except (DDBlockException, Exception) as e:
+                _record_error(ctx, e)
+                raise
+            finally:
+                ctx.dispatch_ended_event()
+
+    return traced_store_async
+
+
+def _patch_store_modules():
+    try:
+        from langgraph.store.base import BaseStore
+    except (ImportError, AttributeError):
+        return
+    if getattr(BaseStore, "_datadog_patch", False):
+        return
+    for method_name in _STORE_SYNC_METHODS:
+        if hasattr(BaseStore, method_name):
+            wrap(BaseStore, method_name, _make_traced_store_sync(method_name))
+    for method_name in _STORE_ASYNC_METHODS:
+        if hasattr(BaseStore, method_name):
+            wrap(BaseStore, method_name, _make_traced_store_async(method_name))
+    BaseStore._datadog_patch = True
+
+
+def _unpatch_store_modules():
+    try:
+        from langgraph.store.base import BaseStore
+    except (ImportError, AttributeError):
+        return
+    if not getattr(BaseStore, "_datadog_patch", False):
+        return
+    BaseStore._datadog_patch = False
+    for method_name in _STORE_SYNC_METHODS + _STORE_ASYNC_METHODS:
+        if hasattr(BaseStore, method_name):
+            unwrap(BaseStore, method_name)
+
+
 def patch():
     graph_patched = getattr(langgraph, "_datadog_patch", False)
 
@@ -366,6 +443,8 @@ def patch():
         # this is possible when the module is not fully loaded yet,
         # as prebuilt imports langgraph.graph under the hood
         pass
+
+    _patch_store_modules()
 
 
 def _patch_graph_modules(langgraph):
@@ -432,3 +511,5 @@ def unpatch():
     if hasattr(langgraph, "prebuilt") and getattr(langgraph.prebuilt, "_datadog_patch", False):
         langgraph.prebuilt._datadog_patch = False
         unwrap(prebuilt, "create_react_agent")
+
+    _unpatch_store_modules()

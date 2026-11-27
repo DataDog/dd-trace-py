@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    llmobs: Add agent memory observability via ``LLMObs.memory()``, the ``@memory`` decorator, ``LLMObs.annotate(memory=...)``, LangGraph ``BaseStore`` instrumentation, and native ``memory_*`` tool-call detection.

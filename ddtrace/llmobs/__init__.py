@@ -26,6 +26,8 @@ from ddtrace.llmobs._experiment import MultiEvaluatorResult
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._llmobs import LLMObsSpan
 from ddtrace.llmobs.types import Agent
+from ddtrace.llmobs.types import MemoryAnnotation
+from ddtrace.llmobs.types import MemoryRecord
 from ddtrace.llmobs.types import Prompt
 
 
@@ -33,6 +35,8 @@ __all__ = [
     "LLMObs",
     "LLMObsSpan",
     "Agent",
+    "MemoryAnnotation",
+    "MemoryRecord",
     "Dataset",
     "DatasetRecord",
     "Prompt",

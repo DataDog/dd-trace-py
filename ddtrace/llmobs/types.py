@@ -30,6 +30,48 @@ class Document(TypedDict, total=False):
     score: float
 
 
+class MemoryRecord(TypedDict, total=False):
+    id: str
+    name: str
+    text: str
+    score: float
+    content_hash: str
+
+
+class MemoryAnnotation(TypedDict, total=False):
+    operation: str
+    type: str
+    memory_type: str
+    scope: str
+    store_id: str
+    provider: str
+    detection_source: str
+    principal: str
+    principal_hash: str
+    tenant_id: str
+    tenant_hash: str
+    namespace: str
+    query: str
+    records: list[MemoryRecord]
+    content: str
+    record_ids: list[str]
+    content_hashes: list[str]
+    record_count: int
+    hit: bool
+    top_score: float
+    mean_score: float
+    injected_tokens: int
+    duplicate_count: int
+    provenance_source: str
+    provenance_span_id: str
+    write_outcome: str
+    superseded_count: int
+    pre_write_bytes: int
+    post_write_bytes: int
+    size_delta_bytes: int
+    compaction_ratio: float
+
+
 class ToolCallFunction(TypedDict):
     name: str
     arguments: str

@@ -6,6 +6,7 @@ from typing import Union
 from ddtrace.contrib.internal.anthropic._constants import TAG_MODEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
@@ -26,6 +27,10 @@ from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
+from ddtrace.llmobs._memory import MEMORY_HIT_METRIC_KEY
+from ddtrace.llmobs._memory import build_memory_annotation
+from ddtrace.llmobs._memory import hash_content
+from ddtrace.llmobs._memory import hash_identifier
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
@@ -37,6 +42,135 @@ log = get_logger(__name__)
 _ANTHROPIC_MODEL_PROVIDER = "anthropic"
 _BEDROCK_MODEL_PROVIDER = "amazon"
 _VERTEX_MODEL_PROVIDER = "google"
+
+_ANTHROPIC_MEMORY_COMMAND_MAP: dict[str, str] = {
+    "view": "get_memory",
+    "create": "create_memory",
+    "str_replace": "update_memory",
+    "insert": "update_memory",
+    "rename": "update_memory",
+    "delete": "delete_memory",
+}
+_ANTHROPIC_MEMORY_OUTCOME_MAP: dict[str, str] = {
+    "create": "add",
+    "str_replace": "update",
+    "insert": "update",
+    "rename": "update",
+    "delete": "delete",
+}
+
+
+def _extract_anthropic_memory_telemetry(
+    tools: Optional[Any],
+    response: Optional[Any],
+) -> Optional[tuple[dict[str, Any], dict[str, str], dict[str, float]]]:
+    if response is None:
+        return None
+    content = _get_attr(response, "content", None)
+    if not isinstance(content, list):
+        return None
+
+    memory_tool_names: set[str] = set()
+    if isinstance(tools, Iterable) and not isinstance(tools, (str, bytes, dict)):
+        for tool in tools:
+            tool_type = _get_attr(tool, "type", None)
+            if isinstance(tool_type, str) and tool_type.startswith("memory_"):
+                tool_name = _get_attr(tool, "name", None)
+                memory_tool_names.add(tool_name if isinstance(tool_name, str) and tool_name else "memory")
+    if not memory_tool_names:
+        return None
+
+    calls: list[tuple[str, str]] = []
+    call_sizes: list[tuple[str, Optional[int], Optional[int]]] = []
+    paths: list[str] = []
+    content_hashes: list[str] = []
+
+    for block in content:
+        block_type = str(_get_attr(block, "type", "") or "")
+        if "tool_use" not in block_type:
+            continue
+        block_name = _get_attr(block, "name", None)
+        if not isinstance(block_name, str) or block_name not in memory_tool_names:
+            continue
+        block_input = _get_attr(block, "input", None)
+        if isinstance(block_input, str):
+            block_input = safe_load_json(block_input)
+        if not isinstance(block_input, dict):
+            continue
+        command = block_input.get("command")
+        if not isinstance(command, str) or command not in _ANTHROPIC_MEMORY_COMMAND_MAP:
+            continue
+
+        op = _ANTHROPIC_MEMORY_COMMAND_MAP[command]
+        path = block_input.get("path") or block_input.get("new_path") or block_input.get("old_path")
+        if isinstance(path, str) and path:
+            paths.append(hash_identifier(path))
+        calls.append((op, command))
+
+        call_pre: Optional[int] = None
+        call_post: Optional[int] = None
+        if command == "str_replace":
+            old_str = block_input.get("old_str")
+            new_str = block_input.get("new_str")
+            if isinstance(old_str, str):
+                call_pre = len(old_str.encode("utf-8"))
+            if isinstance(new_str, str):
+                call_post = len(new_str.encode("utf-8"))
+                if new_str:
+                    content_hashes.append(hash_content(new_str))
+        elif command == "create":
+            file_text = block_input.get("file_text")
+            if isinstance(file_text, str):
+                call_pre = 0
+                call_post = len(file_text.encode("utf-8"))
+                if file_text:
+                    content_hashes.append(hash_content(file_text))
+        elif command == "insert":
+            insert_text = block_input.get("insert_text")
+            if not isinstance(insert_text, str):
+                insert_text = block_input.get("new_str")
+            if isinstance(insert_text, str):
+                call_post = len(insert_text.encode("utf-8"))
+                if insert_text:
+                    content_hashes.append(hash_content(insert_text))
+        call_sizes.append((op, call_pre, call_post))
+
+    if not calls:
+        return None
+
+    write_calls = [c for c in calls if c[1] in _ANTHROPIC_MEMORY_OUTCOME_MAP]
+    primary_op, primary_cmd = write_calls[-1] if write_calls else calls[-1]
+    memory_input: dict[str, Any] = {
+        "operation": primary_op,
+        "provider": "anthropic",
+        "detection_source": "explicit",
+        "record_count": len(calls),
+    }
+    if paths:
+        memory_input["record_ids"] = paths
+    if content_hashes:
+        memory_input["content_hashes"] = content_hashes
+    outcome = _ANTHROPIC_MEMORY_OUTCOME_MAP.get(primary_cmd)
+    if outcome:
+        memory_input["write_outcome"] = outcome
+
+    matching_sizes = [(pre, post) for op, pre, post in call_sizes if op == primary_op]
+    paired_sizes = [(pre, post) for pre, post in matching_sizes if pre is not None and post is not None]
+    if paired_sizes:
+        memory_input["pre_write_bytes"] = sum(pre for pre, _ in paired_sizes)
+        memory_input["post_write_bytes"] = sum(post for _, post in paired_sizes)
+    else:
+        pre_only = [pre for pre, post in matching_sizes if pre is not None and post is None]
+        post_only = [post for pre, post in matching_sizes if pre is None and post is not None]
+        if post_only and not pre_only:
+            memory_input["post_write_bytes"] = sum(post_only)
+        elif pre_only and not post_only:
+            memory_input["pre_write_bytes"] = sum(pre_only)
+
+    mem_meta, mem_tags, mem_metrics, _, _ = build_memory_annotation(memory_input)
+    # A tool_use request has not executed yet, so hit/miss is unknown on the LLM span.
+    mem_metrics.pop(MEMORY_HIT_METRIC_KEY, None)
+    return mem_meta, mem_tags, mem_metrics
 
 
 def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, str], str]]:
@@ -113,6 +247,16 @@ class AnthropicIntegration(BaseLLMIntegration):
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
 
+        memory_tags: Optional[dict[str, str]] = None
+        if span_kind != "workflow":
+            tools = kwargs.get("tools") or (extra_body.get("tools") if isinstance(extra_body, dict) else None)
+            memory_telemetry = _extract_anthropic_memory_telemetry(tools, response)
+            if memory_telemetry is not None:
+                mem_meta, memory_tags, mem_metrics = memory_telemetry
+                parameters["memory"] = mem_meta
+                if mem_metrics:
+                    metrics = {**(metrics or {}), **mem_metrics}
+
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
@@ -122,6 +266,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             metadata=parameters,
             output_messages=output_messages,
             metrics=metrics,
+            tags=memory_tags,
             tool_definitions=tool_definitions,
         )
 
