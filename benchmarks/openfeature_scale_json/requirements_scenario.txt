@@ -1,0 +1,2 @@
+# The scenario builds an openfeature EvaluationContext directly.
+openfeature-sdk~=0.8.0
