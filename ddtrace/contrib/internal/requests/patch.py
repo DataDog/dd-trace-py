@@ -3,9 +3,9 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 
 from .connection import _wrap_adapter_send
@@ -45,11 +45,7 @@ def patch():
     requests.__datadog_patch = True
 
     _w("requests", "Session.send", _wrap_send)
-    # IAST needs to wrap this function because `Session.send` is too late
-    if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-
-        _w("requests", "Session.request", _wrap_request)
+    integration_hooks.on_patch("requests")
 
 
 def unpatch():
@@ -58,11 +54,7 @@ def unpatch():
         return
     requests.__datadog_patch = False
 
-    try:
-        _u(requests.Session, "request")
-    except AttributeError:
-        # It was not patched
-        pass
+    integration_hooks.on_unpatch("requests")
     try:
         _u(requests.Session, "send")
     except AttributeError:

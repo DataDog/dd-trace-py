@@ -1,4 +1,3 @@
-import functools
 import http.client as httplib
 import sys
 from urllib import parse
@@ -15,13 +14,13 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
@@ -81,12 +80,6 @@ def _wrap_getresponse(func, instance, args, kwargs):
             log.debug("error applying request tags", exc_info=True)
 
 
-def _call_asm_wrap(func, instance, *args, **kwargs):
-    from ddtrace.appsec._common_module_patches import wrapped_http_client_request
-
-    wrapped_http_client_request(func, instance, args, kwargs)
-
-
 def _finish_span(instance, exc_info=None):
     """Finish the connection's span and detach it: _wrap_putrequest adopts any span still
     attached, so a finished one left behind silences the next request on that connection.
@@ -102,14 +95,9 @@ def _finish_span(instance, exc_info=None):
 
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    if asm_config._asm_enabled and asm_config._ep_enabled:
-        func_to_call = functools.partial(_call_asm_wrap, func, instance)
-    else:
-        func_to_call = func
-
     pin = Pin.get_from(instance)
     if should_skip_request(pin, instance):
-        return func_to_call(*args, **kwargs)
+        return func(*args, **kwargs)
 
     cfg = pin._config
 
@@ -144,7 +132,7 @@ def _wrap_request(func, instance, args, kwargs):
         _finish_span(instance)
 
     try:
-        return func_to_call(*args, **kwargs)
+        return func(*args, **kwargs)
     except BaseException:
         # AIDEV-NOTE: AppSec RASP blocks an outgoing request by raising BlockingException, which
         # derives from BaseException, so this guard must not be narrowed to Exception.
@@ -243,6 +231,7 @@ def patch():
     httplib.HTTPConnection.request = wrapt.FunctionWrapper(httplib.HTTPConnection.request, _wrap_request)
     httplib.HTTPConnection.putrequest = wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest)
     httplib.HTTPConnection.putheader = wrapt.FunctionWrapper(httplib.HTTPConnection.putheader, _wrap_putheader)
+    integration_hooks.on_patch("httplib")
 
 
 def unpatch():
@@ -251,6 +240,8 @@ def unpatch():
         return
     httplib.__datadog_patch = False
 
+    # Products wrap on top of the integration, so they unwrap first.
+    integration_hooks.on_unpatch("httplib")
     _u(httplib.HTTPConnection, "__init__")
     _u(httplib.HTTPConnection, "getresponse")
     _u(httplib.HTTPConnection, "request")
