@@ -15,7 +15,9 @@ integrating with::
 
 Integrations must avoid changing the contract between the application and the integrated library. That is, they
 should be completely invisible to the application code. This means integration code should, for example,
-re-raise exceptions after catching them.
+re-raise exceptions after catching them. A wrapper that ends its context itself (``dispatch_end_event=False``,
+for example around a stream) should catch ``(Exception, DDBlockException)``: a product can stop the call with a
+``DDBlockException``, which is a ``BaseException``, and the context must still end.
 
 Integrations shouldn't include any code that references concepts that are specific to Datadog Products. Examples
 include Tracing Spans and the AppSec WAF.

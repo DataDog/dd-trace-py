@@ -1,6 +1,8 @@
 import pytest
 
 from ddtrace.contrib.internal.litellm.patch import get_version
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
@@ -312,3 +314,83 @@ async def test_litellm_router_astream_handler_attribute(litellm, request_vcr, ro
         assert len(spans[0]) > 0, "Should have created at least one span"
         span = spans[0][0]
         assert span.duration > 0, "Span should be finished with a duration set"
+
+
+class _StopCall(DDBlockException):
+    pass
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_litellm_call_events(litellm, request_vcr, stream):
+    calls = []
+
+    def before(state, args, kwargs):
+        state["seen"] = True
+        calls.append(("before", kwargs.get("model")))
+
+    def after(state, args, kwargs, response):
+        calls.append(("after", state.get("seen"), response is not None))
+
+    def finally_(state):
+        calls.append(("finally", state.get("seen")))
+
+    listeners = [
+        ("litellm.completion.before", before),
+        ("litellm.completion.after", after),
+        ("litellm.completion.finally", finally_),
+        ("litellm.acompletion.before", before),
+        ("litellm.acompletion.after", after),
+        ("litellm.acompletion.finally", finally_),
+    ]
+    for event_id, listener in listeners:
+        core.on(event_id, listener)
+    try:
+        messages = [{"content": "Hey, what is up?", "role": "user"}]
+        with request_vcr.use_cassette(get_cassette_name(stream, 1)):
+            resp = litellm.completion(model="gpt-3.5-turbo", messages=messages, stream=stream)
+            if stream:
+                for _ in resp:
+                    pass
+        with request_vcr.use_cassette(get_cassette_name(stream, 1)):
+            resp = await litellm.acompletion(model="gpt-3.5-turbo", messages=messages, stream=stream)
+            if stream:
+                async for _ in resp:
+                    pass
+    finally:
+        for event_id, listener in listeners:
+            core.reset_listeners(event_id, listener)
+
+    # A streamed call dispatches no after event: its answer arrives later, chunk by chunk.
+    one_call = [("before", "gpt-3.5-turbo")] + ([] if stream else [("after", True, True)]) + [("finally", True)]
+    assert calls == one_call * 2
+
+
+@pytest.mark.parametrize("step", ["before", "finally"])
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("use_router", [False, True])
+async def test_litellm_stream_base_exception_finishes_span(
+    litellm, request_vcr, router, test_spans, use_router, is_async, step
+):
+    def stop(*args):
+        raise _StopCall()
+
+    operation = "acompletion" if is_async else "completion"
+    event_id = f"litellm.{operation}.{step}"
+    target = router if use_router else litellm
+    core.on(event_id, stop)
+    try:
+        messages = [{"content": "Hey, what is up?", "role": "user"}]
+        # The finally event runs after the provider returned the stream.
+        with request_vcr.use_cassette(get_cassette_name(stream=True, n=1)), pytest.raises(_StopCall):
+            if is_async:
+                await target.acompletion(model="gpt-3.5-turbo", messages=messages, stream=True)
+            else:
+                target.completion(model="gpt-3.5-turbo", messages=messages, stream=True)
+    finally:
+        core.reset_listeners(event_id, stop)
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert spans, "The call should have created a span"
+    for span in spans:
+        assert span.duration is not None, f"{span.resource} span should be finished"
+        assert span.error == 1
