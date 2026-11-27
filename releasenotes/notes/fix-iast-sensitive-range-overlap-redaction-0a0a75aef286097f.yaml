@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: Fixes an issue where sensitive values could remain unredacted when sensitive
+    and tainted ranges overlap, or when a tainted source is reported by multiple vulnerabilities.

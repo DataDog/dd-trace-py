@@ -9,8 +9,15 @@ import pytest
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import SensitiveHandler
 from ddtrace.appsec._iast._evidence_redaction.default_sensitive_analyzer import default_sensitive_analyzer
 from ddtrace.appsec._iast._report_types import Evidence
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import MAX_REDACTION_VALUE_LENGTH
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.reporter import IastSpanReporter
+from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
+from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -186,33 +193,166 @@ class TestSensitiveSpanningTaintedBoundary:
         assert "password" not in full_text, "Sensitive content leaked across tainted boundary"
 
 
-class TestRemoveMethod:
-    """Unit tests for SensitiveHandler._remove."""
+class TestRangeRedactionEdgeCases:
+    """Overlap, bounds, and multi-source edge cases in SensitiveHandler.to_redacted_json."""
 
-    def test_no_intersection(self):
+    @pytest.mark.parametrize(
+        "evidence,sensitive,tainted,source_value,expected_parts",
+        [
+            # Sensitive range starts before a transformed tainted range.
+            (
+                "X-Custom: Bearer secret",
+                [{"start": 10, "end": 23}],
+                [(11, 13)],
+                "hello",
+                [
+                    {"value": "X-Custom: "},
+                    {"redacted": True},
+                    {"redacted": True, "source": 0, "pattern": "**"},
+                    {"redacted": True},
+                ],
+            ),
+            # Partial left overlap with transformed taint extending past sensitive end.
+            (
+                "Bearer secret",
+                [{"start": 0, "end": 7}],
+                [(5, 10)],
+                "hello",
+                [
+                    {"redacted": True},
+                    {"redacted": True, "source": 0, "pattern": "**"},
+                    {"source": 0, "value": "sec"},
+                    {"value": "ret"},
+                ],
+            ),
+            # Transformed taint whose sensitive slice appears past len(part_value) in source.value.
+            (
+                "xy!",
+                [{"start": 0, "end": 1}, {"start": 1, "end": 2}],
+                [(0, 3)],
+                "xay---xy",
+                [{"redacted": True, "source": 0, "pattern": "gh"}, {"source": 0, "value": "!"}],
+            ),
+            # Empty sensitive marker inside tainted delimiters.
+            (
+                "SELECT ''",
+                [{"start": 8, "end": 8}],
+                [(7, 9)],
+                "''",
+                [
+                    {"value": "SELECT "},
+                    {"value": "'", "source": 0},
+                    {"redacted": True},
+                    {"value": "'", "source": 0},
+                ],
+            ),
+            # Out-of-order, overlapping, inverted, and negative-start sensitive ranges.
+            (
+                "abcd",
+                [{"start": 1, "end": 4}, {"start": -1, "end": 1}, {"start": 3, "end": 2}],
+                [],
+                "",
+                [{"redacted": True}],
+            ),
+        ],
+    )
+    def test_overlap_and_normalization_cases(self, evidence, sensitive, tainted, source_value, expected_parts):
         handler = SensitiveHandler()
-        result = handler._remove({"start": 0, "end": 5}, {"start": 10, "end": 15})
-        assert result == [{"start": 0, "end": 5}]
+        src = _make_source(name="q", value=source_value)
+        sensitive_copy = copy.deepcopy(sensitive)
+        tainted_ranges = [{"start": s, "end": e, "source": src} for s, e in tainted]
+        tainted_copy = list(tainted_ranges)
+        result = handler.to_redacted_json(evidence, sensitive, tainted_ranges, [src] if tainted else [])
 
-    def test_full_containment(self):
-        handler = SensitiveHandler()
-        result = handler._remove({"start": 5, "end": 10}, {"start": 0, "end": 15})
-        assert result == []
+        assert sensitive == sensitive_copy
+        assert tainted_ranges == tainted_copy
+        assert result["redacted_value_parts"] == expected_parts
 
-    def test_partial_overlap_left(self):
+    @pytest.mark.parametrize(
+        "s0_kwargs,s1_kwargs",
+        [
+            (
+                {"name": "q", "value": "hello", "origin": OriginType.HEADER},
+                {"name": "user", "value": "world", "origin": OriginType.QUERY},
+            ),
+            (
+                {"name": "p", "value": "first", "origin": OriginType.PARAMETER},
+                {"name": "p", "value": "xy", "origin": OriginType.PARAMETER},
+            ),
+        ],
+    )
+    def test_multi_source_overlap_redacts_matching_source(self, s0_kwargs, s1_kwargs):
         handler = SensitiveHandler()
-        result = handler._remove({"start": 5, "end": 15}, {"start": 0, "end": 10})
-        assert result == [{"start": 10, "end": 15}]
+        s0, s1 = _make_source(**s0_kwargs), _make_source(**s1_kwargs)
+        result = handler.to_redacted_json(
+            "-- zxy!",
+            [{"start": 3, "end": 6}],
+            [{"start": 4, "end": 6, "source": s1}],
+            [s0, s1],
+        )
 
-    def test_partial_overlap_right(self):
-        handler = SensitiveHandler()
-        result = handler._remove({"start": 0, "end": 10}, {"start": 5, "end": 15})
-        assert result == [{"start": 0, "end": 5}]
+        assert result["redacted_sources"] == [1]
+        assert not s0.redacted
+        assert s1.redacted
+        plain = "".join(p["value"] for p in result["redacted_value_parts"] if "value" in p)
+        assert "xy" not in plain
 
-    def test_remove_middle_produces_two_residuals(self):
+    @pytest.mark.parametrize(
+        "sensitive,tainted", [([{"start": 0, "end": 3}], (0, 3)), ([{"start": 0, "end": 5}], (2, 4))]
+    )
+    def test_unresolved_source_fails_closed(self, sensitive, tainted):
         handler = SensitiveHandler()
-        result = handler._remove({"start": 0, "end": 20}, {"start": 5, "end": 15})
-        assert result == [{"start": 0, "end": 5}, {"start": 15, "end": 20}]
+        missing = _make_source(name="missing", value="abc")
+        result = handler.to_redacted_json(
+            "abcde",
+            sensitive,
+            [{"start": tainted[0], "end": tainted[1], "source": missing}],
+            [],
+        )
+
+        assert all(p.get("source") != -1 for p in result["redacted_value_parts"])
+        assert "abc" not in "".join(p["value"] for p in result["redacted_value_parts"] if "value" in p)
+
+    @pytest.mark.parametrize(
+        "source_name,second_prefix,second_suffix",
+        [
+            ("param", "SELECT '", "'"),
+            ("password", "SELECT * FROM t ORDER BY ", ""),
+        ],
+    )
+    @pytest.mark.parametrize("reverse_order", [False, True])
+    def test_shared_source_redacted_across_multiple_vulnerabilities(
+        self, iast_context_defaults, source_name, second_prefix, second_suffix, reverse_order
+    ):
+        t1 = taint_pyobject(
+            pyobject="QX", source_name=source_name, source_value="QXMN", source_origin=OriginType.PARAMETER
+        )
+        t2 = taint_pyobject(
+            pyobject="MN", source_name=source_name, source_value="QXMN", source_origin=OriginType.PARAMETER
+        )
+        v1 = Vulnerability(
+            type=VULN_SQL_INJECTION,
+            evidence=Evidence(value=add_aspect("SELECT '", add_aspect(t1, "'"))),
+            location=Location(path="a.py", line=1, spanId=1),
+        )
+        v2 = Vulnerability(
+            type=VULN_SQL_INJECTION,
+            evidence=Evidence(value=add_aspect(second_prefix, add_aspect(t2, second_suffix))),
+            location=Location(path="a.py", line=2, spanId=1),
+        )
+        vulns = [v2, v1] if reverse_order else [v1, v2]
+        report = IastSpanReporter(vulnerabilities=set(vulns))
+        for v in vulns:
+            report.add_ranges_to_evidence_and_extract_sources(v)
+        report.vulnerabilities = vulns  # type: ignore[assignment]
+        result = report.build_and_scrub_value_parts()
+
+        assert len(result["sources"]) == 1
+        assert result["sources"][0]["redacted"] is True
+        assert "value" not in result["sources"][0]
+        for vuln in result["vulnerabilities"]:
+            plain = "".join(p["value"] for p in vuln["evidence"]["valueParts"] if "value" in p)
+            assert "QX" not in plain and "MN" not in plain
 
 
 _JWT = (

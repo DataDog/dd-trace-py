@@ -59,67 +59,6 @@ class SensitiveHandler:
             VULN_UNTRUSTED_SERIALIZATION: default_sensitive_analyzer,
         }
 
-    @staticmethod
-    def _contains(range_container, range_contained):
-        """
-        Checks if a range_container contains another range_contained.
-
-        Args:
-        - range_container (dict): The container range.
-        - range_contained (dict): The contained range.
-
-        Returns:
-        - bool: True if range_container contains range_contained, False otherwise.
-        """
-        if range_container["start"] > range_contained["start"]:
-            return False
-        return range_container["end"] >= range_contained["end"]
-
-    @staticmethod
-    def _intersects(range_a, range_b):
-        """
-        Checks if two ranges intersect.
-
-        Args:
-        - range_a (dict): First range.
-        - range_b (dict): Second range.
-
-        Returns:
-        - bool: True if the ranges intersect, False otherwise.
-        """
-        return range_b["start"] < range_a["end"] and range_b["end"] > range_a["start"]
-
-    def _remove(self, range_, range_to_remove):
-        """
-        Removes a range_to_remove from a range_.
-
-        Args:
-        - range_ (dict): The range to remove from.
-        - range_to_remove (dict): The range to remove.
-
-        Returns:
-        - list: List containing the remaining parts after removing the range_to_remove.
-        """
-        if not self._intersects(range_, range_to_remove):
-            return [range_]
-        elif self._contains(range_to_remove, range_):
-            return []
-        else:
-            result = []
-            if range_to_remove["start"] > range_["start"]:
-                offset = range_to_remove["start"] - range_["start"]
-                result.append({"start": range_["start"], "end": range_["start"] + offset})
-            if range_to_remove["end"] < range_["end"]:
-                offset = range_["end"] - range_to_remove["end"]
-                result.append({"start": range_to_remove["end"], "end": range_to_remove["end"] + offset})
-            return result
-
-    @staticmethod
-    def _requeue_sensitive(sensitive, entries):
-        for extra in entries:
-            idx = next((k for k, s in enumerate(sensitive) if s["start"] > extra["start"]), len(sensitive))
-            sensitive.insert(idx, extra)
-
     def is_sensible_name(self, name):
         """
         Checks if a name is sensible based on the name pattern.
@@ -212,6 +151,74 @@ class SensitiveHandler:
                 return self.to_redacted_json(evidence.value, sensitive_ranges, tainted_ranges, sources)
         return None
 
+    @staticmethod
+    def _normalize_sensitive_ranges(ranges, max_end):
+        non_empty = []
+        empty_positions = set()
+        for r in ranges:
+            start, end = r["start"], r["end"]
+            if start > end or end < 0 or start > max_end:
+                continue
+            if start == end:
+                empty_positions.add(start)
+            else:
+                clipped_start = max(0, start)
+                clipped_end = min(max_end, end)
+                if clipped_start < clipped_end:
+                    non_empty.append((clipped_start, clipped_end))
+        non_empty.sort()
+        merged = []
+        for start, end in non_empty:
+            if merged and start <= merged[-1][1]:
+                if end > merged[-1][1]:
+                    merged[-1] = (merged[-1][0], end)
+            else:
+                merged.append((start, end))
+        empty_markers = []
+        m_idx = 0
+        for pos in sorted(empty_positions):
+            while m_idx < len(merged) and merged[m_idx][1] < pos:
+                m_idx += 1
+            if m_idx < len(merged) and merged[m_idx][0] <= pos <= merged[m_idx][1]:
+                continue
+            empty_markers.append(pos)
+        return merged, empty_markers
+
+    @staticmethod
+    def _sensitive_slices(seg_start, seg_end, sensitive, empty_markers):
+        slices = [(max(s, seg_start), min(e, seg_end)) for s, e in sensitive if s < seg_end and e > seg_start]
+        for pos in empty_markers:
+            if seg_start <= pos < seg_end:
+                slices.append((pos, pos))
+        if len(slices) > 1:
+            slices.sort()
+        return slices
+
+    @staticmethod
+    def _mark_source_redacted(source_index, source, redacted_sources):
+        if source_index not in redacted_sources:
+            redacted_sources.append(source_index)
+        if not source.redacted:
+            source.pattern = get_redacted_source(len(source.value)) if source.value else ""
+            source.redacted = True
+
+    @staticmethod
+    def _redacted_pattern_for_chunk(chunk, source):
+        idx = source.value.find(chunk) if source.value is not None else -1
+        if idx > -1 and source.pattern and idx + len(chunk) <= len(source.pattern):
+            return source.pattern[idx : idx + len(chunk)]
+        return "*" * len(chunk)
+
+    def _emit_untainted_segment(self, value_parts, evidence_value, seg_start, seg_end, slices):
+        pos = seg_start
+        for s_start, s_end in slices:
+            if s_start > pos:
+                self.write_value_part(value_parts, evidence_value[pos:s_start])
+            value_parts.append({"redacted": True})
+            pos = s_end
+        if pos < seg_end:
+            self.write_value_part(value_parts, evidence_value[pos:seg_end])
+
     def to_redacted_json(self, evidence_value, sensitive, tainted_ranges, sources):
         """
         Converts evidence value to redacted JSON format.
@@ -227,129 +234,65 @@ class SensitiveHandler:
         """
         value_parts = []
         redacted_sources = []
-        redacted_sources_context = dict()
+        length = len(evidence_value)
+        merged_sensitive, empty_markers = self._normalize_sensitive_ranges(sensitive, length)
 
-        start = 0
-        next_tainted_index = 0
-        source_index = None
+        normalized_tainted = sorted(
+            (
+                (max(0, tr["start"]), min(length, tr["end"]), tr["source"])
+                for tr in (tainted_ranges or [])
+                if tr["start"] < tr["end"] and tr["end"] > 0 and tr["start"] < length
+            ),
+            key=lambda item: (item[0], item[1]),
+        )
 
-        next_tainted = tainted_ranges.pop(0) if tainted_ranges else None
-        next_sensitive = sensitive.pop(0) if sensitive else None
-        i = 0
-        while i < len(evidence_value):
-            if next_tainted and next_tainted["start"] == i:
-                self.write_value_part(value_parts, evidence_value[start:i], source_index)
+        cursor = 0
+        for t_start, t_end, taint_source in normalized_tainted:
+            t_start = max(t_start, cursor)
+            if t_start >= t_end:
+                continue
 
-                source_index = _get_source_index(sources, next_tainted["source"])
+            if t_start > cursor:
+                gap_slices = self._sensitive_slices(cursor, t_start, merged_sensitive, empty_markers)
+                self._emit_untainted_segment(value_parts, evidence_value, cursor, t_start, gap_slices)
 
-                while next_sensitive and self._contains(next_tainted, next_sensitive):
-                    redaction_start = next_sensitive["start"] - next_tainted["start"]
-                    redaction_end = next_sensitive["end"] - next_tainted["start"]
-                    if redaction_start == redaction_end:
-                        self.write_redacted_value_part(value_parts, 0)
-                    else:
-                        self.redact_source(
-                            sources,
-                            redacted_sources,
-                            redacted_sources_context,
-                            source_index,
-                            redaction_start,
-                            redaction_end,
-                        )
-                    next_sensitive = sensitive.pop(0) if sensitive else None
-
-                if next_sensitive and self._intersects(next_sensitive, next_tainted):
-                    redaction_start = next_sensitive["start"] - next_tainted["start"]
-                    redaction_end = next_sensitive["end"] - next_tainted["start"]
-
-                    self.redact_source(
-                        sources,
-                        redacted_sources,
-                        redacted_sources_context,
-                        source_index,
-                        redaction_start,
-                        redaction_end,
+            tainted_slices = self._sensitive_slices(t_start, t_end, merged_sensitive, empty_markers)
+            source_index = _get_source_index(sources, taint_source)
+            if not (0 <= source_index < len(sources)):
+                self._emit_untainted_segment(value_parts, evidence_value, t_start, t_end, tainted_slices)
+            else:
+                source = sources[source_index]
+                if self.is_sensible_source(source):
+                    self._mark_source_redacted(source_index, source, redacted_sources)
+                    part_value = evidence_value[t_start:t_end]
+                    pattern = (
+                        source.pattern
+                        if part_value and source.value is not None and part_value in source.value
+                        else "*" * len(part_value)
                     )
-
-                    entries = self._remove(next_sensitive, next_tainted)
-                    next_sensitive = entries[0] if entries else None
-                    self._requeue_sensitive(sensitive, entries[1:])
-
-                if source_index < len(sources):
-                    if not sources[source_index].redacted and self.is_sensible_source(sources[source_index]):
-                        redacted_sources.append(source_index)
-                        sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
-                        sources[source_index].redacted = True
-
-                if source_index in redacted_sources:
-                    part_value = evidence_value[i : i + (next_tainted["end"] - next_tainted["start"])]
-
-                    self.write_redacted_value_part(
-                        value_parts,
-                        len(part_value),
-                        source_index,
-                        part_value,
-                        sources[source_index],
-                        redacted_sources_context.get(source_index),
-                        self.is_sensible_source(sources[source_index]),
-                    )
-                    redacted_sources_context[source_index] = []
+                    value_parts.append({"redacted": True, "source": source_index, "pattern": pattern})
                 else:
-                    substring_end = min(next_tainted["end"], len(evidence_value))
-                    self.write_value_part(
-                        value_parts, evidence_value[next_tainted["start"] : substring_end], source_index
-                    )
+                    if any(s_start < s_end for s_start, s_end in tainted_slices):
+                        self._mark_source_redacted(source_index, source, redacted_sources)
+                    pos = t_start
+                    for s_start, s_end in tainted_slices:
+                        if s_start > pos:
+                            value_parts.append({"value": evidence_value[pos:s_start], "source": source_index})
+                        if s_start == s_end:
+                            value_parts.append({"redacted": True})
+                        else:
+                            pattern = self._redacted_pattern_for_chunk(evidence_value[s_start:s_end], source)
+                            value_parts.append({"redacted": True, "source": source_index, "pattern": pattern})
+                        pos = s_end
+                    if pos < t_end:
+                        value_parts.append({"value": evidence_value[pos:t_end], "source": source_index})
 
-                start = i + (next_tainted["end"] - next_tainted["start"])
-                i = start - 1
-                next_tainted = tainted_ranges.pop(0) if tainted_ranges else None
-                next_tainted_index += 1
-                source_index = None
-                continue
-            elif next_sensitive and next_sensitive["start"] == i:
-                self.write_value_part(value_parts, evidence_value[start:i], source_index)
-                if next_tainted and self._intersects(next_sensitive, next_tainted):
-                    source_index = next_tainted_index
+            cursor = t_end
 
-                    redaction_start = next_sensitive["start"] - next_tainted["start"]
-                    redaction_end = next_sensitive["end"] - next_tainted["start"]
-                    self.redact_source(
-                        sources,
-                        redacted_sources,
-                        redacted_sources_context,
-                        next_tainted_index,
-                        redaction_start,
-                        redaction_end,
-                    )
-
-                    entries = self._remove(next_sensitive, next_tainted)
-                    next_sensitive = entries[0] if entries else None
-                    self._requeue_sensitive(sensitive, entries[1:])
-
-                length = next_sensitive["end"] - next_sensitive["start"]
-                self.write_redacted_value_part(value_parts, length)
-
-                start = i + length
-                i = start - 1
-                next_sensitive = sensitive.pop(0) if sensitive else None
-                continue
-            i += 1
-        if start < len(evidence_value):
-            self.write_value_part(value_parts, evidence_value[start:])
+        tail_slices = self._sensitive_slices(cursor, length, merged_sensitive, empty_markers)
+        self._emit_untainted_segment(value_parts, evidence_value, cursor, length, tail_slices)
 
         return {"redacted_value_parts": value_parts, "redacted_sources": redacted_sources}
-
-    def redact_source(self, sources, redacted_sources, redacted_sources_context, source_index, start, end):
-        if source_index is not None and source_index < len(sources):
-            if not sources[source_index].redacted:
-                redacted_sources.append(source_index)
-                sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
-                sources[source_index].redacted = True
-
-            if source_index not in redacted_sources_context.keys():
-                redacted_sources_context[source_index] = []
-
-            redacted_sources_context[source_index].append({"start": start, "end": end})
 
     def write_value_part(self, value_parts, value, source_index=None):
         if value:
@@ -359,58 +302,6 @@ class SensitiveHandler:
                 value_parts.append({"value": value})
             else:
                 value_parts.append({"redacted": True})
-
-    def write_redacted_value_part(
-        self,
-        value_parts,
-        length,
-        source_index=None,
-        part_value=None,
-        source=None,
-        source_redaction_context=None,
-        is_sensible_source=False,
-    ):
-        if source_index is not None:
-            placeholder = source.pattern if part_value and part_value in source.value else "*" * length
-
-            if is_sensible_source:
-                value_parts.append({"redacted": True, "source": source_index, "pattern": placeholder})
-            else:
-                _value = part_value
-                deduped_source_redaction_contexts = []
-
-                for _source_redaction_context in source_redaction_context:
-                    if _source_redaction_context not in deduped_source_redaction_contexts:
-                        deduped_source_redaction_contexts.append(_source_redaction_context)
-
-                offset = 0
-                for _source_redaction_context in deduped_source_redaction_contexts:
-                    if _source_redaction_context["start"] > 0:
-                        value_parts.append(
-                            {"source": source_index, "value": _value[: _source_redaction_context["start"] - offset]}
-                        )
-                        _value = _value[_source_redaction_context["start"] - offset :]
-                        offset = _source_redaction_context["start"]
-
-                    sensitive_start = _source_redaction_context["start"] - offset
-                    if sensitive_start < 0:
-                        sensitive_start = 0
-                    sensitive = _value[sensitive_start : _source_redaction_context["end"] - offset]
-                    index_of_part_value_in_pattern = source.value.find(sensitive)
-
-                    pattern = (
-                        placeholder[index_of_part_value_in_pattern : index_of_part_value_in_pattern + len(sensitive)]
-                        if index_of_part_value_in_pattern > -1
-                        else placeholder[_source_redaction_context["start"] : _source_redaction_context["end"]]
-                    )
-                    value_parts.append({"redacted": True, "source": source_index, "pattern": pattern})
-                    _value = _value[len(pattern) :]
-                    offset += len(pattern)
-                if _value:
-                    value_parts.append({"source": source_index, "value": _value})
-
-        else:
-            value_parts.append({"redacted": True})
 
     def set_redaction_patterns(self, redaction_name_pattern=None, redaction_value_pattern=None):
         if redaction_name_pattern:
