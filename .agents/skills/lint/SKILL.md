@@ -4,7 +4,8 @@ description: >
   Run targeted linting, formatting, and code quality checks on modified files.
   Use this to validate code style, type safety, security, and other quality metrics
   before committing. Supports running all checks or targeting specific checks on
-  specific files for efficient validation.
+  specific files for efficient validation. Also covers authoring a new lint or
+  static-analysis rule (ast-grep, ruff, check scripts) from a recurring review theme.
 allowed-tools:
   - Bash
   - Read
@@ -63,3 +64,16 @@ validation only. The full `checks` command already includes the security scan.
 Arguments are passed to each underlying command; consult its interface rather than assuming
 all subcommands accept paths. `checks` stops at the first failure. Report that failure and any
 checks not reached; do not describe a partial run as passing. Avoid unrelated cleanup.
+
+## Authoring a new lint rule
+
+When asked to add a lint or static-analysis rule, or to turn a recurring review comment into
+a check, read [references/authoring-rules.md](references/authoring-rules.md) first. In short:
+
+- Only automate themes that recur on 2+ PRs with accepted human feedback, have a mechanical
+  yes/no criterion, are documented, and are not already enforced.
+- Prefer an existing check, then ruff, then an ast-grep rule in `.sg/rules/` (with fixtures in
+  `.sg/tests/`). Add a new `scripts/check_*.py` only when none can express it.
+- Rules must be blocking and allow no new violations: fix existing hits in the same PR or
+  allow-list them by exact path. If neither is practical, do not add the rule.
+- One rule per PR, wired into existing blocking CI, no release note for tooling-only changes.
