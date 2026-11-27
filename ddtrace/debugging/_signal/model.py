@@ -14,6 +14,8 @@ from typing import Protocol
 from typing import cast
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvalBudget
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
@@ -59,7 +61,9 @@ class SignalState(str, Enum):
     SKIP_BUDGET = "SKIP_BUDGET"
     SKIP_CAPPED = "SKIP_CAPPED"
     COND_ERROR = "COND_ERROR"
+    COND_TIMEOUT = "COND_TIMEOUT"
     EVAL_ERROR = "EVAL_ERROR"
+    EVAL_TIMEOUT = "EVAL_TIMEOUT"
     DONE = "DONE"
 
 
@@ -90,6 +94,12 @@ class Signal(abc.ABC):
     Used to model the data carried by the signal emitted by a probe when it is
     triggered.
 
+    A signal holds the evaluation budget of its probe invocation and passes
+    it to every expression it evaluates, at entry and at exit alike, so that
+    evaluation_timeout_ms bounds them all together. Only evaluations are
+    charged, not the work in between, such as serializing a snapshot, which
+    capture_timeout_ms bounds separately.
+
     Probes with an evaluation timing will trigger the following logic:
 
     - If the timing is on ENTRY, the probe will trigger on entry and on exit,
@@ -116,6 +126,11 @@ class Signal(abc.ABC):
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=uuid4, init=False)
     _eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
+    _eval_budget: EvalBudget = field(
+        default_factory=lambda: EvalBudget(int(di_config.evaluation_timeout_ms * 1_000_000)),
+        init=False,
+        repr=False,
+    )
 
     def __init_subclass__(cls, probes: tuple[type[Probe], ...] = (), **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -155,16 +170,25 @@ class Signal(abc.ABC):
             return True
 
         t_start = Time.monotonic()
+        eval_timeout_ms = di_config.evaluation_timeout_ms
+        error: Optional[tuple[str, str]] = None
+        error_state = SignalState.COND_ERROR
         try:
-            result = bool(condition.eval(scope))
+            result = bool(condition.eval(scope, self._eval_budget))
+        except EvaluationTimeoutError:
+            error = (condition.dsl, f"Condition evaluation timed out after {eval_timeout_ms}ms")
+            error_state = SignalState.COND_TIMEOUT
         except DDExpressionEvaluationError as e:
-            self._record_evaluation_error(e.dsl, e.error)
-            return False
+            error = (e.dsl, e.error)
         finally:
             self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
 
+        if error is not None:
+            # Timeouts feed the same throttle as evaluation errors
+            self._record_evaluation_error(*error, error_state)
+            return False
+
         # RFC: treat evaluation overruns as guardrail input — feed into the error throttle
-        eval_timeout_ms = di_config.evaluation_timeout_ms
         if self._eval_duration_ms > eval_timeout_ms:
             self._record_evaluation_error(
                 condition.dsl,
@@ -221,6 +245,16 @@ class Signal(abc.ABC):
     def _sampled_out(self) -> bool:
         """Ask the sampler for admission, right before capturing."""
         return self._skipped_by(DebuggerSampler.admit(self.probe))
+
+    @property
+    def __type__(self) -> Optional[str]:
+        """debugger.events.*/debugger.capture.incomplete's event_type tag,
+        and (for LogSignal) the backend wire payload's
+        debugger.snapshot.type field. None here means "no defined
+        event_type yet" (e.g. span probes) -- subclasses override as
+        needed; see LogSignal and Snapshot.
+        """
+        return None
 
     @property
     def session(self) -> Optional[Session]:

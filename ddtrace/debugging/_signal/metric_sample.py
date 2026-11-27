@@ -8,6 +8,7 @@ from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
@@ -20,6 +21,7 @@ from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 
 
 @dataclass
@@ -29,6 +31,10 @@ class MetricSample(LogSignal, probes=(MetricFunctionProbe, MetricLineProbe)):
     __default_timing__ = ProbeEvalTiming.ENTRY
 
     meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
+
+    @property
+    def __type__(self) -> Optional[str]:
+        return "metric"
 
     @classmethod
     def create(
@@ -53,11 +59,19 @@ class MetricSample(LogSignal, probes=(MetricFunctionProbe, MetricLineProbe)):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        if probe.value is None:
+        value_expr = probe.value
+        if value_expr is None:
             value = 1.0
         else:
             try:
-                raw = probe.value(scope)
+                raw = value_expr.eval(scope, self._eval_budget)
+            except EvaluationTimeoutError:
+                self._record_evaluation_error(
+                    value_expr.dsl,
+                    f"Metric value evaluation timed out after {di_config.evaluation_timeout_ms}ms",
+                    SignalState.EVAL_TIMEOUT,
+                )
+                return
             except DDExpressionEvaluationError as e:
                 self._record_evaluation_error(e.dsl, e.error, SignalState.EVAL_ERROR)
                 return
@@ -66,12 +80,12 @@ class MetricSample(LogSignal, probes=(MetricFunctionProbe, MetricLineProbe)):
             except Exception:
                 # Name only the type: the value itself may be sensitive and has not been redacted.
                 self._record_evaluation_error(
-                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
+                    value_expr.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
                 )
                 return
             if not math.isfinite(value):
                 # The statsd counter raises on these in int(), after this returns, which would drop the signal.
-                self._record_evaluation_error(probe.value.dsl, f"Value is not finite: {value}", SignalState.EVAL_ERROR)
+                self._record_evaluation_error(value_expr.dsl, f"Value is not finite: {value}", SignalState.EVAL_ERROR)
                 return
 
         # TODO[perf]: We know the tags in advance so we can avoid the

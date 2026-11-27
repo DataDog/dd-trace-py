@@ -2,12 +2,24 @@
 
 import inspect
 import threading
+import time
 from unittest import mock
 
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
+from ddtrace.debugging._probe.model import CaptureExpression
+from ddtrace.debugging._probe.model import ExpressionTemplateSegment
+from ddtrace.debugging._probe.model import LiteralTemplateSegment
+from ddtrace.debugging._redaction import DDTimedRedactedExpression
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
+from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_capture_expressions_function_probe
+from tests.debugging.utils import create_capture_expressions_line_probe
+from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.debugging.utils import slow_timed_expr
 
 
 def _make_snapshot(probe):
@@ -113,3 +125,268 @@ def test_template_eval_timeout_records_error():
 
     timeout_errors = [e for e in snap.errors if "exceeded budget" in e.message]
     assert timeout_errors, "Expected a timeout EvaluationError for template evaluation"
+
+
+# ---------------------------------------------------------------------------
+# Template-segment evaluation timeout
+# ---------------------------------------------------------------------------
+
+
+def test_slow_segment_times_out():
+    """A template segment iterating a huge collection is stopped around
+    evaluation_timeout_ms, and the rest of the template still renders.
+    """
+    probe = create_log_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        template="before {slow} after",
+        segments=[
+            LiteralTemplateSegment("before "),
+            ExpressionTemplateSegment(slow_timed_expr()),
+            LiteralTemplateSegment(" after"),
+        ],
+    )
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
+        start = time.monotonic()
+        snap.line(SLOW_SCOPE)
+        elapsed = time.monotonic() - start
+
+    assert snap._message == "before ERROR after"
+    # Reported once, not again by the post-hoc overrun check.
+    assert [e.message for e in snap.errors] == ["Segment evaluation timed out after 20ms"]
+    assert elapsed < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Capture-expression evaluation errors/timeouts don't kill the whole event
+# ---------------------------------------------------------------------------
+
+
+def _bad_capture_expression(name="bad"):
+    def _raise(scope):
+        raise ZeroDivisionError("boom")
+
+    return CaptureExpression(
+        name=name, expr=DDTimedRedactedExpression(dsl=name, callable=_raise), capture=DEFAULT_CAPTURE_LIMITS
+    )
+
+
+def _good_capture_expression(name="good", value=1):
+    return CaptureExpression(
+        name=name,
+        expr=DDTimedRedactedExpression(dsl=name, callable=lambda scope: value),
+        capture=DEFAULT_CAPTURE_LIMITS,
+    )
+
+
+def _slow_capture_expression(name="slow"):
+    return CaptureExpression(name=name, expr=slow_timed_expr(name), capture=DEFAULT_CAPTURE_LIMITS)
+
+
+def test_capture_expression_runtime_error_does_not_kill_event():
+    """A capture expression that raises is recorded as an error and marked
+    notCapturedReason=runtimeError, but other expressions still evaluate and
+    the event still carries a message/captures.
+    """
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression(), _bad_capture_expression()],
+    )
+    snap = _make_snapshot(probe)
+    snap.line({})
+
+    captured = snap.line_capture["captureExpressions"]
+    assert captured["good"]["value"] == "1"
+    assert captured["bad"] == {"notCapturedReason": "runtimeError"}
+    assert snap._capture_expr_error_reason == "runtimeError"
+    assert snap.errors, "Expected an EvaluationError for the failing capture expression"
+
+
+def test_capture_expression_timeout_does_not_kill_event():
+    """A capture expression that times out is marked notCapturedReason=timeout
+    without preventing the rest of the event from being captured.
+    """
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression(), _slow_capture_expression()],
+    )
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
+        start = time.monotonic()
+        snap.line(SLOW_SCOPE)
+        elapsed = time.monotonic() - start
+
+    captured = snap.line_capture["captureExpressions"]
+    assert captured["good"]["value"] == "1"
+    assert captured["slow"] == {"notCapturedReason": "timeout"}
+    assert snap._capture_expr_error_reason == "timeout"
+    timeout_errors = [e for e in snap.errors if "timed out" in e.message]
+    assert timeout_errors
+    assert elapsed < 1.0
+
+
+def test_capture_expression_structural_limit_sets_incomplete_reason():
+    """A capture expression whose value overruns a structural limit sets
+    _capture_incomplete_reason (no evaluation_kind -- it's not an evaluation
+    failure, just a value too big to capture in full).
+    """
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression(value=list(range(1000)))],
+    )
+    snap = _make_snapshot(probe)
+    snap.line({})
+
+    assert snap._capture_incomplete_reason == "collectionSize"
+    assert snap._capture_expr_error_reason is None
+
+
+def test_capture_expression_complete_capture_sets_no_incomplete_reason():
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression()],
+    )
+    snap = _make_snapshot(probe)
+    snap.line({})
+
+    assert snap._capture_incomplete_reason is None
+    assert snap._capture_expr_error_reason is None
+
+
+# ---------------------------------------------------------------------------
+# Incomplete-capture state survives the return capture of entry-timed probes
+# ---------------------------------------------------------------------------
+
+_NO_EXC = (None, None, None)
+
+
+def _scoped_capture_expression(name="v"):
+    def _eval(scope):
+        if scope.get("fail"):
+            raise ZeroDivisionError("boom")
+        return scope["v"]
+
+    return CaptureExpression(
+        name=name, expr=DDTimedRedactedExpression(dsl=name, callable=_eval), capture=DEFAULT_CAPTURE_LIMITS
+    )
+
+
+def _make_function_snapshot(**kwargs):
+    probe = create_capture_expressions_function_probe(
+        probe_id="test", module="tests.submod.stuff", func_qname="mutator", **kwargs
+    )
+    return _make_snapshot(probe)
+
+
+def test_entry_structural_incomplete_reason_survives_complete_return():
+    snap = _make_function_snapshot(capture_expressions=[_scoped_capture_expression()])
+
+    snap.enter({"v": list(range(1000))})
+    snap.exit(None, _NO_EXC, 0, {"v": 1})
+
+    assert snap._capture_incomplete_reason == "collectionSize"
+
+
+def test_entry_capture_expression_error_survives_complete_return():
+    snap = _make_function_snapshot(capture_expressions=[_scoped_capture_expression()])
+
+    snap.enter({"fail": True})
+    snap.exit(None, _NO_EXC, 0, {"v": 1})
+
+    assert snap.entry_capture["captureExpressions"]["v"] == {"notCapturedReason": "runtimeError"}
+    assert snap._capture_expr_error_reason == "runtimeError"
+
+
+def test_entry_segment_timeout_survives_fast_return():
+    probe = create_log_function_probe(
+        probe_id="test",
+        module="tests.submod.stuff",
+        func_qname="mutator",
+        template="{slow}",
+        segments=[ExpressionTemplateSegment(slow_timed_expr())],
+    )
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
+        snap.enter(SLOW_SCOPE)
+        snap.exit(None, _NO_EXC, 0, {"big": range(3)})
+
+    assert snap._segment_timed_out
+
+
+# ---------------------------------------------------------------------------
+# One evaluation budget per probe invocation
+# ---------------------------------------------------------------------------
+
+
+class _CountingIterable:
+    def __init__(self, n):
+        self.n = n
+        self.produced = 0
+
+    def __iter__(self):
+        for i in range(self.n):
+            self.produced += 1
+            yield i
+
+
+def _counting_segment():
+    return ExpressionTemplateSegment(
+        DDTimedRedactedExpression.compile({"dsl": "xs", "json": {"any": [{"ref": "xs"}, {"eq": [{"ref": "@it"}, -1]}]}})
+    )
+
+
+def test_template_segments_share_the_invocation_budget():
+    """Once a segment has used up the budget, later iterating segments of the
+    same invocation time out without being evaluated.
+    """
+    probe = create_log_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        template="{slow}{xs}",
+        segments=[ExpressionTemplateSegment(slow_timed_expr()), _counting_segment()],
+    )
+    xs = _CountingIterable(10)
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
+        snap.line(dict(SLOW_SCOPE, xs=xs))
+
+    assert snap._message == "ERRORERROR"
+    assert xs.produced == 0
+
+
+def test_entry_and_exit_share_the_invocation_budget():
+    """An entry-timed function probe evaluates its template at entry and at
+    exit, both within the one budget of the invocation.
+    """
+    probe = create_log_function_probe(
+        probe_id="test",
+        module="tests.submod.stuff",
+        func_qname="mutator",
+        template="{slow}{xs}",
+        segments=[ExpressionTemplateSegment(slow_timed_expr()), _counting_segment()],
+    )
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        snap = _make_snapshot(probe)
+        # At entry only the slow segment iterates for long
+        snap.enter(dict(SLOW_SCOPE, xs=range(3)))
+        xs = _CountingIterable(10)
+        snap.exit(None, _NO_EXC, 0, {"big": range(3), "xs": xs})
+
+    assert xs.produced == 0
+    assert snap._eval_budget.remaining_ns <= 0

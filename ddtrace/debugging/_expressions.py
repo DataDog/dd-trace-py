@@ -25,15 +25,22 @@ Full grammar:
 """  # noqa
 
 from collections.abc import Collection
+from collections.abc import Iterable
+from collections.abc import Iterator
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import chain
+from itertools import islice
+from operator import length_hint
 import re
+from time import perf_counter_ns
 from types import FunctionType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import Union
 from typing import cast
@@ -59,6 +66,184 @@ log = get_logger(__name__)
 # filter reconstruction. Custom subclasses are excluded to avoid triggering
 # arbitrary __init__ side effects.
 _SAFE_RECONSTRUCTIBLE_TYPES: frozenset[type] = frozenset({list, tuple, set, frozenset})
+
+
+class EvaluationTimeoutError(TimeoutError):
+    """Raised when an expression evaluation exceeds its deadline."""
+
+
+class EvalBudget:
+    """Evaluation time shared by a sequence of evaluations, e.g. those of a
+    probe invocation.
+
+    Each evaluation runs in a with block that yields its deadline and
+    consumes the time it takes. EvaluationTimeoutError is raised on entry if
+    nothing is left, and on exit on overrun (e.g. a short-circuited any()).
+    Not re-entrant: it times one evaluation at a time.
+    """
+
+    __slots__ = ("remaining_ns", "_start_ns")
+
+    def __init__(self, total_ns: int) -> None:
+        self.remaining_ns = total_ns
+        self._start_ns = 0
+
+    def __enter__(self) -> int:
+        remaining_ns = self.remaining_ns
+        if remaining_ns <= 0:
+            raise EvaluationTimeoutError()
+        self._start_ns = start_ns = perf_counter_ns()
+        return start_ns + remaining_ns
+
+    def __exit__(self, exc_type: Optional[type[BaseException]], exc: Optional[BaseException], tb: Any) -> None:
+        self.remaining_ns -= perf_counter_ns() - self._start_ns
+        if exc_type is None and self.remaining_ns < 0:
+            raise EvaluationTimeoutError()
+
+
+# The deadline is checked once per chunk of elements. Chunks are sized at
+# runtime so that this happens about every _DEADLINE_CHECK_INTERVAL_NS. With a
+# cheap predicate the chunk grows to
+# _MAX_CHUNK_SIZE and the clock is read rarely; with an expensive one it shrinks
+# to a single element, so the deadline is overshot by at most about one
+# predicate evaluation. If the cost rises partway through a collection, the
+# chunk already being consumed is the overshoot, so _MAX_CHUNK_SIZE bounds the
+# worst case: a larger cap reads the clock less often but can overshoot by up to
+# that many slow predicate evaluations. Growth is limited to _MAX_CHUNK_GROWTH
+# per step so one fast measurement can't make the next chunk overshoot. Before
+# the first check nothing is known about the predicate, so the first chunk is
+# kept small.
+_DEADLINE_CHECK_INTERVAL_NS = 100_000
+_INITIAL_CHUNK_SIZE = 4
+_MAX_CHUNK_SIZE = 64
+_MAX_CHUNK_GROWTH = 8
+
+# Built-in types whose len(), iteration, and iterator length_hint() can't run
+# user code. Exact types only: a subclass may override __len__ or __iter__.
+# Calling len() on anything else could have side effects, so those are
+# iterated without knowing their size (_bounded_each). Look types up in these
+# sets only once type(type(it)) is type: membership hashes the type, which for
+# any other metaclass can run user code or raise.
+_SIZED_SAFE_TYPES = frozenset({list, tuple, range, set, frozenset, str, bytes, bytearray, type({}.items())})
+# The subset that can grow silently while being iterated (sets and dicts raise
+# instead), e.g. from a property that an expression reads.
+_GROWABLE_TYPES = frozenset({list, bytearray})
+
+
+def _next_chunk_size(size: int, elapsed_ns: int) -> int:
+    # Plain comparisons: min()/max() calls are measurable at this rate
+    grown = size * _MAX_CHUNK_GROWTH
+    size = size * _DEADLINE_CHECK_INTERVAL_NS // (elapsed_ns or 1)
+    if size > grown:
+        size = grown
+    if size > _MAX_CHUNK_SIZE:
+        return _MAX_CHUNK_SIZE
+    if size < 1:
+        return 1
+    return size
+
+
+def _bounded_chunks(it: Iterable[Any], deadline_ns: int) -> Iterator[Iterable[Any]]:
+    """Lazy chunks of it, for the exact types in _SIZED_SAFE_TYPES only.
+
+    The chunks are islice views, not lists, so no element is pulled before the
+    predicate asks for it, and the consumer keeps C-level iteration over it
+    (dict_items, for one, can then reuse its result tuple).
+    """
+    _it = iter(it)
+    size = _INITIAL_CHUNK_SIZE
+    last = perf_counter_ns()
+    # The iterators of these types report exactly how many elements are left,
+    # also when a list grows while the predicate runs.
+    while length_hint(_it):
+        yield islice(_it, size)
+        # Resumed only once the consumer is done with the chunk, so the elapsed
+        # time includes evaluating the predicate on it.
+        now = perf_counter_ns()
+        if now > deadline_ns:
+            raise EvaluationTimeoutError()
+        # Inlined _next_chunk_size(): with small collections this runs about
+        # once per few elements.
+        grown = size * _MAX_CHUNK_GROWTH
+        size = size * _DEADLINE_CHECK_INTERVAL_NS // (now - last or 1)
+        if size > grown:
+            size = grown
+        if size > _MAX_CHUNK_SIZE:
+            size = _MAX_CHUNK_SIZE
+        elif size < 1:
+            size = 1
+        last = now
+    # Either exhausted or, for a dict or set that changed size, invalidated
+    # (their length hint then drops to 0). Advancing the iterator once more
+    # raises the RuntimeError unbounded iteration would, rather than silently
+    # cutting the iteration short.
+    yield _it
+
+
+def _bounded_each(it: Iterable[Any], deadline_ns: int) -> Iterator[Any]:
+    """Iterate it one element at a time, checking the deadline once per chunk.
+
+    Producing an element runs user code here, which may be what is slow, so
+    the first element is checked as soon as it is pulled and the chunk grows
+    from a single element. The element that triggers a check has already been
+    pulled from it, as the unbounded iteration would have done anyway.
+    """
+    size = 1
+    left = 0
+    last = perf_counter_ns()
+    for e in it:
+        if not left:
+            now = perf_counter_ns()
+            if now > deadline_ns:
+                raise EvaluationTimeoutError()
+            size = left = _next_chunk_size(size, now - last)
+            last = now
+        left -= 1
+        yield e
+
+
+def _bounded(it: Iterable[Any], deadline_ns: Optional[int]) -> Iterable[Any]:
+    """Iterate it, raising EvaluationTimeoutError once deadline_ns (a
+    perf_counter_ns() value) passes. No deadline means no bound.
+    """
+    if deadline_ns is None:
+        return it
+    _type = type(it)
+    if type(_type) is type and _type in _SIZED_SAFE_TYPES:
+        if _type not in _GROWABLE_TYPES:
+            try:
+                n = len(it)  # type: ignore[arg-type]
+            except OverflowError:
+                # A range longer than sys.maxsize. Its iterator can't report
+                # a length hint either, so iterate it element by element.
+                return _bounded_each(it, deadline_ns)
+            if n <= _INITIAL_CHUNK_SIZE:
+                # The first check in _bounded_chunks would only come after the
+                # whole collection, so skip the chunking. Still check here once:
+                # nested iterations over short collections would otherwise
+                # never reach a check.
+                if perf_counter_ns() > deadline_ns:
+                    raise EvaluationTimeoutError()
+                return it
+        return chain.from_iterable(_bounded_chunks(it, deadline_ns))
+    return _bounded_each(it, deadline_ns)
+
+
+# Operators whose helpers iterate through _bounded(). Keep in sync with the
+# compiler: an iterating operator missing from here is never timed.
+ITERATING_OPERATORS = frozenset({"any", "all", "filter"})
+
+
+def iterates(ast: DDASTType) -> bool:
+    """Whether the expression AST uses an iterating operator. Operator names
+    only ever appear as dict keys, so literal strings can't match.
+    """
+    if isinstance(ast, dict):
+        return any(k in ITERATING_OPERATORS or iterates(v) for k, v in ast.items())
+    if isinstance(ast, list):
+        return any(iterates(e) for e in ast)
+    return False
+
 
 # Direct handles on type's own C-level getset_descriptors.
 # _type_dict_descriptor: calling .__get__(cls) returns the class namespace
@@ -154,9 +339,24 @@ def instanceof(value: Any, type_qname: str) -> bool:
     return False
 
 
-def isdefined(predicate: Callable[[Mapping[str, Any]], Any], _locals: Mapping[str, Any]) -> bool:
+if TYPE_CHECKING:
+    # Not in typing before 3.10; only needed for type checking
+    from typing_extensions import ParamSpec
+
+    P = ParamSpec("P")
+
+
+def isdefined(predicate: "Callable[P, Any]", *args: "P.args", **kwargs: "P.kwargs") -> bool:
+    """Whether predicate evaluates without error, called with the arguments
+    that follow (the generated code passes positional ones only).
+    """
     try:
-        predicate(_locals)
+        predicate(*args, **kwargs)
+    except EvaluationTimeoutError:
+        # A timeout says nothing about whether the value is defined, and
+        # swallowing it would let the rest of the expression carry on past
+        # the deadline.
+        raise
     except BaseException:
         return False
     return True
@@ -167,6 +367,19 @@ def get_local(_locals: Mapping[str, Any], name: str) -> Any:
         return _locals[name]
     except KeyError:
         raise NameError(f"No such local variable: '{name}'")
+
+
+class CompiledExpression(Protocol):
+    """An expression compiled by DDCompiler. deadline_ns (a perf_counter_ns()
+    value) bounds its iterating operators; None means no bound.
+    """
+
+    def __call__(self, scope: Mapping[str, Any], deadline_ns: Optional[int] = None, /) -> Any: ...
+
+
+# Arguments of the predicates called once per element of a collection, before
+# the optional deadline
+LAMBDA_ARGS: tuple[str, ...] = ("_dd_it", "_dd_key", "_dd_value", "_locals")
 
 
 class DDCompiler:
@@ -185,25 +398,46 @@ class DDCompiler:
     def __ref__(cls, _locals: Mapping[str, Any], name: str) -> Any:
         return get_local(_locals, name)
 
-    def _make_function(self, instrs: list[Instr], args: tuple[str, ...], name: str) -> FunctionType:
+    def _make_function(
+        self, instrs: list[Instr], args: tuple[str, ...], name: str, defaults: tuple[Any, ...] = ()
+    ) -> FunctionType:
+        # Generated code bypasses the compiler's checks, and reading a local
+        # that was never set crashes the interpreter, so only arguments may
+        # be read.
+        if unbound := {i.arg for i in instrs if isinstance(i, Instr) and i.name == "LOAD_FAST"} - set(args):
+            raise ValueError("Expression reads undefined locals: %s" % ", ".join(sorted(map(str, unbound))))
+
         abstract_code = Bytecode([*instrs, Instr("RETURN_VALUE")])
 
         abstract_code.argcount = len(args)
         abstract_code.argnames = list(args)
         abstract_code.name = name
+        # Profilers and tracebacks label frames by filename and, from 3.11, by
+        # qualname, which would otherwise default to <string> and <module>.
+        abstract_code.filename = "<debugger-expression>"
 
         if is_at_least_py(3, 11):
+            # Code objects (and bytecode's Bytecode) have no qualname before 3.11
+            abstract_code.qualname = name
             abstract_code.insert(0, Instr("RESUME", 0))
 
-        return FunctionType(abstract_code.to_code(), {}, name, (), None)
+        return FunctionType(abstract_code.to_code(), {}, name, defaults, None)
 
-    def _make_lambda(self, ast: DDASTType) -> Callable[[Any, Any], Any]:
+    def _make_lambda(self, ast: DDASTType) -> Callable[..., Any]:
+        """Compile a predicate called once per element of a collection.
+
+        It takes the deadline only if it iterates itself (see iterates()):
+        passing it to every other one costs an extra argument per element.
+        """
         self._lambda_level += 1
         if (predicate := self._compile_predicate(ast)) is None:
             raise ValueError("Invalid predicate: %r" % ast)
 
+        args = LAMBDA_ARGS
+        if iterates(ast):
+            args += ("_deadline",)
         try:
-            return self._make_function(predicate, ("_dd_it", "_dd_key", "_dd_value", "_locals"), "<lambda>")
+            return self._make_function(predicate, args, "<lambda>")
         finally:
             assert self._lambda_level > 0  # nosec
             self._lambda_level -= 1
@@ -224,10 +458,17 @@ class DDCompiler:
             raise ValueError("Invalid argument: %r" % arg)
 
         if _type == "isDefined":
+            # The argument is evaluated in a function of its own, which takes
+            # what it may read from the enclosing one: the element variables
+            # within a predicate, and the deadline if it iterates. The
+            # enclosing function then has the deadline too (see _make_lambda).
+            args: tuple[str, ...] = LAMBDA_ARGS if self._lambda_level > 0 else ("_locals",)
+            if iterates(arg):
+                args += ("_deadline",)
             value = self._call_function(
                 isdefined,
-                [Instr("LOAD_CONST", self._make_function(value, ("_locals",), "<isDefined-predicate>"))],
-                [Instr("LOAD_FAST", "_locals")],
+                [Instr("LOAD_CONST", self._make_function(value, args, "<isDefined-predicate>"))],
+                *([Instr("LOAD_FAST", a)] for a in args),
             )
         elif _type == "isEmpty":
             value = self._call_function(_safe_is_empty, value)
@@ -281,21 +522,37 @@ class DDCompiler:
             a, b = args
             f = __builtins__[_type]  # type: ignore[index]
             ca, fb = self._compile_predicate(a), self._make_lambda(b)
+            # Whether fb takes the deadline
+            nested = iterates(b)
 
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
             def coll_iter(
-                it: Collection[Any], cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
+                it: Collection[Any],
+                cond: Callable[[Any, Any, Any, dict[str, Any], Optional[int]], bool],
+                _locals: dict[str, Any],
+                _deadline: Optional[int],
             ) -> Any:
                 if _is_one_shot_iterator(it):
                     raise TypeError("Cannot iterate over a one-shot iterator in a debugger expression")
                 if _isinstance(it, dict):
                     # Use the unbound dict.items() to bypass any subclass override.
-                    return f(cond(k, k, v, _locals) for k, v in dict.items(it))  # type: ignore[arg-type, var-annotated]
-                return f(cond(e, None, None, _locals) for e in it)
+                    items = _bounded(dict.items(it), _deadline)  # type: ignore[arg-type]
+                    if nested:
+                        return f(cond(k, k, v, _locals, _deadline) for k, v in items)
+                    return f(cond(k, k, v, _locals) for k, v in items)  # type: ignore[call-arg]
+                if nested:
+                    return f(cond(e, None, None, _locals, _deadline) for e in _bounded(it, _deadline))
+                return f(cond(e, None, None, _locals) for e in _bounded(it, _deadline))  # type: ignore[call-arg]
 
-            return self._call_function(coll_iter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
+            return self._call_function(
+                coll_iter,
+                ca,
+                [Instr("LOAD_CONST", fb)],
+                [Instr("LOAD_FAST", "_locals")],
+                [Instr("LOAD_FAST", "_deadline")],
+            )
 
         if _type in {"startsWith", "endsWith"}:
             a, b = args
@@ -390,26 +647,48 @@ class DDCompiler:
         if _type == "filter":
             a, b = args
             ca, fb = self._compile_predicate(a), self._make_lambda(b)
+            # Whether fb takes the deadline
+            nested = iterates(b)
 
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
             def coll_filter(
-                it: Any, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
+                it: Any,
+                cond: Callable[[Any, Any, Any, dict[str, Any], Optional[int]], bool],
+                _locals: dict[str, Any],
+                _deadline: Optional[int],
             ) -> Any:
                 if _is_one_shot_iterator(it):
                     raise TypeError("Cannot iterate over a one-shot iterator in a debugger expression")
                 if _isinstance(it, dict):
                     # Use unbound dict.items() to bypass any subclass override, and
                     # return a plain dict to avoid calling a custom subclass constructor.
-                    return {k: v for k, v in dict.items(it) if cond(k, k, v, _locals)}
+                    items = _bounded(dict.items(it), _deadline)
+                    if nested:
+                        return {k: v for k, v in items if cond(k, k, v, _locals, _deadline)}
+                    return {k: v for k, v in items if cond(k, k, v, _locals)}  # type: ignore[call-arg]
                 it_type = type(it)
-                filtered = (e for e in it if cond(e, None, None, _locals))
+                filtered = (
+                    (e for e in _bounded(it, _deadline) if cond(e, None, None, _locals, _deadline))
+                    if nested
+                    else (e for e in _bounded(it, _deadline) if cond(e, None, None, _locals))  # type: ignore[call-arg]
+                )
                 # Only reconstruct using the original type for known-safe builtins.
                 # For custom subclasses, fall back to list to avoid __init__ side effects.
-                return it_type(filtered) if it_type in _SAFE_RECONSTRUCTIBLE_TYPES else list(filtered)
+                return (
+                    it_type(filtered)
+                    if type(it_type) is type and it_type in _SAFE_RECONSTRUCTIBLE_TYPES
+                    else list(filtered)
+                )
 
-            return self._call_function(coll_filter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
+            return self._call_function(
+                coll_filter,
+                ca,
+                [Instr("LOAD_CONST", fb)],
+                [Instr("LOAD_FAST", "_locals")],
+                [Instr("LOAD_FAST", "_deadline")],
+            )
 
         if _type == "getmember":
             v, attr = args
@@ -465,11 +744,13 @@ class DDCompiler:
             self._compile_direct_predicate(ast) or self._compile_arg_predicate(ast) or self._compile_value_source(ast)
         )
 
-    def compile(self, ast: DDASTType) -> Callable[[Mapping[str, Any]], Any]:
+    def compile(self, ast: DDASTType) -> CompiledExpression:
         if (predicate := self._compile_predicate(ast)) is None:
             raise ValueError("Invalid predicate: %r" % ast)
 
-        return self._make_function(predicate, ("_locals",), "<expr>")
+        # The deadline is threaded through every function the expression
+        # compiles to, down to the iterating operators
+        return cast(CompiledExpression, self._make_function(predicate, ("_locals", "_deadline"), "<expr>", (None,)))
 
 
 dd_compile = DDCompiler().compile
@@ -506,9 +787,12 @@ class DDExpression:
     __compiler__ = dd_compile
 
     dsl: str
-    callable: Callable[[Mapping[str, Any]], Any]
+    callable: CompiledExpression
 
-    def eval(self, scope: Mapping[str, Any]) -> Any:
+    def eval(self, scope: Mapping[str, Any], budget: Optional[EvalBudget] = None) -> Any:
+        """Evaluate the expression. Only timed expressions enforce budget (see
+        DDTimedRedactedExpression).
+        """
         try:
             return self.callable(scope)
         except Exception as e:

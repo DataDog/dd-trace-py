@@ -2,6 +2,10 @@ import typing as t
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvalBudget
+from ddtrace.debugging._expressions import EvaluationTimeoutError
+from ddtrace.debugging._expressions import iterates
 from ddtrace.internal.settings.dynamic_instrumentation import config
 from ddtrace.internal.settings.dynamic_instrumentation import normalize_ident
 from ddtrace.internal.utils.cache import cached
@@ -152,3 +156,44 @@ dd_compile_redacted = DDRedactedCompiler().compile
 
 class DDRedactedExpression(DDExpression):
     __compiler__ = dd_compile_redacted
+
+
+class DDTimedRedactedExpression(DDRedactedExpression):
+    """A DDRedactedExpression bounded by an EvalBudget (by default the full
+    evaluation_timeout_ms).
+
+    The bound is cooperative: the iterating operators check the deadline as
+    they go (see _expressions._bounded), so the timeout is raised from our
+    own code, never into user code, as a bare EvaluationTimeoutError.
+    """
+
+    # Only expressions that iterate can overrun in a way we can stop, so the
+    # deadline is not even set up for the rest (most conditions). Set by
+    # compile(): an expression built from any other callable can't take the
+    # deadline, so it is never bounded.
+    iterates: bool = False
+
+    @classmethod
+    def compile(cls, expr: t.Mapping[str, t.Any]) -> "DDTimedRedactedExpression":
+        compiled = super().compile(expr)
+        compiled.iterates = iterates(expr["json"])
+        return compiled
+
+    def eval(self, scope: t.Mapping[str, t.Any], budget: t.Optional[EvalBudget] = None) -> t.Any:
+        """Evaluate within what is left of budget, consuming the time the
+        evaluation takes, or within the full evaluation_timeout_ms if None.
+        """
+        eval_timeout_ms = config.evaluation_timeout_ms
+        if not self.iterates or eval_timeout_ms <= 0:
+            return super().eval(scope)
+
+        if budget is None:
+            budget = EvalBudget(int(eval_timeout_ms * 1_000_000))
+
+        with budget as deadline_ns:
+            try:
+                return self.callable(scope, deadline_ns)
+            except EvaluationTimeoutError:
+                raise
+            except Exception as e:
+                raise DDExpressionEvaluationError(self.dsl, e) from e

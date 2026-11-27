@@ -7,6 +7,7 @@ import typing as t
 
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
@@ -22,6 +23,7 @@ from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 
 
 log = get_logger(__name__)
@@ -60,6 +62,10 @@ class DynamicSpan(Signal, probes=(SpanFunctionProbe,)):
     """Dynamically created span"""
 
     _span_cm: t.Optional[SpanProtocol] = field(init=False, default=None)
+
+    @property
+    def __type__(self) -> t.Optional[str]:
+        return "span"
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -113,6 +119,13 @@ class DynamicSpan(Signal, probes=(SpanFunctionProbe,)):
 class SpanDecoration(LogSignal, probes=(SpanDecorationFunctionProbe, SpanDecorationLineProbe)):
     """Decorate a span."""
 
+    @property
+    def __type__(self) -> t.Optional[str]:
+        # Its log message (when any) is only ever an evaluation-error
+        # report (see message/has_message below), never real snapshot/log
+        # content -- same as Trigger.
+        return "diagnostic"
+
     @classmethod
     def create(
         cls, probe: Probe, frame: FrameType, thread: t.Any, trace_context: t.Optional[t.Any], meter: Metrics.Meter
@@ -135,8 +148,16 @@ class SpanDecoration(LogSignal, probes=(SpanDecorationFunctionProbe, SpanDecorat
             log.debug("Decorating span %r according to span decoration probe %r", span, probe)
             for d in probe.decorations:
                 try:
-                    if not (d.when is None or d.when(scope)):
+                    if not (d.when is None or d.when.eval(scope, self._eval_budget)):
                         continue
+                except EvaluationTimeoutError:
+                    self.errors.append(
+                        EvaluationError(
+                            expr=d.when.dsl if d.when is not None else "",
+                            message="Condition evaluation timed out after %sms" % di_config.evaluation_timeout_ms,
+                        )
+                    )
+                    continue
                 except DDExpressionEvaluationError as e:
                     self.errors.append(
                         EvaluationError(expr=e.dsl, message="Failed to evaluate condition: %s" % e.error)
@@ -144,7 +165,12 @@ class SpanDecoration(LogSignal, probes=(SpanDecorationFunctionProbe, SpanDecorat
                     continue
                 for tag in d.tags:
                     try:
-                        tag_value = tag.value.render(scope, serialize)
+                        tag_value = tag.value.render(scope, serialize, self._eval_budget)
+                    except EvaluationTimeoutError:
+                        span._set_attribute(
+                            "_dd.di.%s.evaluation_error" % tag.name,
+                            "Evaluation timed out after %sms" % di_config.evaluation_timeout_ms,
+                        )
                     except DDExpressionEvaluationError as e:
                         span._set_attribute(
                             "_dd.di.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])
