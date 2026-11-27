@@ -1,5 +1,6 @@
 """Tests for scripts/gen_gitlab_config.py."""
 
+import fnmatch
 import importlib.util
 import io
 import json
@@ -83,6 +84,44 @@ def test_gen_tests_rejects_unsupported_sharding_controls(gen_gitlab_config_mod, 
 
 def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):
     assert gen_gitlab_config_mod.calculate_parallelism_from_venvs(12) == 1
+
+
+@pytest.mark.parametrize(
+    "path, ref, nightly, selected, run_gpu",
+    [
+        ("ddtrace/llmobs/_llmobs.py", "feature", "false", set(), False),
+        ("ddtrace/contrib/internal/vllm/patch.py", "feature", "false", set(), True),
+        ("ddtrace/llmobs/_contrib/vllm/__init__.py", "feature", "false", set(), True),
+        ("ddtrace/llmobs/_integrations/vllm_utils.py", "feature", "false", set(), True),
+        ("tests/contrib/vllm/test_api_app.py", "feature", "false", set(), True),
+        ("tests/snapshots/tests.contrib.vllm.test_generate.json", "feature", "false", set(), True),
+        ("tests/llmobs/suitespec.yml", "feature", "false", set(), True),
+        ("tests/requirements_locks/vllm-lock.txt", "feature", "false", set(), True),
+        ("tests/requirements_locks/other-lock.txt", "feature", "false", set(), False),
+        ("README.md", "main", "false", set(), True),
+        ("README.md", "feature", "true", set(), True),
+        ("README.md", "feature", "false", {"llmobs::vllm"}, True),
+    ],
+)
+def test_vllm_pr_paths(gen_gitlab_config_mod, monkeypatch, path, ref, nightly, selected, run_gpu):
+    # Use the real suitespec and simulate the result of PR file detection.
+    with (_SCRIPT_PATH.parents[1] / "tests/llmobs/suitespec.yml").open() as f:
+        suitespec = yaml.safe_load(f)["suites"]
+    suites = {f"llmobs::{name}": suitespec[name] for name in ("vllm", "vllm_mocked")}
+    needs_testrun = types.ModuleType("needs_testrun")
+    needs_testrun.pr_matches_patterns = lambda patterns: any(fnmatch.fnmatchcase(path, p) for p in patterns)
+    monkeypatch.setitem(sys.modules, "needs_testrun", needs_testrun)
+    spec_module = types.ModuleType("tests.suitespec")
+    vllm_env = types.SimpleNamespace(lockfile=pathlib.Path("tests/requirements_locks/vllm-lock.txt"))
+    spec_module.get_test_environments = mock.Mock(return_value={"llmobs::vllm": [vllm_env]})
+    monkeypatch.setitem(sys.modules, "tests.suitespec", spec_module)
+    monkeypatch.setenv("CI_COMMIT_REF_NAME", ref)
+    monkeypatch.setenv("NIGHTLY_BUILD", nightly)
+    monkeypatch.delenv("CI_COMMIT_TAG", raising=False)
+    # A broad dependency or CI visibility change would have selected the GPU suite.
+    jobs = gen_gitlab_config_mod._apply_pr_paths(suites, ["llmobs::vllm"], selected, "")
+    assert "llmobs::vllm_mocked" in jobs
+    assert ("llmobs::vllm" in jobs) is run_gpu
 
 
 def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
