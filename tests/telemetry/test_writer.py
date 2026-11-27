@@ -266,8 +266,8 @@ import opentelemetry
             "name": "DD_IAST_REDACTION_VALUE_PATTERN",
             "origin": "default",
             "value": "(?i)bearer\\s+[a-z0-9\\._\\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|ey"
-            "[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}"
-            "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
+            "[I-L](?:(?!ey[I-L][\\w=-])[\\w=-])+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+"
+            "PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
         {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
         {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
