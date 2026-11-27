@@ -2,6 +2,10 @@ from unittest.mock import ANY
 
 import pytest
 
+from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import SensitiveHandler
+from ddtrace.appsec._iast._evidence_redaction.header_injection_sensitive_analyzer import (
+    header_injection_sensitive_analyzer,
+)
 from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -9,6 +13,7 @@ from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from ddtrace.appsec._iast.constants import MAX_REDACTION_VALUE_LENGTH
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
@@ -126,3 +131,26 @@ def test_header_injection_redaction_suite(
     assert vulnerability["type"] == VULN_HEADER_INJECTION
     assert vulnerability["evidence"] == vulnerabilities_expected["evidence"]
     assert source == sources_expected
+
+
+@pytest.mark.parametrize(
+    "evidence_value,expected",
+    [
+        ("Authorization:", []),
+        ("Authorization: ", []),
+        ("password", []),
+        (": Bearer secret_token", [{"start": 2, "end": 21}]),
+        (
+            "X-Custom: " + "a" * (MAX_REDACTION_VALUE_LENGTH + 1),
+            [{"start": 10, "end": 10 + MAX_REDACTION_VALUE_LENGTH + 1}],
+        ),
+    ],
+)
+def test_header_analyzer_separator_and_boundary_cases(evidence_value, expected):
+    handler = SensitiveHandler()
+    ranges = header_injection_sensitive_analyzer(
+        Evidence(value=evidence_value),
+        handler._name_pattern,
+        handler._value_pattern,
+    )
+    assert ranges == expected

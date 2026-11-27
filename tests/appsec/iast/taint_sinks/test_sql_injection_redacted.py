@@ -1,5 +1,8 @@
+import time
+
 import pytest
 
+from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import SensitiveHandler
 from ddtrace.appsec._iast._evidence_redaction.sql_sensitive_analyzer import sql_sensitive_analyzer
 from ddtrace.appsec._iast._report_types import Evidence
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -306,3 +309,45 @@ def test_regression_ci_failure(iast_context_defaults):
 
     for v in result["sources"]:
         assert v == {"name": "SomeName", "origin": OriginType.PARAMETER, "value": "master"}
+
+
+@pytest.mark.parametrize(
+    "query,expected_redacted",
+    [
+        ("SELECT $$secret$$", ["secret"]),
+        ("SELECT $tag$secret$tag$", ["secret"]),
+        ("SELECT $$line1\nsecret$$", ["line1\nsecret"]),
+        ("SELECT $$$$", [""]),
+        ("SELECT $t$one$T$sample$t$", ["one$T$sample"]),
+        ("SELECT $é$secret$é$", ["secret"]),
+        ("SELECT $€$secret$€$", ["secret"]),
+        ("SELECT $e\u0301$secret$e\u0301$", ["secret"]),
+        ("SELECT $$a$$$$b$$", ["a", "b"]),
+        ("SELECT $a$x$a$b$y$b$", ["x"]),
+        ("SELECT col$t$, 'label $t$sample' FROM tab", ["label $t$sample"]),
+        ("SELECT $unclosed$ $b$secret$b$", ["secret"]),
+        ("SELECT $1 + $2 + $1 + $2", ["1", "2", "1", "2"]),
+        (
+            "SELECT * FROM users WHERE username = $escape$I'm an escaped string$escape$ "
+            "AND last_name = $TEST$another$$$TEST$",
+            ["I'm an escaped string", "another$$"],
+        ),
+    ],
+)
+def test_psycopg_dollar_quoted_literals_redacted(query, expected_redacted):
+    handler = SensitiveHandler()
+    ranges = sql_sensitive_analyzer(
+        Evidence(value=query, dialect=DBAPI_PSYCOPG), handler._name_pattern, handler._value_pattern
+    )
+    assert [query[r["start"] : r["end"]] for r in ranges] == expected_redacted
+
+
+def test_psycopg_unclosed_dollar_tags_linear_time():
+    handler = SensitiveHandler()
+    query = " ".join(f"$t{i}$" for i in range(5000))
+    start = time.perf_counter()
+    ranges = sql_sensitive_analyzer(
+        Evidence(value=query, dialect=DBAPI_PSYCOPG), handler._name_pattern, handler._value_pattern
+    )
+    assert ranges == []
+    assert time.perf_counter() - start < 0.5
