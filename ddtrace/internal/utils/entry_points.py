@@ -61,6 +61,8 @@ def _all_entry_points_with_distributions() -> "list[tuple[EntryPoint, Distributi
                 found.extend((ep, dist) for ep in dist.entry_points)
             _entry_points = found
     return _entry_points
+
+
 def entry_point_module_path(entry_point: "EntryPoint") -> str:
     """Return the module named by ``entry_point``'s value, without its object part (``mod:obj`` → ``mod``)."""
     return entry_point.value.partition(":")[0]
