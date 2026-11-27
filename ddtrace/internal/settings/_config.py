@@ -195,6 +195,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logging",
         "boto",
         "mariadb",
+        "aio_pika",
         "aiohttp",
         "wsgi",
         "botocore",

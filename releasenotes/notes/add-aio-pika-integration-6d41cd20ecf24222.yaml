@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    aio-pika: Adds automatic tracing for RabbitMQ publishing, message processing,
+    pull receives, and message settlement in aio-pika 9.x and 10.x. Set
+    ``DD_AIO_PIKA_DISTRIBUTED_TRACING=true`` to propagate trace context through
+    message headers. Data Streams Monitoring tracks aio-pika producers and
+    consumers when ``DD_DATA_STREAMS_ENABLED=true``.
