@@ -5,8 +5,10 @@ import typing as t
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
+import msgpack
 import pytest
 
+from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -18,6 +20,11 @@ from tests.testing.mocks import setup_standard_mocks
 
 
 COVERAGE_UPLOAD_ENABLED_ENV = "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"
+
+
+def _unpacked(event: t.Any) -> dict[str, t.Any]:
+    """A coverage event as a dict: native line collection hands the writer events it has already packed."""
+    return msgpack.unpackb(event) if isinstance(event, bytes) else event
 
 
 class TestITR:
@@ -322,14 +329,15 @@ class TestITR:
             with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
                 pytester.inline_run("--ddtrace", "-v", "-s")
 
-        coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
+        coverage_events = [_unpacked(args[0]) for args, kwargs in put_event_mock.call_args_list]
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
 
-        # File-level coverage is the default on Python 3.12+: every file reports only the line-0 sentinel.
+        # Without native line collection, file-level coverage is the default on Python 3.12+: every file reports
+        # only the line-0 sentinel.
         file_level_bitmap = bytes(CoverageLines.from_list([0]).to_bytes())
         bitmaps = {f["filename"]: bytes(f["bitmap"]) for f in coverage_events[0]["files"]}
-        if sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 12) and not native_lines.requested():
             assert all(bitmap == file_level_bitmap for bitmap in bitmaps.values())
         else:
             assert bitmaps["/test_foo.py"] != file_level_bitmap
@@ -482,7 +490,10 @@ class TestITR:
             with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
                 pytester.inline_run("--ddtrace", "-v", "-s")
 
-        coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
+        # Native line collection also sends, once per process, the lines that ran for no test.
+        coverage_events = [
+            _unpacked(args[0]) for args, kwargs in put_event_mock.call_args_list if "shared" not in _unpacked(args[0])
+        ]
         assert len(coverage_events) == 1
         event = coverage_events[0]
         # Suite-level coverage has test_suite_id but no span_id.
