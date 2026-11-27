@@ -2843,6 +2843,23 @@
         "default": null
       }
     ],
+    "DD_PIKA_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_PIKA_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "rabbitmq",
+        "aliases": [
+          "DD_PIKA_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_PIPELINE_EXECUTION_ID": [
       {
         "implementation": "A",
@@ -4907,6 +4924,13 @@
         "implementation": "A",
         "type": "map",
         "default": ""
+      }
+    ],
+    "DD_TRACE_PIKA_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_PROPAGATION_AS_SPAN_LINKS": [

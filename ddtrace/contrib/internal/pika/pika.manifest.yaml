@@ -1,0 +1,13 @@
+_v: 1
+name: pika
+display_name: pika
+description: Instruments pika RabbitMQ message publishing and consumption with distributed tracing and Data Streams Monitoring
+  pathway checkpoints.
+packages:
+- name: pika
+category:
+- messaging.consumer
+- messaging.producer
+systems:
+- rabbitmq
+creation_date: '2026-11-19'
