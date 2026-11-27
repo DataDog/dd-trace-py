@@ -187,6 +187,13 @@
         "default": "true"
       }
     ],
+    "DD_AI_GUARD_LITELLM_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_MAX_CONTENT_SIZE": [
       {
         "implementation": "A",

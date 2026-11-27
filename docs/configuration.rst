@@ -919,6 +919,44 @@ AI Guard
        set ``DD_AI_GUARD_ANTHROPIC_ENABLED=false``. To stop AI Guard for a LangChain app regardless of
        provider, set ``DD_AI_GUARD_ENABLED=false``.
 
+   DD_AI_GUARD_LITELLM_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-integration kill switch for AI Guard auto-instrumentation of the LiteLLM SDK. When set to
+       ``True`` (default) and AI Guard is enabled, the calls of ``litellm.completion``,
+       ``litellm.acompletion``, ``litellm.text_completion`` and ``litellm.atext_completion`` are
+       evaluated for every model provider, also when a LiteLLM ``Router`` makes them: the prompt before
+       the provider request, then the prompt with the answer. Only the prompt of a streamed call is
+       evaluated, and ``litellm.responses`` is not evaluated. With the ``fallbacks`` argument, each
+       attempt is evaluated with its own request, so a prompt can be evaluated once per attempt. With
+       the global ``litellm.model_fallbacks`` instead, the attempts run under the evaluation of the
+       first call, so the messages that a dict fallback replaces are not evaluated. A call with the
+       ``model_list`` argument is still evaluated more than once per direction: LiteLLM makes its inner
+       calls in other threads, and each inner call is evaluated too. Before LiteLLM 1.110.0, a
+       synchronous ``Router.completion`` call made while an event loop runs in the same thread also
+       makes its LiteLLM calls in another thread, so if another AI Guard integration, for example
+       LangChain, makes the call, both that integration and this one can evaluate it. The LiteLLM
+       integration must be enabled, as ``ddtrace-run`` does by default.
+
+       A block raises ``ddtrace.aiguard.AIGuardAbortError``. It derives from ``BaseException``, so an
+       ``except Exception`` clause does not catch it, and LiteLLM does not retry or wrap it. When a chat
+       or text completion sets the ``guardrails`` argument of the LiteLLM SDK, the Datadog AI Guard
+       guardrail leaves the call to this integration, or to another AI Guard integration that makes the
+       call, for example LangChain. Each direction is then evaluated once, ``DD_AI_GUARD_BLOCK``
+       controls blocking, and the ``block`` option of the guardrail and the per-request ``block``
+       parameter do not apply. Requests of the LiteLLM proxy are left to the Datadog AI Guard guardrail.
+
+       Set to ``False`` to disable this evaluation without a tracer version rollback. The Datadog AI
+       Guard guardrail of the LiteLLM proxy does not change. The OpenAI integration then evaluates only
+       the prompts of the chat requests that LiteLLM sends with the ``create`` method of the OpenAI SDK,
+       for example OpenAI and Azure OpenAI chat before LiteLLM 1.108.1, and Azure OpenAI chat except
+       o-series models from LiteLLM 1.108.1; also set ``DD_AI_GUARD_OPENAI_ENABLED=false`` to stop them.
+       From LiteLLM 1.108.1, OpenAI chat requests get no evaluation from the OpenAI integration. The
+       asynchronous LiteLLM SDK chat and text completions that set the ``guardrails`` argument go back
+       to the Datadog AI Guard guardrail and its ``block`` settings, as before, unless another AI Guard
+       integration, for example LangChain, makes the call.
+
    DD_AI_GUARD_MCP_ENABLED:
      type: Boolean
      default: True

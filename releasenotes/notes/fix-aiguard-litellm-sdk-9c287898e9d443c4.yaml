@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    AI Guard: This introduces the evaluation of LiteLLM SDK chat and text completions for every provider, including
+    the providers that were not evaluated before and OpenAI on LiteLLM 1.108.1 and later. Set
+    ``DD_AI_GUARD_LITELLM_ENABLED`` to ``false`` (default ``true``) to disable it.
+fixes:
+  - |
+    AI Guard: Fixes an issue where a blocked LiteLLM SDK call raises ``litellm.BadRequestError``, or returns
+    ``None`` when ``litellm.drop_params`` is set. It now raises ``ddtrace.aiguard.AIGuardAbortError``.
+upgrade:
+  - |
+    AI Guard: This upgrades the blocking of LiteLLM SDK calls that set the ``guardrails`` argument, which now follow
+    ``DD_AI_GUARD_BLOCK`` instead of the ``block`` settings of the Datadog AI Guard guardrail. To keep the previous
+    behavior, set ``DD_AI_GUARD_LITELLM_ENABLED=false``.
