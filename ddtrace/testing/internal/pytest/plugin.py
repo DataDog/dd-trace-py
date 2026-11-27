@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from collections import defaultdict
 import contextlib
+import contextvars
 from functools import lru_cache
 import inspect
 from io import StringIO
@@ -79,6 +80,7 @@ from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integ
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import CoverageData
+from ddtrace.testing.internal.tracer_api.coverage import carry_native_coverage_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import get_shared_coverage_bitmaps
@@ -322,6 +324,18 @@ class _CollectCoverage:
         if exc_type is None:
             _CoverageTelemetry.finished += 1
         return suppressed
+
+
+def _carry_coverage_context_into_test_case(item: pytest.Item) -> None:
+    """Run a unittest IsolatedAsyncioTestCase in the coverage context of the current execution.
+
+    The test case runs setUp, the test method and tearDown in a copy of the contextvars context taken
+    when it is created, and pytest creates it at collection, before any coverage context exists. The
+    cached instance is read without the instance property, which would create one.
+    """
+    copied = getattr(item.__dict__.get("_instance"), "_asyncioTestContext", None)
+    if isinstance(copied, contextvars.Context):
+        carry_native_coverage_context(copied)
 
 
 def _maybe_collect_coverage(
@@ -1008,6 +1022,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             # Each execution, a retry included, gets its own record. The window nests in the test's.
             with coverage_collection() as coverage_data:
                 link_suite_fixtures_in_closure(item)
+                _carry_coverage_context_into_test_case(item)
                 reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         else:
             reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))

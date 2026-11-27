@@ -701,3 +701,53 @@ def test_only_python_source_files_are_recorded(tmp_path) -> None:
         coverage.uninstall_coverage()
         """
     )
+
+
+def test_isolated_asyncio_test_case_runs_in_the_test_context(tmp_path) -> None:
+    """unittest's IsolatedAsyncioTestCase runs setUp, the test method and tearDown in a copy of the
+    contextvars context taken when the test case is created, which pytest does at collection. Their
+    lines are still the test's.
+    """
+    (tmp_path / "async_helper.py").write_text(
+        "def in_set_up():\n"
+        "    value = 1\n"
+        "    return value\n"
+        "\n"
+        "\n"
+        "async def in_test():\n"
+        "    value = 2\n"
+        "    return value\n"
+        "\n"
+        "\n"
+        "def in_tear_down():\n"
+        "    value = 3\n"
+        "    return value\n"
+    )
+    (tmp_path / "test_async_case.py").write_text(
+        "import unittest\n"
+        "\n"
+        "import async_helper\n"
+        "\n"
+        "\n"
+        "class TestCase(unittest.IsolatedAsyncioTestCase):\n"
+        "    async def asyncSetUp(self):\n"
+        "        async_helper.in_set_up()\n"
+        "\n"
+        "    async def test_one(self):\n"
+        "        await async_helper.in_test()\n"
+        "\n"
+        "    def tearDown(self):\n"
+        "        async_helper.in_tear_down()\n"
+    )
+    output = _run_isolated(
+        _RECORDING_SCRIPT % "test_async_case.py",
+        cwd=tmp_path,
+        env={"DD_API_KEY": "test-key", "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "false"},
+    )
+    records = json.loads(output.strip().splitlines()[-1])
+    assert len(records) == 1, records
+    files = records[0]["files"]
+    helper = next((v for k, v in files.items() if k.endswith("async_helper.py")), [])
+    test = next((v for k, v in files.items() if k.endswith("test_async_case.py")), [])
+    assert {2, 3, 7, 8, 12, 13} <= set(helper), files
+    assert {8, 11, 14} <= set(test), files
