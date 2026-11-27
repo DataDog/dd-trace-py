@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    starlette: Fixes added latency on requests that do not reach a route handler, such as CORS
+    preflight ``OPTIONS`` requests handled by ``CORSMiddleware``, in apps with many routes. The route
+    template for a repeated request path is now looked up once instead of on every request.

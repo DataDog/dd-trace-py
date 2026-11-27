@@ -1,7 +1,9 @@
 import inspect
+import sys
 from typing import Any
 from typing import Mapping
 from typing import Optional
+import weakref
 
 import starlette
 from starlette import requests as starlette_requests
@@ -30,6 +32,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Span
@@ -155,7 +158,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
         return
 
     app = scope.get("app")
-    route_match = _find_matching_route_path(getattr(app, "routes", None), scope)
+    route_match = _find_matching_route_path_cached(app, scope)
     if route_match is None:
         return
 
@@ -164,6 +167,128 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
     _set_route_resource(span, method, path)
     if is_route:
         span._set_attribute(http.ROUTE, path)
+
+
+# Fallback route matching walks every route, and it runs for each request that
+# never reached a route handler (CORS preflight, 404s, other short-circuiting
+# middleware), before the span finishes and again at teardown. Results only
+# depend on a few scope values, so they are cached per app, up to this many
+# distinct requests per app. The oldest entry is dropped when the cache is full.
+_ROUTE_MATCH_CACHE_MAXSIZE = 1024
+_MISSING = object()
+
+
+class _RouteMatchCache:
+    __slots__ = ("route_ids", "route_refs", "stale", "cacheable", "uses_host", "results")
+
+    def __init__(self, routes: Any) -> None:
+        # Routes are only held weakly. Their endpoints can refer back to the app
+        # (closures, bound methods), and a strong reference from this cache value
+        # would keep the app, its weak key, alive forever. The ids detect added,
+        # removed, replaced or reordered top-level routes; the weakref callbacks
+        # mark the cache stale once a recorded route is freed, so a new route
+        # reusing its id is never mistaken for it.
+        stale: list[bool] = []
+        self.stale = stale
+        self.route_ids = list(map(id, routes))
+        self.uses_host = False
+        self.results: dict[tuple, Optional[tuple[str, bool]]] = {}
+        try:
+            self.route_refs = [weakref.ref(route, lambda _ref: stale.append(True)) for route in routes]
+        except TypeError:
+            # A route that cannot be weakly referenced: match without caching.
+            self.route_refs = []
+            self.cacheable = False
+            return
+        self.cacheable = self._scan(routes, _known_route_matches(), getattr(starlette.routing, "Host", None), set())
+
+    def _scan(self, routes: Any, known_matches: tuple, host_class: Any, seen: set[int]) -> bool:
+        """Return True if every route the matcher can visit matches on cache-key scope values only."""
+        if id(routes) in seen:
+            return True
+        seen.add(id(routes))
+        for route in routes:
+            is_host_route = host_class is not None and isinstance(route, host_class)
+            if not isinstance(route, (starlette.routing.Route, starlette.routing.Mount)) and not is_host_route:
+                # _match_route_path never calls matches() on these routes.
+                continue
+            # Check the callable the matcher will actually call: a matches() set on
+            # the route instance overrides the one on its class.
+            route_matches = getattr(route, "matches", None)
+            if getattr(route_matches, "__func__", route_matches) not in known_matches:
+                return False
+            if is_host_route:
+                self.uses_host = True
+            if not isinstance(route, starlette.routing.Route):
+                child_routes = getattr(route.app, "routes", None)
+                if child_routes and not self._scan(child_routes, known_matches, host_class, seen):
+                    return False
+        return True
+
+    def is_valid_for(self, routes: Any) -> bool:
+        return not self.stale and self.route_ids == list(map(id, routes))
+
+    def key(self, scope: Mapping[str, Any]) -> tuple:
+        host = None
+        if self.uses_host:
+            for name, value in scope.get("headers") or ():
+                if name == b"host":
+                    host = value
+                    break
+        return (scope.get("type"), scope.get("method"), scope.get("path"), scope.get("root_path", ""), host)
+
+    def store(self, key: tuple, result: Optional[tuple[str, bool]]) -> None:
+        results = self.results
+        try:
+            while len(results) >= _ROUTE_MATCH_CACHE_MAXSIZE:
+                del results[next(iter(results))]
+        except (KeyError, RuntimeError, StopIteration):
+            # Another thread changed the cache at the same time; skip caching this result.
+            return
+        results[key] = result
+
+
+_route_match_caches: IdentityWeakKeyDictionary[Any, _RouteMatchCache] = IdentityWeakKeyDictionary()
+
+
+def _known_route_matches() -> tuple:
+    """matches() implementations whose result depends only on type, method, path, root_path and host."""
+    known = [starlette.routing.Route.matches, starlette.routing.Mount.matches]
+    host_class = getattr(starlette.routing, "Host", None)
+    if host_class is not None:
+        known.append(host_class.matches)
+    # FastAPI's APIRoute.matches only reads its effective route context from the
+    # scope. Fallback matching runs only when there is none (see _resolve_route_resource).
+    fastapi_routing = sys.modules.get("fastapi.routing")
+    api_route = getattr(fastapi_routing, "APIRoute", None)
+    if api_route is not None:
+        known.append(api_route.matches)
+    return tuple(known)
+
+
+def _find_matching_route_path_cached(app: Any, scope: Mapping[str, Any]) -> Optional[tuple[str, bool]]:
+    routes = getattr(app, "routes", None)
+    if not routes:
+        return None
+
+    try:
+        cache = _route_match_caches.get(app)
+        if cache is None or not cache.is_valid_for(routes):
+            cache = _RouteMatchCache(routes)
+            _route_match_caches[app] = cache
+    except TypeError:
+        # The app cannot be weakly referenced: match without caching.
+        return _find_matching_route_path(routes, scope)
+
+    if not cache.cacheable:
+        return _find_matching_route_path(routes, scope)
+
+    key = cache.key(scope)
+    result = cache.results.get(key, _MISSING)
+    if result is _MISSING:
+        result = _find_matching_route_path(routes, scope)
+        cache.store(key, result)
+    return result
 
 
 def _find_matching_route_path(routes: Any, scope: Mapping[str, Any], prefix: str = "") -> Optional[tuple[str, bool]]:
