@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where a Pydantic AI tool span recorded ``ToolReturn.content``
+    (extra content for the model) as its output instead of ``ToolReturn.return_value``, the tool result.
