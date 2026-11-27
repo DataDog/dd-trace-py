@@ -5,6 +5,7 @@ A converted tool checks each call before tools/call is sent, unless its response
 
 from _thread import get_ident
 import asyncio
+from collections.abc import Collection
 from collections.abc import Mapping
 from contextvars import ContextVar
 import functools
@@ -287,7 +288,8 @@ def attach_mcp(messages: list[Message], tools: dict[str, Any]) -> Optional[list[
         for tool_call in message.get("tool_calls") or []:
             name = tool_call["function"]["name"]
             tool = tools.get(name)
-            if tool is None:
+            # A call that already references a server (an MCP connector call) is not a call of this tool.
+            if tool is None or "mcp" in tool_call:
                 continue
             info: MCPTool = getattr(tool, _TOOL_ATTR)
             if info.server is None:
@@ -305,13 +307,18 @@ def start_request() -> None:
     _evaluated_calls.set([_owner(), None, []])
 
 
-def mark_evaluated(messages: list[Message], tools: dict[str, Any]) -> None:
-    """Replace the evaluated MCP tool calls of this request with those of messages; [] clears them."""
+def mark_evaluated(messages: list[Message], tools: dict[str, Any], skip_ids: Collection[str] = ()) -> None:
+    """Replace the evaluated MCP tool calls of this request with those of messages; [] clears them.
+
+    skip_ids are calls the provider already ran (MCP connector): they never stand for a call of a converted tool.
+    """
     evaluated_calls: list[tuple[Any, str]] = []
     try:
         for message in messages:
             for tool_call in message.get("tool_calls") or []:
                 tool = tools.get(tool_call["function"]["name"])
+                if tool_call["id"] in skip_ids:
+                    continue
                 # A tool of an unidentified server has no mcp reference, but the evaluation checked its call too.
                 if tool is not None and ("mcp" in tool_call or getattr(tool, _TOOL_ATTR).server is None):
                     evaluated_calls.append((tool, tool_call["function"]["arguments"]))
