@@ -6,12 +6,14 @@ sibling module of its own package by a name derived at init (e.g. `_msgpack` in 
 a literal ddtrace path.
 
 This flags `py.import("ddtrace...")`, `PyModule::import(py, "ddtrace...")` and `.import(intern!(py,
-"ddtrace..."))`. Comments are ignored, and so are plain string literals such as the pyclass
+"ddtrace..."))`, including calls whose earlier arguments contain nested parentheses such as
+`import(m.py(), "ddtrace...")`. Comments are ignored, and so are plain string literals such as the pyclass
 `module = "ddtrace..."` attribute and event names.
 
 Run: scripts/lint native-import-check
 """
 
+from collections.abc import Iterator
 from pathlib import Path
 import re
 import sys
@@ -21,8 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NATIVE_DIR = ROOT / "src" / "native"
 
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
-IMPORT_DDTRACE = re.compile(r'\bimport(?:_bound)?\s*\([^)]*?"ddtrace\b')
-IMPORTED_MODULE = re.compile(r'"([^"]+)"')
+IMPORT_CALL = re.compile(r"\bimport(?:_bound)?\s*\(")
 
 # The packb import in span/wire.rs predates this check. The packer-split PR replaces it with the
 # sibling _msgpack import and deletes this entry; until then the check still flags every other
@@ -35,18 +36,43 @@ def _blank_comment(match: re.Match[str]) -> str:
     return "\n" * match.group().count("\n")
 
 
+def _argument_literals(source: str, start: int) -> Iterator[str]:
+    """Yield every string literal among the arguments of the call whose "(" ends at "start".
+
+    An earlier argument can itself contain a closing parenthesis, such as the receiver in
+    "import(m.py(), "ddtrace...")" or a macro like "intern!(py, "ddtrace...")", so the call ends
+    where the parenthesis depth returns to zero, not at the first ")".
+    """
+    depth = 1
+    i = start
+    while i < len(source):
+        char = source[i]
+        if char == '"':
+            end = source.find('"', i + 1)
+            if end == -1:
+                return
+            yield source[i + 1 : end]
+            i = end + 1
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return
+        i += 1
+
+
 def find_violations(root: Path = NATIVE_DIR) -> list[str]:
     violations = []
     for path in sorted(root.rglob("*.rs")):
         source = COMMENT.sub(_blank_comment, path.read_text(encoding="utf-8"))
-        for match in IMPORT_DDTRACE.finditer(source):
-            # The lazy import regex stops at the first "ddtrace, so read the module name from
-            # the source right after the match: the next quoted string is the imported module.
-            module = IMPORTED_MODULE.search(source, match.start())
-            if module is not None and module.group(1) in ALLOWED_IMPORTS:
-                continue
-            line = source.count("\n", 0, match.start()) + 1
-            violations.append(f"{path.relative_to(ROOT)}:{line}: imports a ddtrace module")
+        for match in IMPORT_CALL.finditer(source):
+            for literal in _argument_literals(source, match.end()):
+                if literal.startswith("ddtrace") and literal not in ALLOWED_IMPORTS:
+                    line = source.count("\n", 0, match.start()) + 1
+                    violations.append(f"{path.relative_to(ROOT)}:{line}: imports a ddtrace module")
+                    break
     return violations
 
 
