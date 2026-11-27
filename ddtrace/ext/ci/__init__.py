@@ -270,6 +270,7 @@ def extract_azure_pipelines(environ: MutableMapping[str, str]) -> dict[str, Opti
         git.REPOSITORY_URL: environ.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI")
         or environ.get("BUILD_REPOSITORY_URI"),
         git.COMMIT_SHA: environ.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or environ.get("BUILD_SOURCEVERSION"),
+        git.COMMIT_HEAD_SHA: environ.get("SYSTEM_PULLREQUEST_SOURCECOMMITID"),
         git.BRANCH: environ.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
         or environ.get("BUILD_SOURCEBRANCH")
         or environ.get("BUILD_SOURCEBRANCHNAME"),

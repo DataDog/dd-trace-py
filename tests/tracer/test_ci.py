@@ -272,11 +272,16 @@ def test_git_safe_directory_override_uses_bare_repo_root(monkeypatch, tmp_path):
     assert captured["args"][:3] == ["/usr/bin/git", "-c", f"safe.directory={str(repo)}"]
 
 
-def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
+@pytest.mark.parametrize("engine", ["legacy", "current"])
+def test_extract_git_user_provided_metadata_overwrites_ci(monkeypatch, git_repo, engine):
     """Test that user-provided git metadata overwrites CI provided env vars."""
+    from ddtrace.testing.internal.env_tags import get_env_tags
+
+    head_sha = git.extract_commit_sha(cwd=git_repo)
     ci_env = {
         "DD_GIT_REPOSITORY_URL": "https://github.com/user-repo-name.git",
         "DD_GIT_COMMIT_SHA": "1234",
+        "DD_GIT_COMMIT_HEAD_SHA": head_sha.upper(),
         "DD_GIT_BRANCH": "branch",
         "DD_GIT_COMMIT_MESSAGE": "message",
         "DD_GIT_COMMIT_AUTHOR_NAME": "author name",
@@ -291,16 +296,20 @@ def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
         "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
         "APPVEYOR_REPO_BRANCH": "master",
         "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+        "APPVEYOR_PULL_REQUEST_HEAD_COMMIT": "f" * 40,
         "APPVEYOR_REPO_NAME": "appveyor-repo-name",
         "APPVEYOR_REPO_PROVIDER": "github",
         "APPVEYOR_REPO_COMMIT_MESSAGE": "this is the correct commit message",
         "APPVEYOR_REPO_COMMIT_AUTHOR": "John Jack",
         "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
-    extracted_tags = ci.tags(environ=ci_env, cwd=git_repo)
+    monkeypatch.chdir(git_repo)
+    monkeypatch.setattr(os, "environ", ci_env)
+    extracted_tags = ci.tags(environ=ci_env, cwd=git_repo) if engine == "legacy" else get_env_tags()
 
     assert extracted_tags["git.repository_url"] == "https://github.com/user-repo-name.git"
     assert extracted_tags["git.commit.sha"] == "1234"
+    assert extracted_tags["git.commit.head.sha"] == head_sha
     assert extracted_tags["git.branch"] == "branch"
     assert extracted_tags["git.commit.message"] == "message"
     assert extracted_tags["git.commit.author.name"] == "author name"
@@ -985,3 +994,32 @@ def test_checkout_explicit_ref_priority(monkeypatch, git_repo, engine, setting):
 )
 def test_only_identified_provider_merges_are_tagged(provider, environment, expected):
     assert git._get_ci_merge_commit_sha(environment, provider) == expected
+
+
+@pytest.mark.parametrize(
+    "overrides,expected",
+    [
+        pytest.param({}, "a" * 40, id="pull-request-merge"),
+        pytest.param(
+            {"APPVEYOR_REPO_COMMIT": "A" * 64, "APPVEYOR_PULL_REQUEST_HEAD_COMMIT": "b" * 64},
+            "a" * 64,
+            id="sha256",
+        ),
+        pytest.param({"APPVEYOR_PULL_REQUEST_HEAD_COMMIT": "a" * 40}, None, id="same-sha-different-case"),
+        pytest.param({"APPVEYOR_PULL_REQUEST_HEAD_COMMIT": ""}, None, id="missing-head"),
+        pytest.param({"APPVEYOR_PULL_REQUEST_HEAD_COMMIT": "bad"}, None, id="invalid-head"),
+        pytest.param({"APPVEYOR_REPO_COMMIT": "invalid"}, None, id="invalid-merge-sha"),
+        pytest.param({"APPVEYOR_PULL_REQUEST_NUMBER": ""}, None, id="branch-build"),
+        pytest.param({"APPVEYOR_PULL_REQUEST_NUMBER": "invalid"}, None, id="invalid-pr-number"),
+        pytest.param({"APPVEYOR_REPO_PROVIDER": "gitlab"}, None, id="non-github"),
+    ],
+)
+def test_appveyor_merge_commit_sha(overrides, expected):
+    environment = {
+        "APPVEYOR_REPO_PROVIDER": "github",
+        "APPVEYOR_PULL_REQUEST_NUMBER": "123",
+        "APPVEYOR_PULL_REQUEST_HEAD_COMMIT": "B" * 40,
+        "APPVEYOR_REPO_COMMIT": "A" * 40,
+    }
+    environment.update(overrides)
+    assert git._get_ci_merge_commit_sha(environment, "appveyor") == expected

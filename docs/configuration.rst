@@ -1244,6 +1244,13 @@ Test Visibility
      version_added:
         v4.8.0:
 
+   DD_GIT_COMMIT_HEAD_SHA:
+     type: String
+
+     description: |
+        Sets the pull request head commit SHA reported by Test Optimization. Use the full Git SHA.
+        When unset, Test Optimization uses the head commit reported by the CI provider when available.
+
    DD_TEST_OPTIMIZATION_MANIFEST_FILE:
      type: String
      default: ""

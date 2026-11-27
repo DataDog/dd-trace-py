@@ -149,6 +149,7 @@ def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> dict[str, t.Opti
         CITag.JOB_URL: job_url,
         GitTag.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or env.get("BUILD_REPOSITORY_URI"),
         GitTag.COMMIT_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or env.get("BUILD_SOURCEVERSION"),
+        GitTag.COMMIT_HEAD_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID"),
         GitTag.BRANCH: env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
         or env.get("BUILD_SOURCEBRANCH")
         or env.get("BUILD_SOURCEBRANCHNAME"),
