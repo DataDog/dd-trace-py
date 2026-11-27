@@ -124,8 +124,8 @@ def test_debugger_coordinated_sampling_caps_loop_probe_per_trace(stuff):
     # its own trace, and each probe emits at most once per trace, so the first
     # iteration fires and the rest of that trace's iterations are capped.
     # Keep the global budget out of the way: the per-probe cap is what is under
-    # test here, not the ingestion ceiling. The function probe keeps its own
-    # unlimited rate since it only ever fires once per call either way.
+    # test here, not the ingestion ceiling, and so are the probes' own rates,
+    # which hold back whichever probe admits each trace.
     with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -138,6 +138,7 @@ def test_debugger_coordinated_sampling_caps_loop_probe_per_trace(stuff):
                 probe_id="loop-probe",
                 source_file="tests/submod/stuff.py",
                 line=134,  # the loop body of durationstuff
+                rate=float("inf"),
             ),
         )
 
@@ -216,13 +217,15 @@ def test_debugger_coordinated_sampling_shares_one_decision_across_a_trace(stuff)
 
 def test_debugger_coordinated_sampling_caps_per_trace(stuff):
     # The cap is scoped to the trace, not to the span the probe fired in, so the
-    # same probe emits once per trace however many spans it fires in.
+    # same probe emits once per trace however many spans it fires in. Its own
+    # rate is out of the way, as it admits both traces.
     with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
         d.add_probes(
             create_snapshot_function_probe(
                 probe_id="probe",
                 module="tests.submod.stuff",
                 func_qname="Stuff.instancestuff",
+                rate=float("inf"),
             ),
         )
 
@@ -270,6 +273,37 @@ def test_debugger_coordinated_sampling_drops_a_whole_chain(stuff):
             stuff.modulestuff(42)
 
         assert Counter(s.probe.probe_id for s in d.test_queue) == Counter(), d.test_queue
+
+
+def test_debugger_coordinated_sampling_parent_rate_drops_the_chain(stuff):
+    # The first probe to capture in a trace is held to its own rate, so that it
+    # cannot take the whole global budget across many requests. Once over it,
+    # the trace is dropped whole: the probe after it skips the trace too, even
+    # with headroom of its own, rather than sending the chain without its head.
+    with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="parent-probe",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                rate=0.0,  # a single token that is never replenished
+            ),
+            create_snapshot_function_probe(
+                probe_id="child-probe",
+                module="tests.submod.stuff",
+                func_qname="modulestuff",
+                rate=float("inf"),
+            ),
+        )
+
+        for i in range(10):
+            with ddtrace.tracer.trace("request"):
+                stuff.Stuff().instancestuff(i)
+                stuff.modulestuff(i)
+
+        assert Counter(s.probe.probe_id for s in d.test_queue) == Counter({"parent-probe": 1, "child-probe": 1}), (
+            d.test_queue
+        )
 
 
 def test_debugger_starts_and_stops_the_sampler():

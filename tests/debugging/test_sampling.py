@@ -60,18 +60,18 @@ def stop_sampler():
     DebuggerSampler.stop()
 
 
-class _Limiter:
-    def __init__(self, allow):
-        self._budget = 1.0 if allow else 0.0
+def _limiter(allow):
+    """A limiter with a fixed number of tokens, which are never replenished.
 
-    def has_budget(self):
-        return self._budget >= 1.0
-
-    def limit(self):
-        if self._budget >= 1.0:
-            self._budget -= 1.0
-            return None
-        return RateLimitExceeded
+    True is a single token, False none, and infinity an unlimited supply.
+    """
+    tokens = float(allow)
+    if tokens == float("inf"):
+        return BudgetRateLimiterWithJitter(limit_rate=tokens, raise_on_exceed=False)
+    # A zero rate never replenishes, and starts with a single token.
+    limiter = BudgetRateLimiterWithJitter(limit_rate=0.0, raise_on_exceed=False)
+    limiter.budget = tokens
+    return limiter
 
 
 class _Probe:
@@ -79,7 +79,7 @@ class _Probe:
 
     def __init__(self, probe_id="probe", snapshot=True, allow=True, tags=None):
         self.probe_id = probe_id
-        self.limiter = _Limiter(allow)
+        self.limiter = _limiter(allow)
         self.tags = tags or {}
         self._snapshot = snapshot
 
@@ -134,8 +134,10 @@ def test_probes_in_a_trace_share_the_decision(spent):
         # at all.
         assert spent.evaluate(_Probe("probe-a")) is Decision.DROP_SAMPLED
         spent._limiter.budget = 100.0
-        assert spent.evaluate(_Probe("probe-b")) is Decision.DROP_SAMPLED
-        assert spent.admit(_Probe("probe-b")) is Decision.DROP_SAMPLED
+        # The rest are told the trace was rejected, rather than charged to the
+        # global limit again, as the first firing already was.
+        assert spent.evaluate(_Probe("probe-b")) is Decision.DROP_REJECTED
+        assert spent.admit(_Probe("probe-b")) is Decision.DROP_REJECTED
 
 
 def test_without_a_trace_each_firing_decides_for_itself():
@@ -149,13 +151,98 @@ def test_without_a_trace_each_firing_decides_for_itself():
     assert budget.admit(_Probe("probe-b")) is Decision.DROP_SAMPLED
 
 
-def test_snapshot_probe_ignores_its_own_rate_limit_in_a_trace(roomy):
+def test_probe_over_its_rate_rejects_the_trace():
+    # Many concurrent traces through the same probe must not all be admitted by
+    # it, or that one probe would take the whole global budget. A probe over its
+    # own rate rejects the trace, without spending the global budget, so that no
+    # later probe admits it with the first capture missing.
+    budget = budget_of(1)
+
+    with tracer.trace("chain") as span:
+        assert budget.admit(_Probe("hot", allow=False)) is Decision.DROP_RATE
+        assert _sampling.TraceContext(span).rejected
+
+        # Not reported against the global limit, which still has room.
+        assert budget.evaluate(_Probe("downstream")) is Decision.DROP_REJECTED
+        assert budget.admit(_Probe("downstream")) is Decision.DROP_REJECTED
+
+    assert budget._limiter.has_budget() is True
+
+
+def test_gate_leaves_the_rate_to_admission(roomy):
+    # The gate runs before the condition, so it must not decide the trace on the
+    # probe's rate: a probe whose condition does not match would otherwise
+    # reject traces that it never captures in, or leave them to be admitted
+    # without it if it did match.
+    with tracer.trace("chain") as span:
+        assert roomy.evaluate(_Probe("hot", allow=False)) is Decision.FIRE
+        assert not _sampling.TraceContext(span).decided
+
+        assert roomy.admit(_Probe("other")) is Decision.FIRE
+
+
+def test_probe_over_its_rate_follows_an_admitted_trace(roomy):
+    # Once another probe admitted the trace, the trace is the unit of sampling,
+    # so a hot probe in it captures like any other.
     with tracer.trace("chain"):
-        # The per-probe rate no longer drives the decision, so one exhausted
-        # probe cannot starve the others sharing its trace.
-        probe = _Probe(allow=False)
-        assert roomy.evaluate(probe) is Decision.FIRE
-        assert roomy.admit(probe) is Decision.FIRE
+        assert roomy.admit(_Probe("admitting")) is Decision.FIRE
+
+        hot = _Probe("hot", allow=False)
+        assert roomy.evaluate(hot) is Decision.FIRE
+        assert roomy.admit(hot) is Decision.FIRE
+
+
+@pytest.mark.parametrize("traced", [True, False])
+def test_probe_rate_is_checked_before_the_global_limit(traced):
+    # With both over their limits, the probe's own rate is what turns the
+    # firing away, so that it is reported against the probe rather than the
+    # global budget.
+    budget = spent_budget()
+    probe = _Probe("hot", allow=False)
+
+    if traced:
+        with tracer.trace("chain"):
+            assert budget.admit(probe) is Decision.DROP_RATE
+    else:
+        assert budget.evaluate(probe) is Decision.DROP_RATE
+        assert budget.admit(probe) is Decision.DROP_RATE
+
+
+def test_only_the_admitting_probe_is_charged_its_rate(roomy):
+    with tracer.trace("chain"):
+        admitting, following = _Probe("admitting"), _Probe("following")
+        assert roomy.admit(admitting) is Decision.FIRE
+        assert roomy.admit(following) is Decision.FIRE
+
+    assert admitting.limiter.has_budget() is False
+    assert following.limiter.has_budget() is True
+
+
+def test_probe_admits_traces_at_its_own_rate(roomy):
+    # With a zero rate the probe has a single token, so of many traces it only
+    # admits the first one, however much global budget there is.
+    probe = create_snapshot_line_probe(probe_id="snapshot-probe", source_file="test.py", line=1, rate=0.0)
+
+    outcomes = []
+    for _ in range(3):
+        with tracer.trace("chain"):
+            outcomes.append(roomy.admit(probe))
+
+    assert outcomes == [Decision.FIRE, Decision.DROP_RATE, Decision.DROP_RATE]
+
+
+def test_trace_global_rejection_does_not_spend_the_probe_rate():
+    # As outside a trace, a trace turned away by the global limit must not
+    # spend the admitting probe's own token.
+    budget = spent_budget()
+    probe = create_snapshot_line_probe(probe_id="snapshot-probe", source_file="test.py", line=1, rate=0.0)
+
+    with tracer.trace("turned-away"):
+        assert budget.admit(probe) is Decision.DROP_SAMPLED
+
+    budget._limiter.budget = 1.0
+    with tracer.trace("admitted"):
+        assert budget.admit(probe) is Decision.FIRE
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +254,7 @@ def test_concurrent_traces_cannot_share_the_last_token():
     # Both traces pass the gate on the same last token, since the gate only
     # peeks. Admission is atomic, so only one of them gets to capture.
     budget = budget_of(1)
-    probe = _Probe("probe")
+    probe = _Probe("probe", allow=float("inf"))
     gated, admitted = Event(), Event()
     outcomes = {}
 
@@ -249,8 +336,8 @@ def test_trace_turned_away_at_admission_stays_dropped():
         assert budget.admit(_Probe("probe")) is Decision.DROP_SAMPLED
         # Budget turning up later must not let the rest of the trace through.
         budget._limiter.budget = 100.0
-        assert budget.evaluate(_Probe("other-probe")) is Decision.DROP_SAMPLED
-        assert budget.admit(_Probe("other-probe")) is Decision.DROP_SAMPLED
+        assert budget.evaluate(_Probe("other-probe")) is Decision.DROP_REJECTED
+        assert budget.admit(_Probe("other-probe")) is Decision.DROP_REJECTED
 
 
 def test_every_capture_in_an_admitted_trace_is_charged():
@@ -447,7 +534,7 @@ def test_cap_is_one_snapshot_per_trace(roomy):
 
 
 def test_cap_resets_between_traces(roomy):
-    probe = _Probe("loop-probe")
+    probe = _Probe("loop-probe", allow=float("inf"))
 
     for _ in range(3):
         with tracer.trace("chain"):
@@ -488,7 +575,7 @@ def test_no_trace_falls_back_to_the_probes_own_rate_limiter(roomy):
 
 def test_traces_do_not_leak_across_threads(roomy):
     with tracer.trace("chain"):
-        probe = _Probe("probe")
+        probe = _Probe("probe", allow=float("inf"))
         roomy.admit(probe)
         assert roomy.evaluate(probe) is Decision.DROP_CAPPED
 
@@ -512,7 +599,7 @@ async def test_traces_do_not_leak_across_tasks(roomy):
     # open at once. The second task starts its trace before the first one
     # captures, so state shared across tasks would have the second find itself
     # capped by its sibling.
-    probe = _Probe("probe")
+    probe = _Probe("probe", allow=float("inf"))
     opened_first, opened_second = asyncio.Event(), asyncio.Event()
     captured, checked = asyncio.Event(), asyncio.Event()
     outcomes = []
@@ -563,8 +650,8 @@ def test_stopped_sampler_fires_nothing_coordinated():
 
 def test_snapshot_probe_honours_its_own_rate_outside_a_trace(roomy):
     # Outside any sampling context a snapshot probe is held to its own rate, one
-    # snapshot per second by default, as probes always were. Inside traces it is
-    # capped at one snapshot per trace instead.
+    # snapshot per second by default, as probes always were. Inside traces that
+    # another probe admitted it is capped at one snapshot per trace instead.
     probe = create_snapshot_line_probe(probe_id="snapshot-probe", source_file="test.py", line=1)
 
     assert roomy.evaluate(probe) is Decision.FIRE
@@ -575,15 +662,24 @@ def test_snapshot_probe_honours_its_own_rate_outside_a_trace(roomy):
 
     for _ in range(3):
         with tracer.trace("chain"):
+            assert roomy.admit(_Probe("admitting")) is Decision.FIRE
             assert roomy.evaluate(probe) is Decision.FIRE
             assert roomy.admit(probe) is Decision.FIRE
 
 
 @pytest.mark.parametrize("traced", [True, False])
-def test_exceeding_the_global_limit_is_logged_outside_the_lock(monkeypatch, traced):
+@pytest.mark.parametrize(
+    "exhausted,decision,message",
+    [
+        ("global", Decision.DROP_SAMPLED, "Global rate limit exceeded"),
+        ("probe", Decision.DROP_RATE, "Rate limit exceeded for probe %s"),
+    ],
+)
+def test_exceeding_a_limit_is_logged_outside_the_lock(monkeypatch, traced, exhausted, decision, message):
     # Logging can call into application code, where a probe could fire and wait
     # for the lock, so it must not happen while the lock is held.
-    budget = spent_budget()
+    budget = spent_budget() if exhausted == "global" else budget_of(float("inf"))
+    probe = _Probe(allow=exhausted != "probe")
     monkeypatch.setattr(DebuggerSampler, "_log_limiter", BudgetRateLimiterWithJitter(limit_rate=1.0))
     logged = []
 
@@ -597,11 +693,11 @@ def test_exceeding_the_global_limit_is_logged_outside_the_lock(monkeypatch, trac
 
     if traced:
         with tracer.trace("chain"):
-            assert budget.admit(_Probe()) is Decision.DROP_SAMPLED
+            assert budget.admit(probe) is decision
     else:
-        assert budget.admit(_Probe()) is Decision.DROP_SAMPLED
+        assert budget.admit(probe) is decision
 
-    assert logged == [("Global rate limit exceeded", True)]
+    assert logged == [(message, True)]
 
 
 def test_gate_does_not_reject_a_context_admitted_meanwhile():
