@@ -85,8 +85,11 @@ from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import get_shared_coverage_bitmaps
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import native_coverage_window_type
 from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_enabled
 from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_requested
+from ddtrace.testing.internal.tracer_api.coverage import native_record_bitmaps
+from ddtrace.testing.internal.tracer_api.coverage import native_records_packable
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 from ddtrace.testing.internal.utils import TestContext
@@ -462,8 +465,14 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._osr_candidates: list[pytest.Item] = []
         # Whether the current test's executions send their own coverage records (native line coverage).
         self._coverage_sent_per_run = False
-        # The latest execution and its record, until the next execution or the end of the test's window.
-        self._pending_run_coverage: t.Optional[tuple[TestRun, CoverageData]] = None
+        # The latest execution and its record (a native window), until the next execution or the end of
+        # the test's window.
+        self._pending_run_coverage: t.Optional[tuple[TestRun, t.Any]] = None
+        # The type of the native coverage window each test and each execution runs in: None until known,
+        # False when tests never run in one (see _native_window_type). And whether the writer takes those
+        # windows' records packed.
+        self._native_window: t.Any = None
+        self._pack_native_records = False
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -653,10 +662,17 @@ class TestOptPlugin(TestOptPluginProtocol):
             cleanup_xdist_manifest(self.xdist_manifest, self.manager.env_tags)
             self.xdist_manifest = None
 
-    def _put_test_coverage(self, test_run: TestRun, coverage_data: CoverageData) -> None:
+    def _put_test_coverage(self, test_run: TestRun, coverage_data: t.Any) -> None:
+        """Send the record of a test or test execution: a native window, or a CoverageData."""
         writer = self.manager.coverage_writer
+        if type(coverage_data) is self._native_window:
+            # The window packs the files itself, which saves building them as Python objects.
+            if self._pack_native_records:
+                writer.put_packed_coverage(test_run, *coverage_data.pack(*writer.FILE_KEYS))
+            else:
+                writer.put_coverage(test_run, native_record_bitmaps(coverage_data, self.manager.workspace_path))
+            return
         workspace = self.manager.workspace_path
-        # Native collection packs the files itself, which saves building them as Python objects.
         if native_line_coverage_enabled() and writer.accepts_packed_files:
             packed = coverage_data.get_packed_files(workspace, writer.FILE_KEYS)
             if packed is not None:
@@ -917,17 +933,29 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
-        # A record left waiting by a test that did not finish normally.
-        self._send_run_coverage()
+        if self._pending_run_coverage is not None:
+            # A record left waiting by a test that did not finish normally.
+            self._send_run_coverage()
         self._coverage_sent_per_run = False
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             coverage_enabled = self.manager.settings.coverage_enabled
-            # Only the import-only mode anchors the test's own file, so native collection skips the lookup.
-            needs_test_file = coverage_enabled and not native_line_coverage_enabled()
-            with _maybe_collect_coverage(
-                coverage_enabled, test_file=_test_file(item) if needs_test_file else None
-            ) as coverage_data:
-                yield
+            window_type = self._native_window
+            if window_type is None and coverage_enabled:
+                window_type = self._native_window_type()
+            if window_type:
+                # The test's own window, around its executions, each of which runs in a window of its own.
+                coverage_data = window_type()
+                _CoverageTelemetry.started += 1
+                with coverage_data:
+                    yield
+                _CoverageTelemetry.finished += 1
+            else:
+                # Only the import-only mode anchors the test's own file, so native collection skips the lookup.
+                needs_test_file = coverage_enabled and not native_line_coverage_enabled()
+                with _maybe_collect_coverage(
+                    coverage_enabled, test_file=_test_file(item) if needs_test_file else None
+                ) as coverage_data:
+                    yield
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -1015,19 +1043,25 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
-        coverage_data: t.Optional[CoverageData] = None
-        if self._collects_coverage_per_run():
+        window_type = self._native_window
+        if window_type is None and self.manager.settings.coverage_enabled:
+            window_type = self._native_window_type()
+        if window_type:
             # Each execution, a retry included, gets its own record. The window nests in the test's.
-            with coverage_collection() as coverage_data:
-                _carry_coverage_context_into_test_case(item)
+            coverage_data = window_type()
+            with coverage_data:
+                if "_instance" in item.__dict__:
+                    _carry_coverage_context_into_test_case(item)
                 reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         else:
+            coverage_data = None
             reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         self._set_test_run_data(test_run, item, context)
         if coverage_data is not None:
             # A record waits for the next execution, or for the test's window to close: the last one
             # also gets the lines run around the executions (see _send_run_coverage).
-            self._send_run_coverage()
+            if self._pending_run_coverage is not None:
+                self._send_run_coverage()
             self._pending_run_coverage = (test_run, coverage_data)
             self._coverage_sent_per_run = True
 
@@ -1040,12 +1074,13 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         return test_run, reports
 
-    def _send_run_coverage(self, enclosing: t.Optional[CoverageData] = None) -> None:
+    def _send_run_coverage(self, enclosing: t.Any = None) -> None:
         """Send the record of the latest execution, if it waits.
 
-        enclosing is the test's own window, which runs around its executions: the repo's hooks
-        that run there (pytest_runtest_logstart, logreport and logfinish, pytest_runtest_protocol
-        wrappers) run for the test, so the last execution's record gets their lines.
+        enclosing is the record of the test's own window, which runs around its executions: the
+        repo's hooks that run there (pytest_runtest_logstart, logreport and logfinish,
+        pytest_runtest_protocol wrappers) run for the test, so the last execution's record gets
+        their lines.
         """
         pending = self._pending_run_coverage
         if pending is None:
@@ -1056,16 +1091,25 @@ class TestOptPlugin(TestOptPluginProtocol):
             coverage_data.include(enclosing)
         self._put_test_coverage(test_run, coverage_data)
 
-    def _collects_coverage_per_run(self) -> bool:
-        """Whether each execution of a test gets its own coverage record.
+    def _native_window_type(self) -> t.Any:
+        """The type of the native coverage window each test and each of its executions runs in.
 
-        Native line coverage only, and not in suite-skipping mode, where coverage is sent per suite.
+        Each execution, a retry included, gets its own record. False when tests never run in one:
+        native line coverage is not requested, or coverage goes per suite in suite-skipping mode. None
+        while native collection is not enabled yet, which happens at the first instrumented module,
+        so a test can import it: the next test asks again.
         """
-        return (
-            self.manager.settings.coverage_enabled
-            and native_line_coverage_enabled()
-            and self.manager.itr_skipping_level != ITRSkippingLevel.SUITE
-        )
+        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE or not native_line_coverage_requested():
+            self._native_window = False
+            return False
+        window_type = native_coverage_window_type()
+        if window_type is not None:
+            writer = self.manager.coverage_writer
+            self._pack_native_records = writer.accepts_packed_files and native_records_packable(
+                self.manager.workspace_path
+            )
+            self._native_window = window_type
+        return window_type
 
     def _do_test_runs(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> None:
         test = self.tests_by_nodeid[item.nodeid]

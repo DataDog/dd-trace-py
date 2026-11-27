@@ -363,6 +363,7 @@ typedef struct Context
        only where the inner context's lines count for this one too. */
     int suspended;         /* inner windows open over this one */
     struct Context* outer; /* the context this one's open window suspends, or NULL */
+    PyObject* previous;    /* the running context __enter__ replaced, for __exit__; NULL when not entered */
 } Context;
 
 static PyTypeObject ContextType;
@@ -380,6 +381,11 @@ typedef struct
 } SharedState;
 
 static SharedState* g_state = NULL;
+
+/* What a window's __exit__ calls when child processes wrote records since it last ran: it merges them
+   into their contexts. g_records_seen is the record count at that last run. */
+static PyObject* g_records_callback = NULL;
+static uint64_t g_records_seen = 0;
 
 /* Configuration, set by init(). */
 static int g_initialized = 0;
@@ -2259,6 +2265,7 @@ Context_traverse(Context* c, visitproc visit, void* arg)
 {
     Py_VISIT(c->fixtures);
     Py_VISIT(c->outer);
+    Py_VISIT(c->previous);
     return 0;
 }
 
@@ -2267,6 +2274,7 @@ Context_clear(Context* c)
 {
     resume_outer(c, 0);
     Py_CLEAR(c->fixtures);
+    Py_CLEAR(c->previous);
     return 0;
 }
 
@@ -2371,6 +2379,87 @@ Context_exit(Context* c, PyObject* previous)
         return NULL;
     Py_DECREF(token);
     publish_owner(previous);
+    Py_RETURN_NONE;
+}
+
+/* Calls the records callback when child processes wrote records since it last ran. */
+static int
+collect_records(void)
+{
+#if DD_HAVE_SHARED_STATE
+    if (g_records_callback == NULL || g_state == NULL)
+        return 0;
+    uint64_t records = __atomic_load_n(&g_state->records, __ATOMIC_ACQUIRE);
+    if (records == g_records_seen)
+        return 0;
+    g_records_seen = records;
+    /* A strong reference: the callback can replace itself. */
+    PyObject* callback = Py_NewRef(g_records_callback);
+    PyObject* r = PyObject_CallNoArgs(callback);
+    Py_DECREF(callback);
+    if (r == NULL)
+        return -1;
+    Py_DECREF(r);
+#endif
+    return 0;
+}
+
+/* __enter__() -> self: enter(), keeping the running context it replaced for __exit__. A test window
+   is opened and closed this way, with no Python frame. */
+static PyObject*
+Context_enter_window(Context* c, PyObject* Py_UNUSED(ignored))
+{
+    if (c->previous != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "the context is entered already");
+        return NULL;
+    }
+    PyObject* previous = Context_enter(c, NULL);
+    if (previous == NULL)
+        return NULL;
+    c->previous = previous;
+    return Py_NewRef(c);
+}
+
+/* __exit__(*exc_info): merge the records of the child processes that exited, which ran inside the
+   window, then exit() back to the context __enter__ replaced. Never suppresses an exception. */
+static PyObject*
+Context_exit_window(Context* c, PyObject* const* Py_UNUSED(args), Py_ssize_t Py_UNUSED(nargs))
+{
+    PyObject* previous = c->previous;
+    if (previous == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "the context is not entered");
+        return NULL;
+    }
+    /* The window closes even when the callback fails, and the callback's error is reported after. */
+    int collected = collect_records();
+    PyObject* error = collected < 0 ? PyErr_GetRaisedException() : NULL;
+    c->previous = NULL;
+    PyObject* r = Context_exit(c, previous);
+    Py_DECREF(previous);
+    if (error != NULL) {
+        Py_XDECREF(r);
+        PyErr_SetRaisedException(error);
+        return NULL;
+    }
+    return r;
+}
+
+/* include(enclosing): add the lines of enclosing, the window of the same test opened around this one,
+   to this context's record. Only enclosing's own lines: the suite fixtures it linked when it opened
+   may have been replaced since, by a setup for another parameter, and this record links the current
+   ones itself. Anything but another Context is ignored. */
+static PyObject*
+Context_include(Context* c, PyObject* enclosing)
+{
+    if (!Py_IS_TYPE(enclosing, &ContextType) || enclosing == (PyObject*)c)
+        Py_RETURN_NONE;
+    PyObject* linked = ((Context*)enclosing)->fixtures;
+    if (linked != NULL && PyList_SetSlice(linked, 0, PyList_GET_SIZE(linked), NULL) < 0)
+        return NULL;
+    if (c->fixtures == NULL && (c->fixtures = PyList_New(0)) == NULL)
+        return NULL;
+    if (PyList_Append(c->fixtures, enclosing) < 0)
+        return NULL;
     Py_RETURN_NONE;
 }
 
@@ -2694,6 +2783,12 @@ static PyMethodDef Context_methods[] = {
       METH_NOARGS,
       "Push and run in this context, suspending the previous one until this one pops; returns the previous one." },
     { "exit", (PyCFunction)Context_exit, METH_O, "Run in the given previous context again, and pop." },
+    { "__enter__", (PyCFunction)Context_enter_window, METH_NOARGS, "enter(), keeping the context it replaced." },
+    { "__exit__",
+      (PyCFunction)(void (*)(void))Context_exit_window,
+      METH_FASTCALL,
+      "Merge the records of child processes that exited, then exit() to the context __enter__ replaced." },
+    { "include", (PyCFunction)Context_include, METH_O, "Add the own lines of the window around this one." },
     { "bitmaps", (PyCFunction)(void (*)(void))Context_bitmaps, METH_FASTCALL, "Record bitmaps." },
     { "pack", (PyCFunction)(void (*)(void))Context_pack, METH_FASTCALL, "Record bitmaps, packed as msgpack." },
     { "covered", (PyCFunction)Context_covered, METH_NOARGS, "Own lines by absolute path." },
@@ -3464,6 +3559,22 @@ mod_records(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
     return PyLong_FromLong(0);
 }
 
+/* set_records_callback(callback): the function a window's __exit__ calls when child processes wrote
+   records since it last ran, or None for none. Records already written count as seen. */
+static PyObject*
+mod_set_records_callback(PyObject* Py_UNUSED(self), PyObject* callback)
+{
+    if (callback != Py_None && !PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "set_records_callback(callback)");
+        return NULL;
+    }
+    Py_XSETREF(g_records_callback, callback == Py_None ? NULL : Py_NewRef(callback));
+#if DD_HAVE_SHARED_STATE
+    g_records_seen = g_state != NULL ? __atomic_load_n(&g_state->records, __ATOMIC_ACQUIRE) : 0;
+#endif
+    Py_RETURN_NONE;
+}
+
 /* add_record(): count a record a child wrote, once its file is in place. */
 static PyObject*
 mod_add_record(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(ignored))
@@ -3774,6 +3885,10 @@ static PyMethodDef module_methods[] = {
     { "unshare_state", mod_unshare_state, METH_NOARGS, "Unmap the state file." },
     { "owner", mod_owner, METH_NOARGS, "The token of the context published to child processes." },
     { "records", mod_records, METH_NOARGS, "The number of child records written." },
+    { "set_records_callback",
+      mod_set_records_callback,
+      METH_O,
+      "Set the function window exits call when child processes wrote records." },
     { "add_record", mod_add_record, METH_NOARGS, "Count a record this child wrote." },
     { "merge", (PyCFunction)(void (*)(void))mod_merge, METH_FASTCALL, "Merge a child's lines." },
     { "union", mod_union, METH_NOARGS, "Every line run, by report path." },
