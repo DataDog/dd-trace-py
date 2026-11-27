@@ -21,6 +21,7 @@ import dis
 import marshal
 import os
 import sys
+import sysconfig
 from types import CodeType
 import typing as t
 
@@ -34,9 +35,14 @@ from ddtrace.internal.utils.formats import asbool
 
 log = get_logger(__name__)
 
-try:
-    from ddtrace.internal.coverage import _linecov  # type: ignore[attr-defined]
-except ImportError:
+# The extension declares no Py_mod_gil slot, so importing it would turn the GIL back on in a free-threaded build.
+# It is not loaded there, and coverage stays file-level.
+if not sysconfig.get_config_var("Py_GIL_DISABLED"):
+    try:
+        from ddtrace.internal.coverage import _linecov  # type: ignore[attr-defined]
+    except ImportError:
+        _linecov = None
+else:
     _linecov = None
 
 
