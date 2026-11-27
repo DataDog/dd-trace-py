@@ -1398,20 +1398,20 @@ Logs
         Agent. The tracer must be installed via ``ddtrace-run`` or ``import ddtrace.auto``.
         The global agentless switch (``DD_AGENTLESS_ENABLED``) is not required.
 
-        Records that reach the root logger's handlers are batched and sent asynchronously,
+        Records that propagate to the root logger are batched and sent asynchronously,
         enriched with service, environment, version, hostname and, when a trace is active and
         ``DD_LOGS_INJECTION`` is enabled (the default), ``dd.trace_id`` and ``dd.span_id``.
-        Logger levels are not modified: with the default
-        root level of ``WARNING``, ``INFO`` records are only submitted if the application
-        configures logging itself, and loggers with ``propagate=False`` are not captured.
-        Because the handler is added to the root logger at startup, a later
-        ``logging.basicConfig()`` call does nothing, and ``basicConfig(force=True)`` or a
-        ``dictConfig``/``fileConfig`` that configures the root logger removes the handler.
+        The application's logging configuration is not modified: no handler is added, so console
+        output, ``logging.basicConfig()`` and ``dictConfig``/``fileConfig`` behave as without the
+        tracer. Logger levels apply as usual: with the default root level of ``WARNING``,
+        ``INFO`` records are only submitted if the application configures logging itself.
+        Records from loggers with ``propagate=False`` are not submitted. Logging is best-effort:
+        a batch the intake rejects, or that cannot be sent, is dropped without retrying.
 
-        When the Test Optimization pytest plugin runs in agentless mode
-        (``DD_CIVISIBILITY_AGENTLESS_ENABLED=true`` or ``DD_AGENTLESS_ENABLED=true``), it
-        submits test logs with the same variable; its behavior is unchanged and takes
-        precedence over the APM submission for the duration of the test session.
+        When the Test Optimization pytest plugin is enabled, this submission is turned off for the
+        test session, and test logs are submitted only by the plugin, as before: in agentless mode
+        (``DD_CIVISIBILITY_AGENTLESS_ENABLED=true`` or ``DD_AGENTLESS_ENABLED=true``), the plugin
+        submits them with this same variable.
 
         If ``DD_LOGS_OTEL_ENABLED`` is also set, OpenTelemetry log export takes precedence:
         nothing is submitted by this option and a warning is logged at startup.

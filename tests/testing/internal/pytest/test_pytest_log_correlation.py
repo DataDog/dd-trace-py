@@ -246,24 +246,30 @@ def test_root_level_filters_child_logger_records():
     assert captured[0]["status"] == "error"
 """
 
-# The ddtrace bootstrap (ddtrace-run) installs the APM agentless log submission handler on the
-# root logger at preload. When the Test Optimization plugin installs its own LogsHandler, the APM
-# handler must be removed so records are not submitted twice.
-_TEST_NO_DUPLICATE_HANDLER = """\
+# Loaded with "-p", so it is imported before the plugin's pytest_load_initial_conftests runs: it
+# records whether the ddtrace bootstrap (ddtrace-run) had started APM agentless log submission.
+_APM_LOGS_PROBE_PLUGIN = """\
+from ddtrace.internal import logs
+
+ENABLED_AT_STARTUP = logs._handler is not None
+"""
+
+_TEST_APM_LOG_SUBMISSION_DISABLED = """\
 import logging
 
-from ddtrace.internal.logs import AgentlessLogsHandler
+import dd_apm_logs_probe
+from ddtrace.internal import logs
 from ddtrace.testing.internal.logs import LogsHandler
 
+EXPECTED_LOGS_HANDLERS = {expected_logs_handlers}
 
-def test_no_duplicate_log_submission_handler():
-    root_handlers = logging.getLogger().handlers
-    apm_handlers = [h for h in root_handlers if isinstance(h, AgentlessLogsHandler)]
-    logs_handlers = [h for h in root_handlers if isinstance(h, LogsHandler)]
-    assert len(apm_handlers) == 0, (
-        f"APM agentless handler still installed alongside the test plugin's handler: {root_handlers}"
-    )
-    assert len(logs_handlers) == 1, f"Expected 1 LogsHandler on root logger, got {len(logs_handlers)}"
+
+def test_apm_log_submission_disabled():
+    assert dd_apm_logs_probe.ENABLED_AT_STARTUP, "the bootstrap did not start APM log submission"
+    assert logs._handler is None, "APM log submission still enabled during the test session"
+    assert logging.Logger.callHandlers is logs._original_call_handlers
+    logs_handlers = [h for h in logging.getLogger().handlers if isinstance(h, LogsHandler)]
+    assert len(logs_handlers) == EXPECTED_LOGS_HANDLERS, logging.getLogger().handlers
 """
 
 
@@ -412,29 +418,34 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_apm_agentless_handler_deduplicated(
-        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    @pytest.mark.parametrize("civisibility_agentless", [True, False])
+    def test_apm_agentless_log_submission_disabled(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None, civisibility_agentless: bool
     ) -> None:
-        """Under the ddtrace bootstrap, the APM log submission handler must be removed when the plugin owns logs.
+        """Under the ddtrace bootstrap, Test Optimization turns APM log submission off before conftests load.
 
-        DD_AGENTLESS_LOG_SUBMISSION_ENABLED now also enables APM log submission in any process
-        started with ddtrace-run. When the Test Optimization plugin installs its own LogsHandler
-        during the session, records must not be submitted twice: the APM handler is flushed and
-        removed, leaving exactly one submitting handler on the root logger.
+        DD_AGENTLESS_LOG_SUBMISSION_ENABLED also enables APM log submission in any process started
+        with ddtrace-run. Test sessions must keep submitting logs only through the plugin's own
+        LogsHandler, and nothing at all without agentless mode, as before APM support existed.
         """
         import ddtrace.bootstrap
 
         monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
-        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
-        # Any records the APM handler buffered before the session started are flushed when it is
-        # removed; point its writer at an unreachable local port so nothing leaves the machine.
+        # Records buffered by the APM writer are discarded, but keep its intake local regardless.
         monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_URL", "http://127.0.0.1:9")
+        if not civisibility_agentless:
+            monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "false")
+            monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://127.0.0.1:9")
         # Activate the ddtrace bootstrap sitecustomize (normally done by ddtrace-run) so the
-        # preload installs the APM handler before pytest starts.
+        # preload starts APM log submission before pytest starts.
         monkeypatch.setenv("PYTHONPATH", os.path.dirname(ddtrace.bootstrap.__file__))
 
-        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
-        pytester.makepyfile(test_file=_TEST_NO_DUPLICATE_HANDLER)
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN, dd_apm_logs_probe=_APM_LOGS_PROBE_PLUGIN)
+        pytester.makepyfile(
+            test_file=_TEST_APM_LOG_SUBMISSION_DISABLED.format(expected_logs_handlers=int(civisibility_agentless))
+        )
 
-        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result = pytester.runpytest_subprocess(
+            "--ddtrace", "-p", "dd_apm_logs_probe", "-p", "dd_log_corr_infra", "-v", "-s"
+        )
         result.assert_outcomes(passed=1)

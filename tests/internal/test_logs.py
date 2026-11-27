@@ -15,10 +15,12 @@ from unittest import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal import logs as agentless_logs
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
 from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.logs import AgentlessLogsHandler
 from ddtrace.internal.logs import LogsIntakeWriter
+from ddtrace.internal.logs import disable_agentless_log_submission
 from ddtrace.internal.logs import enable_agentless_log_submission
 
 
@@ -62,11 +64,12 @@ def patched_config(**attrs: Any):
 
 @pytest.fixture(autouse=True)
 def restore_logging_state():
-    """Restore the root logger after every test."""
+    """Restore the root logger and turn agentless log submission off after every test."""
     root = logging.getLogger()
     handlers = list(root.handlers)
     level = root.level
     yield
+    disable_agentless_log_submission()
     root.handlers = handlers
     root.setLevel(level)
 
@@ -335,7 +338,8 @@ class TestEnable:
             assert not enable_agentless_log_submission()
         mock_logger.warning.assert_called_once()
         assert "DD_API_KEY" in mock_logger.warning.call_args[0][0]
-        assert not any(isinstance(h, AgentlessLogsHandler) for h in logging.getLogger().handlers)
+        assert agentless_logs._handler is None
+        assert logging.Logger.callHandlers is agentless_logs._original_call_handlers
 
     def test_enable_with_otel_logs_warns_and_installs_nothing(self):
         with (
@@ -347,9 +351,10 @@ class TestEnable:
             assert not enable_agentless_log_submission()
         mock_logger.warning.assert_called_once()
         assert "DD_LOGS_OTEL_ENABLED" in mock_logger.warning.call_args[0][0]
-        assert not any(isinstance(h, AgentlessLogsHandler) for h in logging.getLogger().handlers)
+        assert agentless_logs._handler is None
+        assert logging.Logger.callHandlers is agentless_logs._original_call_handlers
 
-    def test_enable_installs_handler(self):
+    def test_enable_submits_records_reaching_root(self):
         with (
             agentless_settings(self._enable_env()),
             mock.patch.object(ddtrace.config, "_otel_logs_enabled", False),
@@ -357,8 +362,44 @@ class TestEnable:
         ):
             assert enable_agentless_log_submission()
         writer_cls.assert_called_once_with(api_key="test-key", intake_url=_UNREACHABLE_URL)
-        writer_cls.return_value.start.assert_called_once()
-        assert sum(1 for h in logging.getLogger().handlers if isinstance(h, AgentlessLogsHandler)) == 1
+        writer = writer_cls.return_value
+        writer.start.assert_called_once()
+        # No handler is added, so logging.lastResort and basicConfig() keep working.
+        assert not any(isinstance(h, AgentlessLogsHandler) for h in logging.getLogger().handlers)
+
+        logging.getLogger("test.app.child").warning("submitted")
+        (event,) = writer.enqueue.call_args[0]
+        assert event["message"] == "submitted"
+
+        writer.enqueue.reset_mock()
+        not_propagated = logging.getLogger("test.app.no_propagate")
+        not_propagated.propagate = False
+        try:
+            not_propagated.warning("not submitted")
+        finally:
+            not_propagated.propagate = True
+        logging.getLogger("ddtrace.internal.something").warning("not submitted either")
+        writer.enqueue.assert_not_called()
+
+    def test_disable_stops_submission_and_discards_buffer(self):
+        with (
+            agentless_settings(self._enable_env()),
+            mock.patch.object(ddtrace.config, "_otel_logs_enabled", False),
+            mock.patch("ddtrace.internal.logs.LogsIntakeWriter") as writer_cls,
+        ):
+            assert enable_agentless_log_submission()
+        writer = writer_cls.return_value
+
+        disable_agentless_log_submission()
+
+        assert logging.Logger.callHandlers is agentless_logs._original_call_handlers
+        writer.reset.assert_called_once()
+        writer.stop.assert_called_once()
+        writer.periodic.assert_not_called()
+        logging.getLogger("test.app").warning("after disable")
+        writer.enqueue.assert_not_called()
+        # Disabling twice is a no-op.
+        disable_agentless_log_submission()
 
     def test_enable_defaults_to_site_intake(self):
         with (
@@ -379,7 +420,8 @@ class TestEnable:
             assert not enable_agentless_log_submission()
         writer_cls.assert_not_called()
         mock_logger.warning.assert_called_once()
-        assert not any(isinstance(h, AgentlessLogsHandler) for h in logging.getLogger().handlers)
+        assert agentless_logs._handler is None
+        assert logging.Logger.callHandlers is agentless_logs._original_call_handlers
 
 
 @pytest.mark.subprocess(
@@ -388,13 +430,10 @@ class TestEnable:
     err=lambda err: "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_API_KEY is not set" in err,
 )
 def test_no_api_key_warns_without_handler_in_subprocess():
-    """Without DD_API_KEY, the flag produces a warning and installs no handler."""
-    import logging
+    """Without DD_API_KEY, the flag produces a warning and submits nothing."""
+    from ddtrace.internal import logs
 
-    from ddtrace.internal.logs import AgentlessLogsHandler
-
-    handlers = [h for h in logging.getLogger().handlers if isinstance(h, AgentlessLogsHandler)]
-    assert not handlers, "handler installed without an API key"
+    assert logs._handler is None, "log submission enabled without an API key"
 
 
 @pytest.mark.subprocess(
@@ -407,13 +446,10 @@ def test_no_api_key_warns_without_handler_in_subprocess():
     err=lambda err: "DD_LOGS_OTEL_ENABLED" in err,
 )
 def test_otel_logs_takes_precedence_in_subprocess():
-    """With DD_LOGS_OTEL_ENABLED, OpenTelemetry wins: no handler, plus a startup warning."""
-    import logging
+    """With DD_LOGS_OTEL_ENABLED, OpenTelemetry wins: nothing is submitted, plus a startup warning."""
+    from ddtrace.internal import logs
 
-    from ddtrace.internal.logs import AgentlessLogsHandler
-
-    handlers = [h for h in logging.getLogger().handlers if isinstance(h, AgentlessLogsHandler)]
-    assert not handlers, "handler installed despite DD_LOGS_OTEL_ENABLED"
+    assert logs._handler is None, "log submission enabled despite DD_LOGS_OTEL_ENABLED"
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_AGENTLESS_LOG_SUBMISSION_ENABLED=None))
@@ -448,7 +484,12 @@ from ddtrace.trace import tracer
 
 logger = logging.getLogger("agentless.app")
 
+# Without any logging configuration, warnings still reach stderr through logging.lastResort.
 logger.warning("standalone message")
+
+# basicConfig() still configures the root logger.
+logging.basicConfig(level=logging.INFO, format="console: %(message)s")
+logger.info("info message")
 
 with tracer.trace("submission-op") as span:
     logger.warning("correlated message")
@@ -457,16 +498,22 @@ with tracer.trace("submission-op") as span:
         env=env,
     )
     assert status == 0, err
+    err_text = err.decode() if isinstance(err, bytes) else err
+    assert "standalone message" in err_text, err_text
+    assert "console: info message" in err_text, err_text
+    assert "console: correlated message" in err_text, err_text
 
     events = log_intake_receiver.events()
-    submitted = [event for event in events if event.get("message") in ("standalone message", "correlated message")]
-    assert len(submitted) == 2, events
+    messages = ("standalone message", "info message", "correlated message")
+    submitted = [event for event in events if event.get("message") in messages]
+    assert len(submitted) == 3, events
 
     by_message = {event["message"]: event for event in submitted}
     assert by_message["standalone message"]["dd.trace_id"] == "0"
     assert by_message["standalone message"]["status"] == "warning"
     assert by_message["standalone message"]["ddsource"] == "python"
     assert by_message["standalone message"]["service"] == "agentless-logs-test"
+    assert by_message["info message"]["status"] == "info"
 
     out_text = out.decode() if isinstance(out, bytes) else out
     trace_id = next(line.split("=", 1)[1] for line in out_text.splitlines() if line.startswith("TRACE_ID="))
@@ -518,3 +565,48 @@ logger.warning("after fork")
     assert messages.count("before fork") == 1, messages
     assert messages.count("from child") == 1, messages
     assert messages.count("after fork") == 1, messages
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires the fork start method")
+@pytest.mark.usefixtures("log_intake_receiver")
+def test_multiprocessing_fork_workers_submit_logs(ddtrace_run_python_code_in_subprocess, log_intake_receiver):
+    """Fork-started multiprocessing workers exit through os._exit() and must still flush their logs."""
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": "true",
+            "DD_API_KEY": "test-key",
+            "DD_AGENTLESS_LOG_SUBMISSION_URL": log_intake_receiver.url,
+            "DD_TRACE_AGENT_URL": log_intake_receiver.url,
+        }
+    )
+    env.pop("DD_LOGS_OTEL_ENABLED", None)
+
+    _, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+import multiprocessing
+
+
+def work(message):
+    logging.getLogger("mp.app").warning(message)
+
+
+if __name__ == "__main__":
+    context = multiprocessing.get_context("fork")
+    process = context.Process(target=work, args=("from process",))
+    process.start()
+    process.join()
+    # close() and join() let the worker exit normally; the context manager would terminate it.
+    pool = context.Pool(1)
+    pool.apply(work, ("from pool",))
+    pool.close()
+    pool.join()
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+    messages = [event["message"] for event in log_intake_receiver.events()]
+    assert messages.count("from process") == 1, messages
+    assert messages.count("from pool") == 1, messages

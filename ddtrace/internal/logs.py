@@ -1,26 +1,28 @@
 """Agentless submission of application logs to the Datadog logs intake.
 
 Enabled with DD_AGENTLESS_LOG_SUBMISSION_ENABLED and DD_API_KEY: records that
-reach the root logger's handlers are batched and POSTed to /api/v2/logs without
+propagate to the root logger are batched and POSTed to /api/v2/logs without
 going through the Datadog Agent.
 """
 
 from __future__ import annotations
 
-import atexit
 import gzip
 import json
 import logging
+from types import ModuleType
 import typing as t
 from urllib.parse import urlsplit
 
 from ddtrace import config
+from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
 from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.utils.http import get_connection
@@ -35,7 +37,8 @@ _TRUNCATION_SUFFIX = "... [truncated]"
 class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
     """Buffers log events and periodically sends them to the logs intake.
 
-    Requests respect the intake limits of 1000 entries and 5MB each.
+    Requests respect the intake limits of 1000 entries and 5MB each. A batch that fails to send
+    is dropped: log submission is best-effort.
     """
 
     _MAX_EVENTS_PER_REQUEST = 1000
@@ -58,7 +61,19 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
 
     def start(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().start(*args, **kwargs)
+        # multiprocessing children started with fork leave through os._exit(), which skips
+        # atexit but still runs the shutdown callbacks of the application's threading module.
+        # With module cloning that is a later copy of threading, hence the import hook.
+        ModuleWatchdog.register_module_hook("threading", self._flush_at_threading_shutdown)
+        # atexit also flushes what is logged later in the parent's shutdown.
         atexit.register(self.periodic)
+
+    def _flush_at_threading_shutdown(self, threading: ModuleType) -> None:
+        try:
+            threading._register_atexit(self.periodic)
+        except RuntimeError:
+            # The interpreter is already shutting down; atexit still flushes.
+            pass
 
     def enqueue(self, event: dict[str, t.Any]) -> None:
         with self._lock:
@@ -164,7 +179,7 @@ class LogsIntakeHandler(logging.Handler):
 
 
 class AgentlessLogsHandler(LogsIntakeHandler):
-    """Root logger handler that forwards application log records to a LogsIntakeWriter."""
+    """Forwards application log records that propagate to the root logger to a LogsIntakeWriter."""
 
     def __init__(self, writer: LogsIntakeWriter) -> None:
         tags = dict(config.tags)
@@ -189,8 +204,28 @@ class AgentlessLogsHandler(LogsIntakeHandler):
         self._writer.enqueue(event)
 
 
+_handler: t.Optional[AgentlessLogsHandler] = None
+_original_call_handlers = logging.Logger.callHandlers
+
+
+def _call_handlers(self: logging.Logger, record: logging.LogRecord) -> None:
+    _original_call_handlers(self, record)
+    handler = _handler
+    if handler is None:
+        return
+    # Submit what a root handler would receive, without being one: a root handler would
+    # suppress logging.lastResort (the stderr output of apps with no logging configuration),
+    # turn a later basicConfig() into a no-op, and be removed by dictConfig()/fileConfig().
+    logger_ = self
+    while logger_.parent is not None:
+        if not logger_.propagate:
+            return
+        logger_ = logger_.parent
+    handler.handle(record)
+
+
 def enable_agentless_log_submission() -> bool:
-    """Install the agentless log handler on the root logger; return whether it was installed."""
+    """Start submitting log records to the logs intake; return whether submission was enabled."""
     if config._otel_logs_enabled:
         logger.warning(
             "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is ignored because DD_LOGS_OTEL_ENABLED is set; "
@@ -210,7 +245,27 @@ def enable_agentless_log_submission() -> bool:
         logger.warning("Invalid logs intake URL %r; logs will not be submitted.", intake_url, exc_info=True)
         return False
 
+    global _handler
     writer = LogsIntakeWriter(api_key=agentless_config.api_key, intake_url=intake_url)
     writer.start()
-    logging.getLogger().addHandler(AgentlessLogsHandler(writer))
+    _handler = AgentlessLogsHandler(writer)
+    logging.Logger.callHandlers = _call_handlers  # type: ignore[method-assign]
     return True
+
+
+def disable_agentless_log_submission() -> None:
+    """Stop submitting log records and discard the ones not sent yet.
+
+    The Test Optimization pytest plugin calls this so that test sessions submit logs only
+    through its own handler, as they did before agentless log submission covered APM.
+    """
+    global _handler
+    handler, _handler = _handler, None
+    if handler is None:
+        return
+    if logging.Logger.callHandlers is _call_handlers:
+        logging.Logger.callHandlers = _original_call_handlers  # type: ignore[method-assign]
+    writer = handler._writer
+    writer.reset()
+    atexit.unregister(writer.periodic)
+    writer.stop()
