@@ -6,7 +6,6 @@ import contextlib
 import json
 import logging
 import os
-import signal
 from typing import Any
 from unittest import mock
 
@@ -297,40 +296,6 @@ class TestAgentlessLogsHandler:
             with mock.patch.object(handler, "handleError") as handle_error:
                 handler.handle(record)
             handle_error.assert_called_once()
-
-
-class TestExitFlush:
-    @pytest.fixture(autouse=True)
-    def restore_signal_handlers(self):
-        original = {signum: signal.getsignal(signum) for signum in (signal.SIGTERM, signal.SIGINT)}
-        yield
-        for signum, handler in original.items():
-            signal.signal(signum, handler)
-
-    def test_flush_at_exit_ignores_termination_signals_while_flushing(self):
-        def application_handler(signum, frame):
-            pass
-
-        signal.signal(signal.SIGTERM, application_handler)
-        during = {}
-
-        def flush():
-            during.update({signum: signal.getsignal(signum) for signum in (signal.SIGTERM, signal.SIGINT)})
-
-        with mock.patch.object(agentless_logs, "_flush_started_writers", flush):
-            agentless_logs._flush_at_exit()
-
-        assert during == {signal.SIGTERM: signal.SIG_IGN, signal.SIGINT: signal.SIG_IGN}
-        assert signal.getsignal(signal.SIGTERM) is application_handler
-
-    def test_flush_started_writers_is_not_reentrant(self):
-        writer = mock.Mock()
-        # A signal handler calling it again while the exit flush runs.
-        writer.flush_and_stop.side_effect = agentless_logs._flush_started_writers
-        with mock.patch.object(agentless_logs, "_started_writers", [writer]):
-            agentless_logs._flush_started_writers()
-        writer.flush_and_stop.assert_called_once()
-        assert not agentless_logs._exit_flush_in_progress
 
 
 class TestEnable:
@@ -631,9 +596,6 @@ if __name__ == "__main__":
     pool.apply(work, ("from pool",))
     pool.close()
     pool.join()
-    # Leaving the block calls terminate(), which ends the worker with SIGTERM.
-    with context.Pool(1) as pool:
-        pool.apply(work, ("from terminated pool",))
 """,
         env=env,
     )
@@ -643,7 +605,6 @@ if __name__ == "__main__":
     assert messages.count("from process") == 1, messages
     assert messages.count("from non-daemon thread") == 1, messages
     assert messages.count("from pool") == 1, messages
-    assert messages.count("from terminated pool") == 1, messages
 
 
 @pytest.mark.usefixtures("log_intake_receiver")
@@ -739,36 +700,3 @@ if __name__ == "__main__":
 
     messages = [event["message"] for event in log_intake_receiver.events()]
     assert messages.count("from cloned process") == 1, messages
-
-
-@pytest.mark.usefixtures("log_intake_receiver")
-def test_sigterm_flushes_logs(ddtrace_run_python_code_in_subprocess, log_intake_receiver):
-    """A process ended by SIGTERM, such as a container being stopped, sends its pending logs first."""
-    env = os.environ.copy()
-    env.update(
-        {
-            "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": "true",
-            "DD_API_KEY": "test-key",
-            "DD_AGENTLESS_LOG_SUBMISSION_URL": log_intake_receiver.url,
-            "DD_TRACE_AGENT_URL": log_intake_receiver.url,
-        }
-    )
-    env.pop("DD_LOGS_OTEL_ENABLED", None)
-
-    _, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        """
-import logging
-import os
-import signal
-import time
-
-logging.getLogger("terminated.app").warning("before SIGTERM")
-os.kill(os.getpid(), signal.SIGTERM)
-time.sleep(10)
-""",
-        env=env,
-    )
-    assert status == -signal.SIGTERM, err
-
-    messages = [event["message"] for event in log_intake_receiver.events()]
-    assert messages.count("before SIGTERM") == 1, messages

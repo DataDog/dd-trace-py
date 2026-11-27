@@ -10,7 +10,6 @@ from __future__ import annotations
 import gzip
 import json
 import logging
-import signal
 from types import ModuleType
 import typing as t
 from urllib.parse import urlsplit
@@ -147,44 +146,14 @@ class LogsIntakeWriter(ForksafeAwakeablePeriodicService):
 
 _started_writers: weakref.WeakSet[LogsIntakeWriter] = weakref.WeakSet()
 _exit_flush_installed = False
-_exit_flush_in_progress = False
 
 
 def _flush_started_writers() -> None:
-    global _exit_flush_in_progress
-    if _exit_flush_in_progress:
-        # Called again from a signal handler while the exit flush runs.
-        return
-    _exit_flush_in_progress = True
-    try:
-        for writer in list(_started_writers):
-            try:
-                writer.flush_and_stop()
-            except Exception:
-                logger.debug("failed to flush logs at process exit", exc_info=True)
-    finally:
-        _exit_flush_in_progress = False
-
-
-def _flush_at_exit() -> None:
-    """Flush as the process exits, ignoring termination signals until the flush is done.
-
-    Pool.terminate() first tells the workers to exit and then sends SIGTERM to those still running,
-    which can be in this flush. Ignoring the signal keeps it from ending the process mid-send; the
-    process exits right after the flush anyway.
-    """
-    ignored: list[tuple[int, t.Any]] = []
-    for signum in (signal.SIGTERM, signal.SIGINT):
+    for writer in list(_started_writers):
         try:
-            ignored.append((signum, signal.signal(signum, signal.SIG_IGN)))
-        except ValueError:
-            # Not the main thread: signal dispositions can only be changed from it.
-            break
-    try:
-        _flush_started_writers()
-    finally:
-        for ignored_signum, previous in ignored:
-            signal.signal(ignored_signum, previous)
+            writer.flush_and_stop()
+        except Exception:
+            logger.debug("failed to flush logs at process exit", exc_info=True)
 
 
 def _patch_process_bootstrap(process: ModuleType) -> None:
@@ -196,27 +165,25 @@ def _patch_process_bootstrap(process: ModuleType) -> None:
         finally:
             # The bootstrap has run threading's shutdown, which joins the child's non-daemon
             # threads, so nothing is logged after this flush.
-            _flush_at_exit()
+            _flush_started_writers()
 
     process.BaseProcess._bootstrap = _bootstrap
 
 
 def _install_exit_flush() -> None:
-    """Flush every started writer when the process exits or is asked to.
+    """Flush every started writer when the process exits normally.
 
     multiprocessing children started with fork or forkserver leave through os._exit() as soon as their
     bootstrap returns, skipping atexit; with module cloning the application imports its own copy of
-    multiprocessing, hence the import hook. SIGTERM and SIGINT, such as the SIGTERM that
-    Pool.terminate() and leaving a `with Pool()` block send to workers, flush through the handlers
-    ddtrace chains for its own shutdown, and they are inherited by forked children.
+    multiprocessing, hence the import hook. Nothing is flushed when a signal ends the process: a slow
+    or unreachable intake must not delay its shutdown.
     """
     global _exit_flush_installed
     if _exit_flush_installed:
         return
     _exit_flush_installed = True
     ModuleWatchdog.register_module_hook("multiprocessing.process", _patch_process_bootstrap)
-    atexit.register(_flush_at_exit)
-    atexit.register_on_exit_signal(_flush_started_writers)
+    atexit.register(_flush_started_writers)
 
 
 class LogsIntakeHandler(logging.Handler):

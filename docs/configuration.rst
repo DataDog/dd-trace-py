@@ -1408,14 +1408,12 @@ Logs
         Records from loggers with ``propagate=False`` are not submitted. Logging is best-effort:
         a batch the intake rejects, or that cannot be sent, is dropped without retrying.
 
-        Records are sent at least every 5 seconds, when the process exits, and before the process
-        is ended by ``SIGTERM`` or ``SIGINT``. This includes ``multiprocessing`` workers and pool
-        workers ended by ``Pool.terminate()`` (which leaving a ``with Pool()`` block calls);
-        ``terminate()`` then waits while pending records are sent, each request timing out after
-        10 seconds.
-        Records not sent yet are lost when a process ends without running its exit handlers: a
-        call to ``os._exit()`` (for example by an ``os.fork()`` child), ``SIGKILL`` or another
-        signal that ends the process, or a crash.
+        Records are sent at least every 5 seconds and when the process exits normally, including
+        ``multiprocessing`` workers that finish normally, such as ``Pool`` workers after
+        ``close()`` and ``join()``. Records not sent yet are lost when the process is ended by a
+        signal such as ``SIGTERM`` or ``SIGKILL``, by ``os._exit()`` (for example an
+        ``os.fork()`` child), by ``Pool.terminate()`` (which leaving a ``with Pool()`` block calls;
+        use ``close()`` and ``join()`` to keep worker logs), or by a crash.
 
         When the Test Optimization pytest plugin is enabled, this submission is turned off for the
         test session, and test logs are submitted only by the plugin, as before: in agentless mode
