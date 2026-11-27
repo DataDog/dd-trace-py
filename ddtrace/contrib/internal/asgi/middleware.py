@@ -440,6 +440,7 @@ class TraceMiddleware:
                     - Each sent message is attached to the current context
                     - Close spans include additional metadata like close codes and reasons
                 """
+                send_directly = False
                 try:
                     if (
                         scope["type"] == "websocket"
@@ -449,7 +450,7 @@ class TraceMiddleware:
                         # Close handshake span once connection is upgraded
                         if span and span.error == 0:
                             span.finish()
-                        return await send(message)
+                        send_directly = True
 
                     elif (
                         scope["type"] == "websocket"
@@ -464,12 +465,15 @@ class TraceMiddleware:
                         and message.get("type") == "websocket.close"
                     ):
                         self._handle_websocket_close_message(scope, message, span)
-                        return await send(message)
+                        send_directly = True
 
-                    response_headers = extract_headers(message)
+                    if not send_directly:
+                        response_headers = extract_headers(message)
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
                     response_headers = None
+                if send_directly:
+                    return await send(message)
                 self._handle_http_response(scope, message, span, method, response_headers)
                 core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
                 blocked = get_blocked()

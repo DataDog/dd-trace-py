@@ -553,6 +553,34 @@ async def test_otel_semantics_preserves_query_without_datadog_query_tracing(scop
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    [{"type": "websocket.accept"}, {"type": "websocket.close", "code": 1000, "reason": ""}],
+)
+async def test_websocket_send_propagates_transport_error_without_retry(message, caplog, test_spans):
+    sent = []
+
+    async def app(scope, receive, send):
+        assert await receive() == {"type": "websocket.connect"}
+        await send(message)
+
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(event):
+        sent.append(event)
+        raise OSError("client disconnected")
+
+    scope = {"type": "websocket", "scheme": "ws", "path": "/live", "headers": [], "client": ("127.0.0.1", 32767)}
+    with override_config("asgi", {"trace_asgi_websocket_messages": True}):
+        with pytest.raises(OSError, match="client disconnected"):
+            await TraceMiddleware(app)(scope, receive, send)
+
+    assert sent == [message]
+    assert "failed to extract response headers" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_asgi_error(scope, test_spans):
     app = TraceMiddleware(error_app)
     instance = ApplicationCommunicator(app, scope)

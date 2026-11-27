@@ -1,0 +1,4 @@
+fixes:
+  - |
+    asgi: Fixes a misleading response-header warning and duplicate send attempt when a WebSocket client
+    disconnects during connection setup or teardown.
