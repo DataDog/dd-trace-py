@@ -15,14 +15,15 @@ components:
     - ddtrace/internal/settings/http.py
     - ddtrace/internal/settings/integration.py
     - ddtrace/internal/_encoding.py*
+    - ddtrace/internal/native/_msgpack.py*
     - ddtrace/internal/_tagset.py*
     - ddtrace/internal/_utils.*
     - ddtrace/internal/constants.py
     - ddtrace/internal/container.py
     - ddtrace/internal/encoding.py
     - ddtrace/internal/flare/*
-    - ddtrace/internal/pack.h
-    - ddtrace/internal/pack_template.h
+    - ddtrace/internal/native/pack.h
+    - ddtrace/internal/native/pack_template.h
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
     - ddtrace/internal/runtime/*
@@ -31,7 +32,7 @@ components:
     - ddtrace/internal/sma.py
     - ddtrace/internal/span_processor.py
     - ddtrace/internal/tracemethods.py
-    - ddtrace/internal/sysdep.h
+    - ddtrace/internal/native/sysdep.h
     - ddtrace/internal/writer/*
   vendor:
     - ddtrace/vendor/*

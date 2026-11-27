@@ -4,8 +4,12 @@ The buffer exports from a libdatadog worker thread, so every assertion about del
 rather than assuming the send already happened.
 """
 
+import builtins
 import contextlib
+import os
 import socket
+import subprocess
+import sys
 import threading
 import time
 from unittest import mock
@@ -1879,3 +1883,154 @@ def test_write_sets_the_otlp_trace_context(make_writer, agent):
     for span in (root, child):
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
+
+
+def test_meta_struct_is_packed_without_importing_ddtrace():
+    # The native buffer imports its sibling _msgpack when it is built, not from write(). Some sandboxes
+    # (e.g. Temporal) block imports after startup, so write() must not import anything.
+    span = Span(name="op", trace_id=1, span_id=1)
+    span._set_struct_tag("k", {"v": 1})
+    span.finish()
+
+    real_import = builtins.__import__
+
+    def _restricted_import(name, *args, **kwargs):
+        if name.startswith("ddtrace"):
+            raise ImportError(f"sandbox blocked import of {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    with capture_server() as handler:
+        with buffer_writer(handler.port, api_version="v0.4") as writer:
+            with mock.patch.object(builtins, "__import__", side_effect=_restricted_import):
+                reason = writer._buffer.write([span], None)
+            writer.flush_queue()
+            body = _wait_for_payload(handler)
+
+    assert reason is None
+    [[wire_span]] = msgpack.unpackb(body, raw=False, strict_map_key=False)
+    assert msgpack.unpackb(wire_span["meta_struct"]["k"], raw=False) == {"v": 1}
+
+
+def test_native_extension_is_initialized_under_its_package():
+    # The extension finds its sibling _msgpack from the name it was initialized under, so that name
+    # must carry the package.
+    from ddtrace.internal.native import _native
+
+    assert _native.__name__ == "ddtrace.internal.native._native"
+
+
+@pytest.mark.subprocess()
+def test_meta_struct_is_dropped_when_the_sibling_packer_is_unavailable():
+    import sys
+
+    import msgpack
+
+    from ddtrace.trace import Span
+    from tests.tracer.test_native_trace_buffer import _wait_for_payload
+    from tests.tracer.test_native_trace_buffer import buffer_writer
+    from tests.tracer.test_native_trace_buffer import capture_server
+
+    # A None entry makes the import fail, as if the sibling module were missing.
+    sys.modules["ddtrace.internal.native._msgpack"] = None
+
+    span = Span(name="op", trace_id=1, span_id=1)
+    span._set_struct_tag("k", {"v": 1})
+    span.set_tag("kept", "yes")
+    span.finish()
+
+    with capture_server() as handler:
+        with buffer_writer(handler.port, api_version="v0.4") as writer:
+            # write() must not raise into user code: it drops the entry and keeps the span.
+            assert writer._buffer.write([span], None) is None
+            writer.flush_queue()
+            body = _wait_for_payload(handler)
+
+    [[wire_span]] = msgpack.unpackb(body, raw=False, strict_map_key=False)
+    assert "k" not in (wire_span.get("meta_struct") or {})
+    assert wire_span["meta"]["kept"] == "yes"
+
+
+# Runs in an interpreter that never imports ddtrace, with both extensions linked into another package,
+# as the ddtrace-native package ships them (_ddtrace_native._native and _ddtrace_native._msgpack).
+_RELOCATED_BUFFER = """
+import http.server
+import sys
+import threading
+import time
+
+import relocated._native as native
+
+assert native.__name__ == "relocated._native", native.__name__
+
+payloads = []
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_PUT(self):
+        payloads.append(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    do_POST = do_PUT
+
+    def log_message(self, *args):
+        pass
+
+
+server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+
+builder = (
+    native.TraceExporterBuilder()
+    .set_url("http://127.0.0.1:%d" % server.server_port)
+    .set_input_format("v0.4")
+    .set_output_format("v0.4")
+)
+buffer = native.TraceBuffer(builder, native.SharedRuntime())
+assert "relocated._msgpack" in sys.modules
+
+span = native.SpanData("op", trace_id=1, span_id=1)
+span._set_struct_tag("k", {"v": 1})
+span.duration_ns = 1
+assert buffer.write([span]) is None
+buffer.shutdown(5_000_000_000)
+
+deadline = time.monotonic() + 10
+while not payloads and time.monotonic() < deadline:
+    time.sleep(0.02)
+server.shutdown()
+
+# The packed {"v": 1}, as the sibling packer produces it.
+assert b"\\x81\\xa1v\\x01" in b"".join(payloads), payloads
+
+# Cython also registers _msgpack under the name it was compiled with, which is not an import.
+leaked = sorted(m for m in sys.modules if m.split(".")[0] == "ddtrace" and m != "ddtrace.internal.native._msgpack")
+assert not leaked, leaked
+"""
+
+
+def test_relocated_extension_packs_meta_struct_with_its_sibling(tmp_path):
+    from ddtrace.internal.native import _msgpack
+    from ddtrace.internal.native import _native
+
+    package = tmp_path / "relocated"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    for module in (_native, _msgpack):
+        (package / os.path.basename(module.__file__)).symlink_to(module.__file__)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import sys; sys.path.insert(0, sys.argv[1])\n" + _RELOCATED_BUFFER,
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
