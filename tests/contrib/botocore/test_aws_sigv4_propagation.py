@@ -682,12 +682,12 @@ def test_distributed_tracing_disabled_suppresses_even_if_registration_fails(s3_c
     )
 
 
-def test_pin_disabled_does_not_set_suppression(s3_client):
+def test_tracing_disabled_does_not_set_suppression(s3_client):
     """Suppression-placement guard: `_http_propagation_suppressed` is set only
-    on the full traced path, AFTER the pin.enabled() early-return.
+    on the full traced path, AFTER the is_tracing_enabled() early-return.
 
-    When the tracer is disabled, patched_api_call returns at `if not pin or
-    not pin.enabled()` — before `_ensure_before_sign_handler` and before
+    When the tracer is disabled, patched_api_call returns at
+    `if not is_tracing_enabled()` — before `_ensure_before_sign_handler` and before
     `_http_propagation_suppressed.set(True)`. So suppression must stay False:
     a subsequent non-AWS HTTP call in this task must still get header
     injection. This test fails if the suppression set is ever moved above the
@@ -701,7 +701,7 @@ def test_pin_disabled_does_not_set_suppression(s3_client):
         # Early-return path; the suppression contextvar must never be set.
         _capture_signed_request(s3_client)
         assert _http_propagation_suppressed.get() is False, (
-            "_http_propagation_suppressed leaked True on the pin-disabled early-return path"
+            "_http_propagation_suppressed leaked True on the tracing-disabled early-return path"
         )
     finally:
         ddtrace.tracer.enabled = original_enabled
