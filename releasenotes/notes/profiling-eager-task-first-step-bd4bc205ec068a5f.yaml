@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where wall time spent in the first step of an asyncio eager task was counted twice on
+    Python 3.12 and 3.13, and where the eager task's stack repeated its own frame without the creating task's frames
+    on Python 3.12+. That time is now reported once, under the eager task, with a stack that includes the creating
+    task's frames.
