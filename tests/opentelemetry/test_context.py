@@ -26,22 +26,19 @@ from .test_logs import EXPORTER_VERSION
 @pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_span_parenting(oteltracer):
     with oteltracer.start_as_current_span("otel-root") as root:
-        time.sleep(0.02)
         with oteltracer.start_as_current_span("otel-parent1"):
-            time.sleep(0.04)
             with oteltracer.start_as_current_span("otel-child1"):
-                time.sleep(0.06)
+                pass
 
         orphan1 = oteltracer.start_span("orphan1", context=None)
 
         ctx = opentelemetry.trace.set_span_in_context(opentelemetry.trace.NonRecordingSpan(root.get_span_context()))
         with oteltracer.start_span("otel-parent2", context=ctx) as parent2:
-            time.sleep(0.04)
             ctx = opentelemetry.trace.set_span_in_context(
                 opentelemetry.trace.NonRecordingSpan(parent2.get_span_context())
             )
             with oteltracer.start_as_current_span("otel-child2", context=ctx):
-                time.sleep(0.06)
+                pass
 
         orphan1.end()
 
@@ -50,15 +47,13 @@ def test_otel_span_parenting(oteltracer):
 def test_otel_ddtrace_mixed_parenting(oteltracer):
     with oteltracer.start_as_current_span("otel-top-level"):
         with ddtrace.tracer.trace("ddtrace-top-level"):
-            time.sleep(0.02)
             with ddtrace.tracer.trace("ddtrace-child"):
-                time.sleep(0.04)
+                pass
 
             with oteltracer.start_as_current_span("otel-child"):
-                time.sleep(0.02)
                 with ddtrace.tracer.trace("ddtrace-grandchild"):
                     with oteltracer.start_as_current_span("otel-grandchild"):
-                        time.sleep(0.02)
+                        pass
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
@@ -168,7 +163,7 @@ def test_sampling_decisions_across_processes():
 async def test_otel_trace_multiple_coroutines(oteltracer):
     async def coro(i):
         with oteltracer.start_as_current_span("corountine %s" % (i,)):
-            time.sleep(0.02)
+            await asyncio.sleep(0)
             return 42
 
     with oteltracer.start_as_current_span("root"):
