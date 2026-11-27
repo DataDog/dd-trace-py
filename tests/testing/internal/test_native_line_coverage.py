@@ -710,6 +710,73 @@ def test_multiprocessing_children_run_for_the_test(tmp_path) -> None:
     )
 
 
+_STARTING_SOURCE = textwrap.dedent(
+    """\
+    import os
+    import time
+
+
+    def target():
+        pass
+
+
+    ready = os.environ.get("STARTING_READY")
+    if ready:
+        open(ready, "w").close()
+        time.sleep(60)
+    """
+)
+
+
+def test_spawn_child_terminated_before_its_run(tmp_path) -> None:
+    """A spawn child that SIGTERM ends while it unpickles its process, which imports the module of its
+    target, reports the lines it ran to the test that started it.
+    """
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "__init__.py").write_text("")
+    (root / "pkg" / "starting.py").write_text(_STARTING_SOURCE)
+    _run_isolated(
+        f"""
+        import multiprocessing
+        import os
+        from pathlib import Path
+        import signal
+        import sys
+        import time
+
+        from ddtrace.testing.internal.tracer_api import coverage
+
+        root = os.path.realpath({str(root)!r})
+        coverage.install_coverage(Path(root))
+        sys.path.insert(0, root)
+        from pkg import starting
+
+        def lines(bitmaps):
+            for path, bitmap in bitmaps:
+                if path == "/pkg/starting.py":
+                    return {{i * 8 + b for i, byte in enumerate(bitmap) for b in range(8) if byte & (0x80 >> b)}}
+            return set()
+
+        # Set after the import above: only the child's import waits.
+        ready = os.path.join(root, "ready")
+        os.environ["STARTING_READY"] = ready
+        with coverage.coverage_collection() as data:
+            child = multiprocessing.get_context("spawn").Process(target=starting.target)
+            child.start()
+            deadline = time.monotonic() + 60
+            while not os.path.exists(ready) and time.monotonic() < deadline:
+                time.sleep(0.01)
+            child.terminate()
+            child.join(60)
+        assert child.exitcode == -signal.SIGTERM, child.exitcode
+        # Lines 11 and 12 run only in the child, in the import that unpickling its process starts.
+        assert lines(data.get_coverage_bitmaps(Path(root))) == {{1, 2, 5, 9, 10, 11, 12}}
+        coverage.uninstall_coverage()
+        """
+    )
+
+
 def test_exec_wrapper_behaves_like_exec() -> None:
     """The builtins.exec replacement passes module code to the callback, and is otherwise exec():
     same name, signature, documentation and pickling, and the caller's namespace without globals.
