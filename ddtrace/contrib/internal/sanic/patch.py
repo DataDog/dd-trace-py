@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import inspect
+from ddtrace.internal.compat import iscoroutinefunction
 import sys
 from types import TracebackType
 from typing import TYPE_CHECKING
@@ -104,7 +104,7 @@ def _wrap_response_callback(ctx: core.ExecutionContext[WebFrameworkRequestEvent]
         _update_request_event(ctx, response)
         return r
 
-    if inspect.iscoroutinefunction(callback):
+    if iscoroutinefunction(callback):
         return wrap_async(callback)
 
     return wrap_sync(callback)

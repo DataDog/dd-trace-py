@@ -61,3 +61,51 @@ def test_is_integer(obj, expected):
 @settings(max_examples=100)
 def test_maybe_stringify(obj):
     assert type(maybe_stringify(obj)) is (obj is not None and str or type(None))
+
+
+def test_iscoroutinefunction():
+    import asyncio
+    import functools
+    import warnings
+    from ddtrace.internal.compat import iscoroutinefunction
+
+    async def async_fn():
+        pass
+
+    def sync_fn():
+        pass
+
+    class AsyncClass:
+        async def method(self):
+            pass
+
+    class SyncClass:
+        def method(self):
+            pass
+
+    legacy_marker = getattr(getattr(asyncio, "coroutines", None), "_is_coroutine", None)
+
+    def legacy_fn():
+        pass
+
+    if legacy_marker is not None:
+        legacy_fn._is_coroutine = legacy_marker
+    else:
+        legacy_fn._is_coroutine = True
+
+    with warnings.catch_warnings(record=True) as recorded_warnings:
+        warnings.simplefilter("always")
+
+        assert iscoroutinefunction(async_fn) is True
+        assert iscoroutinefunction(sync_fn) is False
+        assert iscoroutinefunction(legacy_fn) is True
+        assert iscoroutinefunction(AsyncClass().method) is True
+        assert iscoroutinefunction(SyncClass().method) is False
+        assert iscoroutinefunction(functools.partial(async_fn)) is True
+        assert iscoroutinefunction(functools.partial(sync_fn)) is False
+
+        deprecation_warnings = [
+            w for w in recorded_warnings if issubclass(w.category, DeprecationWarning)
+        ]
+        assert not deprecation_warnings, f"Unexpected deprecation warnings: {deprecation_warnings}"
+
