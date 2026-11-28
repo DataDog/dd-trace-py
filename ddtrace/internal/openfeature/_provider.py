@@ -7,6 +7,8 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
+from contextlib import contextmanager
+import functools
 import time
 import typing
 import weakref
@@ -30,6 +32,8 @@ from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
 from ddtrace.internal import forksafe
+from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _FfeSnapshot
@@ -49,6 +53,12 @@ from ddtrace.internal.openfeature._exposure_decision import ExposureDecision
 from ddtrace.internal.openfeature._exposure_decision import FlagMetadata
 from ddtrace.internal.openfeature._exposure_decision import complete_exposure_decision
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+from ddtrace.internal.openfeature._flag_selection import FlagSelectionValues
+from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
+from ddtrace.internal.openfeature._flag_selection import recount_process_selection
+from ddtrace.internal.openfeature._flag_selection import release_process_selection
+from ddtrace.internal.openfeature._flag_selection import snapshot_from_other_selection
+from ddtrace.internal.openfeature._flag_selection import snapshot_from_released_selection
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
@@ -73,6 +83,8 @@ from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import Event
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import current_thread
+from ddtrace.internal.threads import original_Event
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -137,17 +149,40 @@ class DataDogProvider(AbstractProvider):
 
     Implements the OpenFeature provider interface for Datadog's
     Feature Flags and Experimentation (FFE) product.
+
+    flag_selection limits the flags loaded from the agentless configuration
+    endpoint, for example
+    DataDogProvider(flag_selection={"tags": ["checkout"], "key_patterns": ["checkout.*"]}).
+    A flag is loaded when it has any of the tags or its whole key matches any of
+    the key patterns, where "*" matches any run of characters, including none,
+    and every other character, such as ".", is literal. Without a selection
+    every flag is loaded. Other keys, including keyPatterns, are ignored. Each
+    list accepts at most 31 strings of at most 200 UTF-8 bytes, and the request
+    URL with the selection must fit in 8192 bytes; a selection that breaks a
+    limit is logged and every flag is loaded. A process uses one selection: the
+    first provider to initialize sets it until all providers have finished
+    shutting down. A provider set while another one is still running uses the
+    running one's selection, so to change it call openfeature.api.shutdown() and
+    then set the new provider, both from application code rather than from a
+    provider event handler, where shutdown can return before the selection is
+    released. Remote Config delivery ignores the selection. LLM Observability
+    evaluates prompt flags through its own provider, which shares the process
+    selection: prompt flags outside the selection in use are not loaded, and if
+    that provider starts first, this provider's selection is not sent.
     """
 
     def __init__(
         self,
         *args: typing.Any,
         initialization_timeout: typing.Optional[float] = None,
+        flag_selection: typing.Optional[typing.Mapping[str, typing.Optional[FlagSelectionValues]]] = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
+        # Canonicalized now so later changes to the caller's lists have no effect.
+        self._flag_selection = canonicalize_flag_selection(flag_selection)
 
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
@@ -196,9 +231,26 @@ class DataDogProvider(AbstractProvider):
         # hooks and telemetry all key off the resolved decision (``_active``), matching
         # dd-trace-js where the same switch gates the provider and its writers.
 
-        # Agentless configuration-source poller; started in initialize() when
-        # agentless is the resolved source and stopped in shutdown().
+        # Agentless configuration-source poller; started in initialize() when agentless is the resolved
+        # source and stopped in shutdown(). The lock only guards these fields, never logging or callbacks:
+        # a start and a teardown each reserve the source under it and do their work outside it.
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
+        self._configuration_source_lock = forksafe.Lock()
+        self._starting_configuration_source = False
+        # The thread of the start in progress, and the shutdown count when it began.
+        self._configuration_source_starter: typing.Any = None
+        # Set, and replaced, when a start ends or a shutdown happens, so waiting starts check again. Unpatched, like
+        # _lifecycle_ended: a shutdown from a callback on the poller thread sets it.
+        self._configuration_source_changed = original_Event()
+        # Counts shutdowns, so a start or a waiting start can tell that one happened after it began.
+        self._configuration_source_shutdowns = 0
+        self._stopping_configuration_source = False
+        self._configuration_source_stopper: typing.Any = None
+        # Pollers whose teardown failed, or that were stopped from their own thread. Each keeps its claim until a
+        # later shutdown finishes it or, for the latter, until the next provider start or shutdown after its exit.
+        self._retired_configuration_sources: list[AgentlessConfigurationSource] = []
+        # Starts and teardowns in progress, guarded by _lifecycle_lock; a fork waits for them.
+        self._configuration_source_operations: list[_LifecycleOperation] = []
         # Why the selected source could not start; initialize() then fails without waiting.
         self._configuration_source_error: typing.Optional[str] = None
 
@@ -326,7 +378,11 @@ class DataDogProvider(AbstractProvider):
         # Start the agentless poller when agentless is the resolved source
         # (no-op otherwise). Mirrors dd-trace-js starting the source from the
         # provider lifecycle rather than at tracer init.
-        self._start_configuration_source()
+        deadline = time.monotonic() + self._initialization_timeout
+        started = self._start_configuration_source(deadline)
+        if started is False:
+            # A shutdown, for example from a log handler, cancelled this initialization.
+            raise ProviderNotReadyError("The Feature Flagging provider was shut down during initialization")
 
         try:
             # Start the exposure writer for reporting
@@ -344,14 +400,23 @@ class DataDogProvider(AbstractProvider):
 
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).
-        if _get_ffe_snapshot() is not None:
+        # A snapshot loaded for a released, different flag selection does not count, nor does any snapshot
+        # while another thread's start, which may not have claimed its selection yet, is still in progress.
+        # A source that cannot start polls nothing of its own, so neither a released selection's snapshot with other
+        # flags nor a readiness signal its poller sent after attach() registered this provider counts for it.
+        stale = self._configuration_source_error is not None and snapshot_from_released_selection(self._flag_selection)
+        if stale:
+            self._config_received.clear()
+            self._status = ProviderStatus.NOT_READY
+        if started and _get_ffe_snapshot() is not None and not snapshot_from_other_selection() and not stale:
             self._config_received.set()
             self._status = ProviderStatus.READY
             logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")
             return  # SDK will dispatch PROVIDER_READY
 
-        if self._configuration_source_error is not None:
-            # No configuration can arrive, so fail now instead of waiting for the timeout.
+        if started and self._configuration_source_error is not None:
+            # No configuration can arrive, so fail now instead of waiting for the timeout. A start that timed out
+            # waiting for another thread's start takes the timeout path, which never reports READY.
             if self._mark_initialization_failed():
                 raise ProviderNotReadyError(self._configuration_source_error)
             logger.debug("Feature Flags: provider initialized successfully (configuration received meanwhile)")
@@ -360,7 +425,9 @@ class DataDogProvider(AbstractProvider):
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
         wait_started = time.monotonic()
-        if self._config_received.wait(timeout=self._initialization_timeout):
+        # A start that timed out waiting for another thread's start has not finished, so it is not ready
+        # whatever the signal says; that other start's initialize() reports READY once it has.
+        if started and self._config_received.wait(timeout=max(0.0, deadline - wait_started)):
             self._status = ProviderStatus.READY
             logger.debug(
                 "Feature Flags: provider initialized successfully (configuration received after %.2fs)",
@@ -376,12 +443,21 @@ class DataDogProvider(AbstractProvider):
         # Warning rather than error: errors are forwarded to telemetry, and a routine
         # initialization timeout should not inflate its volume. Logged before the failure is
         # recorded, so a configuration that arrives meanwhile takes the success path.
-        logger.warning(
-            "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
-            "evaluations will return default values until configuration arrives",
-            self._initialization_timeout,
-        )
-        if not self._mark_initialization_failed():
+        if _get_ffe_snapshot() is None:
+            logger.warning(
+                "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
+                "evaluations will return default values until configuration arrives",
+                self._initialization_timeout,
+            )
+        else:
+            # Only a snapshot loaded for a released, different flag selection is left here.
+            logger.warning(
+                "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
+                "evaluations use the configuration loaded for the previous flag selection until configuration "
+                "arrives",
+                self._initialization_timeout,
+            )
+        if not self._mark_initialization_failed() and started:
             logger.debug("Feature Flags: provider initialized successfully (configuration received at the timeout)")
             return  # SDK will dispatch PROVIDER_READY
         raise ProviderNotReadyError("No Feature Flagging configuration received before the initialization timeout")
@@ -408,6 +484,12 @@ class DataDogProvider(AbstractProvider):
             return
 
         logger.debug("Feature Flags: shutting down provider")
+
+        # Detach and drop readiness before the poller's teardown, which can raise: a signal left set would
+        # otherwise make a later initialize() report READY on configuration from before this shutdown.
+        _unregister_provider(self)
+        self._status = ProviderStatus.NOT_READY
+        self._config_received.clear()
 
         # Stop the agentless poller if it was started.
         self._stop_configuration_source()
@@ -461,17 +543,56 @@ class DataDogProvider(AbstractProvider):
         self._initialization_failed = False
         logger.debug("Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work")
 
-    def _start_configuration_source(self) -> None:
-        """Start the agentless poller when agentless is the resolved source."""
-        if self._configuration_source is not None:
-            return
+    def _start_configuration_source(self, deadline: float) -> typing.Optional[bool]:
+        """Start the agentless poller when agentless is the resolved source.
 
+        Returns True when the poller runs (or no agentless poller applies), False when a shutdown after this
+        call began cancelled it, and None when ``deadline`` (a ``time.monotonic()`` value) passed while it
+        waited. A start from another thread during an in-flight start, or during a teardown of retired
+        pollers, waits for it and then checks again. A nested start on the same thread, such as one from a
+        log handler, returns at once. A start during the teardown of the current poller adds nothing.
+        """
+        me = current_thread()
+        with self._configuration_source_lock:
+            shutdowns = self._configuration_source_shutdowns
+        while True:
+            with self._configuration_source_lock:
+                if self._configuration_source_shutdowns != shutdowns:
+                    return False
+                if self._configuration_source is not None:
+                    return True
+                if self._stopping_configuration_source:
+                    # Only retired pollers are being torn down. A start must not add a poller that teardown
+                    # does not own, so it waits, unless it is nested in that teardown on the same thread.
+                    if self._configuration_source_stopper is me:
+                        return False
+                elif not self._starting_configuration_source:
+                    self._starting_configuration_source = True
+                    self._configuration_source_starter = (me, shutdowns)
+                    break
+                else:
+                    starter, starter_shutdowns = self._configuration_source_starter
+                    if starter is me:
+                        # It cannot wait for the start it is nested in, which a shutdown since then cancels.
+                        return bool(starter_shutdowns == shutdowns)
+                changed = self._configuration_source_changed
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+            _wait_cooperatively(changed, remaining)
+
+        with _lifecycle_operation(self, teardown=False) as operation:
+            operation.shutdowns = shutdowns
+            return self._start_reserved_configuration_source(shutdowns, operation)
+
+    def _create_configuration_source(self) -> typing.Optional["AgentlessConfigurationSource"]:
+        """Build the agentless poller, or record in _configuration_source_error why it cannot start."""
         from ddtrace.internal.openfeature._source_selection import MissingApiKeyError
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
         self._configuration_source_error = None
         try:
-            source = create_agentless_source(ffe_config, _apply_agentless_configuration)
+            return create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
         except MissingApiKeyError as e:
             self._configuration_source_error = str(e)
             # A constant message: error telemetry drops the arguments.
@@ -480,32 +601,187 @@ class DataDogProvider(AbstractProvider):
                 "set DD_API_KEY, set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL, "
                 "or set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=remote_config to load flags through the Datadog Agent"
             )
-            return
         except ValueError as e:
             self._configuration_source_error = str(e)
             logger.error("Unable to configure Feature Flagging configuration source: %s", e)
-            return
-        if source is None:
-            return
+        return None
+
+    def _start_reserved_configuration_source(self, shutdowns: int, operation: "_LifecycleOperation") -> bool:
+        # Before the claim, so a poller that exited after stopping itself no longer pins its selection.
+        _release_exited_pollers()
+        source = None
+        started = False
+        try:
+            source = self._create_configuration_source()
+            if source is not None:
+                with self._configuration_source_lock:
+                    operation.source = source
+            if source is not None and self._configuration_source_shutdowns == shutdowns:
+                # A poller of the released selection may have notified this provider after attach()
+                # registered it. Nothing under the new claim has polled yet, so no notification is lost.
+                if snapshot_from_other_selection():
+                    self._config_received.clear()
+                    self._status = ProviderStatus.NOT_READY
+                try:
+                    source.start()
+                except ServiceStatusError:
+                    logger.debug("Agentless configuration source is already running", exc_info=True)
+                started = operation.started = True
+        except BaseException:
+            with self._configuration_source_lock:
+                operation.source = None
+                self._end_configuration_source_start()
+                if source is not None:
+                    release_process_selection()
+            raise
+
+        with self._configuration_source_lock:
+            cancelled = self._configuration_source_shutdowns != shutdowns
+            if source is not None and not cancelled:
+                self._configuration_source = source
+                operation.source = None
+            # In the same step as storing the source, so a shutdown sees either the start or the source. This
+            # wakes waiting starts before any teardown below: one may be a callback on the poller being joined.
+            self._end_configuration_source_start()
+        if source is None or not cancelled:
+            return not cancelled
 
         try:
-            source.start()
-        except ServiceStatusError:
-            logger.debug("Agentless configuration source is already running", exc_info=True)
-        self._configuration_source = source
+            if started:
+                self._stop_and_join(source)
+        except BaseException:
+            with self._configuration_source_lock:
+                self._retired_configuration_sources.append(source)
+                operation.source = None
+            raise
+        with self._configuration_source_lock:
+            operation.source = None
+            release_process_selection()
+        return False
 
-    def _stop_configuration_source(self) -> None:
-        """Stop the agentless poller if it was started."""
-        if self._configuration_source is None:
-            return
+    def _end_configuration_source_start(self) -> None:
+        """End the start in progress and wake waiting starts. Call with the lifecycle lock held."""
+        self._starting_configuration_source = False
+        self._configuration_source_starter = None
+        self._wake_configuration_source_waiters()
 
+    def _wake_configuration_source_waiters(self) -> None:
+        """Wake starts waiting for a change. Call with the lifecycle lock held."""
+        woken, self._configuration_source_changed = self._configuration_source_changed, original_Event()
+        woken.set()
+
+    @staticmethod
+    def _stop_and_join(source: "AgentlessConfigurationSource") -> bool:
+        """Stop and join source. Return False, without joining, when called from inside its own poll.
+
+        That happens when shutdown() runs from a callback on the poller, such as a PROVIDER_READY handler, which
+        openfeature-sdk 0.8.4 runs on the emitting thread. The native join would wait for this very call to return.
+        """
         try:
-            self._configuration_source.stop()
-            self._configuration_source.join()
-            logger.debug("Feature Flags: agentless configuration source stopped")
+            source.stop()
         except ServiceStatusError:
             logger.debug("Agentless configuration source is already stopped", exc_info=True)
-        self._configuration_source = None
+        if source.polling_on_current_thread():
+            return False
+        source.join()
+        return True
+
+    def _release_exited_poller(self, source: "AgentlessConfigurationSource") -> None:
+        """Release the claim of a poller stopped from its own thread whose last poll has returned."""
+        with self._configuration_source_lock:
+            if source in self._retired_configuration_sources:
+                self._retired_configuration_sources.remove(source)
+                release_process_selection()
+
+    def _stop_configuration_source(self) -> None:
+        """Stop the agentless poller and any retired one, or cancel a start in progress.
+
+        A poller whose teardown fails is retired: it keeps its claim, and the next shutdown retries it. A poller
+        stopped from inside its own poll is retired without a join; after that poll it waits in
+        _exited_configuration_sources for the next provider start or shutdown to release its claim.
+        """
+        with _lifecycle_operation(self, teardown=True) as operation:
+            # Inside the operation, so a fork waits for these releases and a child forked during one recounts.
+            _release_exited_pollers()
+            with self._configuration_source_lock:
+                self._configuration_source_shutdowns += 1
+                self._wake_configuration_source_waiters()
+                if self._starting_configuration_source or self._stopping_configuration_source:
+                    return
+                source = self._configuration_source
+                sources = self._retired_configuration_sources + ([source] if source is not None else [])
+                if not sources:
+                    return
+                # Ownership first, so a child forked before the flag is set can always clear it.
+                operation.reserved = sources
+                self._configuration_source_stopper = current_thread()
+                self._stopping_configuration_source = True
+
+            failed = []
+            deferred = []
+            error: typing.Optional[BaseException] = None
+            for each in sources:
+                try:
+                    if not self._stop_and_join(each):
+                        deferred.append(each)
+                except BaseException as e:
+                    failed.append(each)
+                    if error is None:
+                        error = e
+            with self._configuration_source_lock:
+                # The pollers stay on the provider until here, so a start during the teardown adds no poller and
+                # a forked child can see every poller whose claim is still held. A poller stopped earlier from its
+                # own thread may have released its claim at exit during the join, and is then no longer here.
+                present = [
+                    each
+                    for each in sources
+                    if each is self._configuration_source or each in self._retired_configuration_sources
+                ]
+                kept = [each for each in present if each in failed or each in deferred]
+                if source is not None:
+                    self._configuration_source = None
+                retired = [each for each in self._retired_configuration_sources if each not in sources]
+                self._retired_configuration_sources = retired + kept
+                self._stopping_configuration_source = False
+                self._configuration_source_stopper = None
+                self._wake_configuration_source_waiters()
+                for _ in range(len(present) - len(kept)):
+                    release_process_selection()
+            for each in deferred:
+                # Registered from inside that poller's poll, which therefore cannot have exited yet.
+                each.call_on_exit(functools.partial(_exited_configuration_sources.append, (self, each)))
+        if error is not None:
+            raise error
+        logger.debug("Feature Flags: agentless configuration source stopped")
+
+    def _discard_pollers_in_child(self, teardown: "_LifecycleOperation") -> None:
+        """Finish, in a forked child, a teardown a parent thread was running: none of its pollers runs there."""
+        for each in teardown.reserved:
+            each.discard_in_child()
+        if self._configuration_source in teardown.reserved:
+            self._configuration_source = None
+        self._retired_configuration_sources = [
+            each for each in self._retired_configuration_sources if each not in teardown.reserved
+        ]
+        if self._configuration_source_stopper is teardown.owner:
+            self._stopping_configuration_source = False
+            self._configuration_source_stopper = None
+
+    def _finish_start_in_child(self, start: "_LifecycleOperation") -> None:
+        """Finish, in a forked child, a start a parent thread was running, as that thread would have."""
+        source = start.source
+        if source is None or source is self._configuration_source:
+            return
+        cancelled = start.shutdowns != self._configuration_source_shutdowns
+        if start.started and not cancelled and self._configuration_source is None:
+            # Its poller restarts in the child like any stored one.
+            self._configuration_source = source
+        else:
+            source.discard_in_child()
+
+    def _claims_held(self) -> int:
+        pollers = getattr(self, "_retired_configuration_sources", []) + [getattr(self, "_configuration_source", None)]
+        return sum(each is not None for each in pollers)
 
     def resolve_boolean_details(
         self,
@@ -872,13 +1148,173 @@ class DataDogProvider(AbstractProvider):
 _providers_with_plain_locks: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
 
 
+# How long a fork waits for a provider start or teardown in progress. By then the fork has joined every periodic
+# thread, so only their bookkeeping is left; a fork that stops waiting resets the provider in the child instead.
+_FORK_WAIT_SECONDS = 1.0
+_lifecycle_lock = Lock()
+# Set in a forked child whose forking thread was inside a start or teardown, whose claims the child cannot see yet.
+_recount_when_idle = False
+# Replaced, and set, when a start or teardown ends, so a waiting fork checks again.
+_lifecycle_ended = original_Event()
+# Pollers stopped from inside their own poll, added by their worker as it exits. The worker takes no lock that another
+# thread holds, so the next provider start or shutdown releases their claims, on an application thread.
+_exited_configuration_sources: "list[tuple[DataDogProvider, AgentlessConfigurationSource]]" = []
+_exited_release_lock = forksafe.Lock()
+# How long a ddtrace thread waits for another thread's release of those claims, which takes microseconds: a provider
+# call from a callback on a ddtrace thread must not wait without a bound.
+_RELEASE_WAIT_ON_DDTRACE_THREAD_SECONDS = 0.5
+# How long an application thread sleeps between checks while it waits for a start or teardown on another thread.
+_START_WAIT_SLICE_SECONDS = 0.01
+
+
+def _release_exited_pollers() -> None:
+    """Release the claims of exited self-stopped pollers.
+
+    An entry leaves the list only once its claim is released, so a start that finds the list empty knows every such
+    claim is released, and a child forked in between still has the entry to finish. On a ddtrace thread, where a
+    provider call can come from a callback, the wait for another caller's release is bounded.
+    """
+    if not _exited_configuration_sources:
+        return
+    on_ddtrace_thread = ddtrace_threading.get_ident() in periodic_threads
+    # One caller at a time, so a start that has to wait here finds every claim released when it continues.
+    lock = _exited_release_lock
+    if not lock.acquire(timeout=_RELEASE_WAIT_ON_DDTRACE_THREAD_SECONDS if on_ddtrace_thread else -1):
+        logger.debug("Feature Flags: exited pollers' claims are being released on another thread")
+        return
+    try:
+        while _exited_configuration_sources:
+            provider, source = _exited_configuration_sources[0]
+            provider._release_exited_poller(source)
+            _exited_configuration_sources.pop(0)
+    finally:
+        lock.release()
+
+
+def _wait_cooperatively(event: typing.Any, timeout: float) -> None:
+    """Wait up to timeout for event on an application thread.
+
+    The event is ddtrace's own, since the poller thread can set it. Waiting in short sleeps keeps the wait cooperative
+    when the application patches time.sleep, as gevent does, so the start being waited for can run on this OS thread.
+    """
+    deadline = time.monotonic() + timeout
+    while not event.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(remaining, _START_WAIT_SLICE_SECONDS))
+
+
+class _LifecycleOperation:
+    """A start or teardown, from before it takes a claim until it has stored its source or released the claim."""
+
+    __slots__ = ("owner", "teardown", "source", "started", "shutdowns", "reserved")
+
+    def __init__(self, teardown: bool) -> None:
+        self.owner = current_thread()
+        self.teardown = teardown
+        # A start: the source it built and has neither stored nor released (it holds a claim), whether that
+        # source's poller was started, and the shutdown count when the start began.
+        self.source: typing.Optional[AgentlessConfigurationSource] = None
+        self.started = False
+        self.shutdowns = 0
+        # A teardown: the pollers it reserved.
+        self.reserved: list[AgentlessConfigurationSource] = []
+
+
+@contextmanager
+def _lifecycle_operation(provider: DataDogProvider, teardown: bool) -> typing.Iterator[_LifecycleOperation]:
+    global _lifecycle_ended
+    operation = _LifecycleOperation(teardown)
+    with _lifecycle_lock:
+        provider._configuration_source_operations.append(operation)
+    try:
+        yield operation
+    finally:
+        global _recount_when_idle
+        with _lifecycle_lock:
+            provider._configuration_source_operations.remove(operation)
+            if _recount_when_idle and not any(_operations(each) for each in list(_providers_with_plain_locks)):
+                # The forking thread's last operation in this child has ended: every claim is now on a poller.
+                _recount_when_idle = False
+                recount_process_selection(_claims_held_by_providers())
+            ended, _lifecycle_ended = _lifecycle_ended, original_Event()
+        ended.set()
+
+
+def _claims_held_by_providers() -> int:
+    return sum(provider._claims_held() for provider in list(_providers_with_plain_locks))
+
+
+def _operations(provider: DataDogProvider) -> list[_LifecycleOperation]:
+    # A provider another thread is still constructing at the fork is in the set before it has this field.
+    return getattr(provider, "_configuration_source_operations", [])
+
+
+def _another_thread_in_lifecycle(me: typing.Any) -> bool:
+    providers = list(_providers_with_plain_locks)
+    return any(operation.owner is not me for provider in providers for operation in _operations(provider))
+
+
+@forksafe.register_before_fork
+def _wait_for_lifecycle_before_fork() -> None:
+    """Let a start or teardown on another thread finish, so the child sees its claim with the poller holding it."""
+    me = current_thread()
+    deadline = time.monotonic() + _FORK_WAIT_SECONDS
+    while True:
+        with _lifecycle_lock:
+            if not _another_thread_in_lifecycle(me):
+                return
+            ended = _lifecycle_ended
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            logger.debug("Feature Flags: forking during a provider start or teardown; the child resets that provider")
+            return
+        ended.wait(remaining)
+
+
 @forksafe.register
-def _reset_provider_locks() -> typing.Iterator[None]:
-    # A wrapper, so the reset runs before the other child hooks: they can start threads that take
-    # these locks, and _at_fork_reinit() does not wake a thread that already waits.
-    for provider in list(_providers_with_plain_locks):
+def _reset_provider_state_in_child() -> typing.Iterator[None]:
+    """Reset the provider locks and what parent threads left in progress.
+
+    It runs before the other child hooks: they can start threads that take these locks, and _at_fork_reinit() does not
+    wake a thread that already waits. The thread module then does not restart a discarded poller, and the claim's fork
+    reset sees the recounted claim.
+    """
+    global _lifecycle_lock, _lifecycle_ended, _recount_when_idle
+    _lifecycle_lock = Lock()
+    _lifecycle_ended = original_Event()
+    me = current_thread()
+    providers = list(_providers_with_plain_locks)
+    reset = False
+    for provider in providers:
         provider._exposure_cache_lock._at_fork_reinit()  # type: ignore[attr-defined]
         provider._initialization_lock._at_fork_reinit()  # type: ignore[attr-defined]
+        # A parent thread may have held the event's internal lock at the fork, and no parent waiter survives.
+        provider._configuration_source_changed = original_Event()
+        starter = getattr(provider, "_configuration_source_starter", None)
+        if starter is None or starter[0] is not me:
+            # A start reserved on a parent thread but not yet building its source holds no claim.
+            provider._starting_configuration_source = False
+            provider._configuration_source_starter = None
+        operations = _operations(provider)
+        kept = [operation for operation in operations if operation.owner is me]
+        for operation in operations:
+            if operation.owner is me:
+                continue
+            reset = True
+            if operation.teardown:
+                provider._discard_pollers_in_child(operation)
+            else:
+                provider._finish_start_in_child(operation)
+        if len(kept) != len(operations):
+            provider._configuration_source_operations = kept
+    if reset:
+        if any(_operations(provider) for provider in providers):
+            # The forking thread carries on with its own start or teardown here; recount once it has ended.
+            _recount_when_idle = True
+        else:
+            recount_process_selection(_claims_held_by_providers(), locked=False)
     yield
 
 

@@ -57,3 +57,66 @@ def _no_initialization_wait(monkeypatch):
     initialization_timeout constructor argument.
     """
     monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", "0")
+
+
+@pytest.fixture(autouse=True)
+def _reset_flag_selection():
+    """Each test starts with no process flag selection claimed and no diagnostic reported."""
+    from ddtrace.internal.openfeature._flag_selection import _reset_flag_selection_state
+
+    _reset_flag_selection_state()
+    yield
+    _reset_flag_selection_state()
+
+
+@pytest.fixture
+def count_metric():
+    from unittest import mock
+
+    from ddtrace.internal.openfeature import _flag_selection
+
+    # Replace only this module's reference: other threads record their own counts on the process-wide writer.
+    with mock.patch.object(_flag_selection, "telemetry_writer") as telemetry_writer:
+        yield telemetry_writer.add_count_metric
+
+
+@pytest.fixture
+def poller(monkeypatch):
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+    from tests.openfeature.flag_selection_helpers import MANAGED_TARGET
+    from tests.openfeature.flag_selection_helpers import _FakeConn
+
+    def build(responses, flag_selection_sent=True, apply_configuration=None):
+        requests: list = []
+        applied: list = []
+        monkeypatch.setattr(
+            source_mod, "get_connection", lambda url, timeout=None: _FakeConn(lambda _: responses.pop(0), requests)
+        )
+        source = AgentlessConfigurationSource(
+            endpoint="https://ufc-server.ff-cdn.datadoghq.com" + MANAGED_TARGET + "&selected_flag_tags=a",
+            apply_configuration=apply_configuration or applied.append,
+            flag_selection_sent=flag_selection_sent,
+        )
+        monkeypatch.setattr(source, "_retry_delay", lambda attempt: 0.0)
+        source._applied = applied
+        return source
+
+    return build
+
+
+@pytest.fixture
+def cdn(monkeypatch):
+    """Serve every agentless poll from a swappable responder and record request targets."""
+    from tests.openfeature.flag_selection_helpers import _serving_cdn
+
+    with _serving_cdn(monkeypatch) as server:
+        yield server
+
+
+@pytest.fixture
+def api_key():
+    from tests.openfeature.flag_selection_helpers import _agentless_api_key
+
+    with _agentless_api_key():
+        yield

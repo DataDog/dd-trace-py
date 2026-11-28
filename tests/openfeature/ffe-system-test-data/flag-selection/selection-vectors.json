@@ -1,0 +1,270 @@
+{
+  "flags": [
+    {"key": "checkout.new-flow", "tags": ["team:payments", "checkout"]},
+    {"key": "checkout.legacy", "tags": ["team:payments"]},
+    {"key": "search.ranking-v2", "tags": ["team:search"]},
+    {"key": "search.autocomplete", "tags": []},
+    {"key": "mobile.dark-mode", "tags": ["mobile", "ui"]},
+    {"key": "a*b", "tags": ["literal"]}
+  ],
+  "cases": [
+    {
+      "name": "no parameters selects every flag",
+      "query": {},
+      "expected": {"outcome": "applied", "selectedKeys": ["a*b", "checkout.legacy", "checkout.new-flow", "mobile.dark-mode", "search.autocomplete", "search.ranking-v2"]},
+      "sdk": {"selection": {"tags": [], "keyPatterns": []}}
+    },
+    {
+      "name": "tag selects flags having any of the tags",
+      "query": {"selected_flag_tags": ["team:search", "mobile"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["mobile.dark-mode", "search.ranking-v2"]},
+      "sdk": {"selection": {"tags": ["mobile", "team:search"], "keyPatterns": []}}
+    },
+    {
+      "name": "tags and key patterns are combined with OR",
+      "query": {"selected_flag_tags": ["mobile"], "selected_flag_key_patterns": ["checkout.*"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["checkout.legacy", "checkout.new-flow", "mobile.dark-mode"]},
+      "sdk": {"selection": {"tags": ["mobile"], "keyPatterns": ["checkout.*"]}}
+    },
+    {
+      "name": "key pattern must match the whole key",
+      "query": {"selected_flag_key_patterns": ["checkout"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["checkout"]}}
+    },
+    {
+      "name": "key pattern without a star selects exactly that key",
+      "query": {"selected_flag_key_patterns": ["checkout.new-flow"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["checkout.new-flow"]},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["checkout.new-flow"]}}
+    },
+    {
+      "name": "star matches an empty run and multiple stars are allowed",
+      "query": {"selected_flag_key_patterns": ["*search*auto*complete*"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["search.autocomplete"]},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["*search*auto*complete*"]}}
+    },
+    {
+      "name": "leading star",
+      "query": {"selected_flag_key_patterns": ["*-v2"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["search.ranking-v2"]},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["*-v2"]}}
+    },
+    {
+      "name": "lone star matches every key",
+      "query": {"selected_flag_key_patterns": ["*"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["a*b", "checkout.legacy", "checkout.new-flow", "mobile.dark-mode", "search.autocomplete", "search.ranking-v2"]},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["*"]}}
+    },
+    {
+      "name": "question mark and brackets are literal",
+      "query": {"selected_flag_key_patterns": ["search.ranking-v?", "[a]*", "{a,b}"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["[a]*", "search.ranking-v?", "{a,b}"]}}
+    },
+    {
+      "name": "braces are literal even when an alternative names a flag",
+      "query": {"selected_flag_key_patterns": ["{mobile.dark-mode,missing}"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["{mobile.dark-mode,missing}"]}}
+    },
+    {
+      "name": "tags are never globs",
+      "query": {"selected_flag_tags": ["team:*"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["team:*"], "keyPatterns": []}}
+    },
+    {
+      "name": "tags match case-sensitively",
+      "query": {"selected_flag_tags": ["Team:Payments", "MOBILE"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["MOBILE", "Team:Payments"], "keyPatterns": []}}
+    },
+    {
+      "name": "key patterns match case-sensitively",
+      "query": {"selected_flag_key_patterns": ["CHECKOUT.*", "Mobile.Dark-Mode"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["CHECKOUT.*", "Mobile.Dark-Mode"]}}
+    },
+    {
+      "name": "values are trimmed, empties dropped and duplicates removed",
+      "query": {"selected_flag_tags": [" mobile ", "mobile", "", "   "]},
+      "expected": {"outcome": "applied", "selectedKeys": ["mobile.dark-mode"]},
+      "sdk": {"selection": {"tags": ["mobile"], "keyPatterns": []}}
+    },
+    {
+      "name": "lists that are empty after normalization select every flag",
+      "query": {"selected_flag_tags": ["", "   "], "selected_flag_key_patterns": [" "]},
+      "expected": {"outcome": "applied", "selectedKeys": ["a*b", "checkout.legacy", "checkout.new-flow", "mobile.dark-mode", "search.autocomplete", "search.ranking-v2"]},
+      "sdk": {"selection": {"tags": [], "keyPatterns": []}}
+    },
+    {
+      "name": "values are trimmed of Unicode white space",
+      "query": {"selected_flag_tags": ["\u00a0mobile\u3000", "\u0085ui\u2028", "\t team:search \n"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["mobile.dark-mode", "search.ranking-v2"]},
+      "sdk": {"selection": {"tags": ["mobile", "team:search", "ui"], "keyPatterns": []}}
+    },
+    {
+      "name": "characters outside Unicode White_Space are not trimmed",
+      "query": {"selected_flag_tags": ["\ufeffmobile", "mobile\u200b"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["mobile\u200b", "\ufeffmobile"], "keyPatterns": []}}
+    },
+    {
+      "name": "values sort by UTF-8 bytes",
+      "query": {"selected_flag_tags": ["\ud83d\ude00", "\uff5e", "a", "Z"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["Z", "a", "\uff5e", "\ud83d\ude00"], "keyPatterns": []}}
+    },
+    {
+      "name": "partial match serves only the matching flags",
+      "query": {"selected_flag_tags": ["mobile", "missing"], "selected_flag_key_patterns": ["nothing.*"]},
+      "expected": {"outcome": "applied", "selectedKeys": ["mobile.dark-mode"]},
+      "sdk": {"selection": {"tags": ["missing", "mobile"], "keyPatterns": ["nothing.*"]}}
+    },
+    {
+      "name": "undecodable value is malformed",
+      "rawQuery": "dd_env=prod&selected_flag_tags=mobile&selected_flag_tags=%zz",
+      "expected": {"outcome": "ignored", "reason": "malformed_selection"}
+    },
+    {
+      "name": "undecodable unrelated parameter is not a selection error",
+      "rawQuery": "other=%zz&selected_flag_tags=mobile",
+      "expected": {"outcome": "applied", "selectedKeys": ["mobile.dark-mode"]}
+    },
+    {
+      "name": "repeated parameters in a raw query are all read",
+      "rawQuery": "selected_flag_tags=mobile&selected_flag_tags=team%3Asearch&selected_flag_key_patterns=a%2Ab",
+      "expected": {"outcome": "applied", "selectedKeys": ["a*b", "mobile.dark-mode", "search.ranking-v2"]}
+    },
+    {
+      "name": "parameter names are percent-decoded",
+      "rawQuery": "selected%5Fflag%5Ftags=mobile",
+      "expected": {"outcome": "applied", "selectedKeys": ["mobile.dark-mode"]}
+    },
+    {
+      "name": "31 values in one list are allowed",
+      "query": {"selected_flag_tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31"], "keyPatterns": []}}
+    },
+    {
+      "name": "32 values in one list are rejected",
+      "query": {"selected_flag_key_patterns": ["k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08", "k09", "k10", "k11", "k12", "k13", "k14", "k15", "k16", "k17", "k18", "k19", "k20", "k21", "k22", "k23", "k24", "k25", "k26", "k27", "k28", "k29", "k30", "k31", "k32"]},
+      "expected": {"outcome": "ignored", "reason": "too_many_values"},
+      "sdk": {"dropped": "too_many_values"}
+    },
+    {
+      "name": "31 values in each list are allowed",
+      "query": {"selected_flag_tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31"], "selected_flag_key_patterns": ["p01", "p02", "p03", "p04", "p05", "p06", "p07", "p08", "p09", "p10", "p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23", "p24", "p25", "p26", "p27", "p28", "p29", "p30", "p31"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31"], "keyPatterns": ["p01", "p02", "p03", "p04", "p05", "p06", "p07", "p08", "p09", "p10", "p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23", "p24", "p25", "p26", "p27", "p28", "p29", "p30", "p31"]}}
+    },
+    {
+      "name": "32 values in one list are rejected even when the other is within the limit",
+      "query": {"selected_flag_tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31"], "selected_flag_key_patterns": ["p01", "p02", "p03", "p04", "p05", "p06", "p07", "p08", "p09", "p10", "p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19", "p20", "p21", "p22", "p23", "p24", "p25", "p26", "p27", "p28", "p29", "p30", "p31", "p32"]},
+      "expected": {"outcome": "ignored", "reason": "too_many_values"},
+      "sdk": {"dropped": "too_many_values"}
+    },
+    {
+      "name": "duplicates do not count toward the limit",
+      "query": {"selected_flag_tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31", "t01", " t02 "]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31"], "keyPatterns": []}}
+    },
+    {
+      "name": "key pattern of 200 bytes is allowed",
+      "query": {"selected_flag_key_patterns": ["*xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["*xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}}
+    },
+    {
+      "name": "key pattern of 201 bytes is invalid",
+      "query": {"selected_flag_key_patterns": ["*xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
+      "expected": {"outcome": "ignored", "reason": "invalid_key_pattern"},
+      "sdk": {"dropped": "invalid_key_pattern"}
+    },
+    {
+      "name": "key pattern length is measured after trimming",
+      "query": {"selected_flag_key_patterns": ["  *xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  "]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["*xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}}
+    },
+    {
+      "name": "key pattern length counts UTF-8 bytes: 100 two-byte characters are allowed",
+      "query": {"selected_flag_key_patterns": ["éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": [], "keyPatterns": ["éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"]}}
+    },
+    {
+      "name": "key pattern length counts UTF-8 bytes: 201 bytes are invalid",
+      "query": {"selected_flag_key_patterns": ["xéééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"]},
+      "expected": {"outcome": "ignored", "reason": "invalid_key_pattern"},
+      "sdk": {"dropped": "invalid_key_pattern"}
+    },
+    {
+      "name": "tag of 200 bytes is allowed",
+      "query": {"selected_flag_tags": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "keyPatterns": []}}
+    },
+    {
+      "name": "tag of 201 bytes is invalid",
+      "query": {"selected_flag_tags": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]},
+      "expected": {"outcome": "ignored", "reason": "invalid_tag"},
+      "sdk": {"dropped": "invalid_tag"}
+    },
+    {
+      "name": "tag length is measured after trimming",
+      "query": {"selected_flag_tags": ["  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  "]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "keyPatterns": []}}
+    },
+    {
+      "name": "tag length counts UTF-8 bytes: 100 two-byte characters are allowed",
+      "query": {"selected_flag_tags": ["éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"]},
+      "expected": {"outcome": "applied", "selectedKeys": []},
+      "sdk": {"selection": {"tags": ["éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"], "keyPatterns": []}}
+    },
+    {
+      "name": "tag length counts UTF-8 bytes: 201 bytes are invalid",
+      "query": {"selected_flag_tags": ["xéééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"]},
+      "expected": {"outcome": "ignored", "reason": "invalid_tag"},
+      "sdk": {"dropped": "invalid_tag"}
+    },
+    {
+      "name": "a long tag invalidates the selection even when other tags match",
+      "query": {"selected_flag_tags": ["mobile", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]},
+      "expected": {"outcome": "ignored", "reason": "invalid_tag"},
+      "sdk": {"dropped": "invalid_tag"}
+    },
+    {
+      "name": "too_many_values takes precedence over invalid_key_pattern",
+      "query": {"selected_flag_tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31", "t32"], "selected_flag_key_patterns": ["*xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
+      "expected": {"outcome": "ignored", "reason": "too_many_values"},
+      "sdk": {"dropped": "too_many_values"}
+    },
+    {
+      "name": "malformed_selection takes precedence over too_many_values",
+      "rawQuery": "selected_flag_tags=t01&selected_flag_tags=t02&selected_flag_tags=t03&selected_flag_tags=t04&selected_flag_tags=t05&selected_flag_tags=t06&selected_flag_tags=t07&selected_flag_tags=t08&selected_flag_tags=t09&selected_flag_tags=t10&selected_flag_tags=t11&selected_flag_tags=t12&selected_flag_tags=t13&selected_flag_tags=t14&selected_flag_tags=t15&selected_flag_tags=t16&selected_flag_tags=t17&selected_flag_tags=t18&selected_flag_tags=t19&selected_flag_tags=t20&selected_flag_tags=t21&selected_flag_tags=t22&selected_flag_tags=t23&selected_flag_tags=t24&selected_flag_tags=t25&selected_flag_tags=t26&selected_flag_tags=t27&selected_flag_tags=t28&selected_flag_tags=t29&selected_flag_tags=t30&selected_flag_tags=t31&selected_flag_tags=t32&selected_flag_key_patterns=%zz",
+      "expected": {"outcome": "ignored", "reason": "malformed_selection"}
+    },
+    {
+      "name": "too_many_values takes precedence over invalid_tag",
+      "query": {"selected_flag_tags": ["t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11", "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23", "t24", "t25", "t26", "t27", "t28", "t29", "t30", "t31", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]},
+      "expected": {"outcome": "ignored", "reason": "too_many_values"},
+      "sdk": {"dropped": "too_many_values"}
+    },
+    {
+      "name": "invalid_key_pattern takes precedence over invalid_tag",
+      "query": {"selected_flag_tags": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "selected_flag_key_patterns": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]},
+      "expected": {"outcome": "ignored", "reason": "invalid_key_pattern"},
+      "sdk": {"dropped": "invalid_key_pattern"}
+    },
+    {
+      "name": "malformed_selection takes precedence over invalid_tag",
+      "rawQuery": "selected_flag_tags=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&selected_flag_tags=%zz",
+      "expected": {"outcome": "ignored", "reason": "malformed_selection"}
+    }
+  ]
+}

@@ -47,10 +47,16 @@ class _CaseInsensitiveHeaders:
     """Minimal case-insensitive header map."""
 
     def __init__(self, headers: list[tuple[str, str]]) -> None:
+        self._headers = headers
         self._data = {k.lower(): v for k, v in headers}
 
     def get(self, name: str, default: Optional[str] = None) -> Optional[str]:
         return self._data.get(name.lower(), default)
+
+    def get_all(self, name: str, failobj: Optional[list[str]] = None) -> Optional[list[str]]:
+        """Return every value of ``name`` in response order, or ``failobj``, like ``http.client.HTTPMessage``."""
+        lowered = name.lower()
+        return [v for k, v in self._headers if k.lower() == lowered] or failobj
 
     def __getitem__(self, name: str) -> str:
         return self._data[name.lower()]

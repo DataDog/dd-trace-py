@@ -20,11 +20,16 @@ def updater():
     return module
 
 
-def write_fixture_snapshot(directory, cases=None):
+def write_fixture_snapshot(directory, cases=None, selection_vectors=None):
     (directory / "evaluation-cases").mkdir(parents=True)
+    (directory / "flag-selection").mkdir()
     (directory / "ufc-config.json").write_text("{}", encoding="utf-8")
     (directory / "evaluation-cases" / "cases.json").write_text(
         json.dumps([{"flag": "flag-a"}] if cases is None else cases),
+        encoding="utf-8",
+    )
+    (directory / "flag-selection" / "selection-vectors.json").write_text(
+        json.dumps({"flags": [], "cases": [{"name": "case-a"}]} if selection_vectors is None else selection_vectors),
         encoding="utf-8",
     )
 
@@ -40,7 +45,7 @@ def test_validate_fixture_ref_rejects_unsafe_values(updater, fixture_ref):
         updater.validate_fixture_ref(fixture_ref)
 
 
-def test_copy_fixture_snapshot_copies_only_config_and_case_json(updater, tmp_path):
+def test_copy_fixture_snapshot_copies_only_config_case_json_and_selection_vectors(updater, tmp_path):
     source = tmp_path / "source"
     snapshot = tmp_path / "snapshot"
     source.mkdir()
@@ -57,12 +62,19 @@ def test_copy_fixture_snapshot_copies_only_config_and_case_json(updater, tmp_pat
     (source / "conftest.py").write_text("# unrelated upstream file", encoding="utf-8")
     (source / "test_example.py").write_text("# unrelated upstream file", encoding="utf-8")
     (source / "other.json").write_text("{}", encoding="utf-8")
+    (source / "flag-selection" / "README.md").write_text("upstream documentation", encoding="utf-8")
 
     updater.copy_fixture_snapshot(source, snapshot)
 
-    assert updater.relative_files(snapshot) == [Path("evaluation-cases/cases.json"), Path("ufc-config.json")]
+    assert updater.relative_files(snapshot) == [
+        Path("evaluation-cases/cases.json"),
+        Path("flag-selection/selection-vectors.json"),
+        Path("ufc-config.json"),
+    ]
     assert (snapshot / "ufc-config.json").stat().st_mode & 0o777 == 0o644
+    assert (snapshot / "flag-selection" / "selection-vectors.json").stat().st_mode & 0o777 == 0o644
     assert (snapshot / "evaluation-cases").stat().st_mode & 0o777 == 0o755
+    assert (snapshot / "flag-selection").stat().st_mode & 0o777 == 0o755
 
 
 @pytest.mark.parametrize("entry", ["README.md", "conftest.py", "test_example.py", "nested.json"])
@@ -81,7 +93,16 @@ def test_copy_fixture_snapshot_rejects_unexpected_case_entries(updater, tmp_path
         updater.copy_fixture_snapshot(source, snapshot)
 
 
-@pytest.mark.parametrize("entry", ["ufc-config.json", "evaluation-cases", "evaluation-cases/cases.json"])
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "ufc-config.json",
+        "evaluation-cases",
+        "evaluation-cases/cases.json",
+        "flag-selection",
+        "flag-selection/selection-vectors.json",
+    ],
+)
 def test_copy_fixture_snapshot_rejects_symlinks(updater, tmp_path, entry):
     source = tmp_path / "source"
     snapshot = tmp_path / "snapshot"
@@ -100,6 +121,33 @@ def test_validate_fixture_snapshot_counts_cases(updater, tmp_path):
     write_fixture_snapshot(tmp_path, cases=[{"flag": "flag-a"}, {"flag": "flag-b"}])
 
     assert updater.validate_fixture_snapshot(tmp_path) == 2
+
+
+def test_copy_fixture_snapshot_requires_selection_vectors(updater, tmp_path):
+    source = tmp_path / "source"
+    snapshot = tmp_path / "snapshot"
+    write_fixture_snapshot(source)
+    snapshot.mkdir()
+    (source / "flag-selection" / "selection-vectors.json").unlink()
+
+    with pytest.raises(ValueError, match="unsupported fixture entry"):
+        updater.copy_fixture_snapshot(source, snapshot)
+
+
+@pytest.mark.parametrize("selection_vectors", [[], {"flags": []}, {"cases": {}}, {"cases": []}])
+def test_validate_fixture_snapshot_rejects_selection_vectors_without_cases(updater, tmp_path, selection_vectors):
+    write_fixture_snapshot(tmp_path, selection_vectors=selection_vectors)
+
+    with pytest.raises(ValueError, match="selection-vectors.json"):
+        updater.validate_fixture_snapshot(tmp_path)
+
+
+def test_validate_fixture_snapshot_requires_selection_vectors(updater, tmp_path):
+    write_fixture_snapshot(tmp_path)
+    (tmp_path / "flag-selection" / "selection-vectors.json").unlink()
+
+    with pytest.raises(ValueError, match="expected fixture layout"):
+        updater.validate_fixture_snapshot(tmp_path)
 
 
 def test_have_same_contents_ignores_generated_source_metadata(updater, tmp_path):

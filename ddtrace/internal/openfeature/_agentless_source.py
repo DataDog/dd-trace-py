@@ -32,10 +32,14 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
+from ddtrace.internal.openfeature._flag_selection import FLAG_SELECTION_IGNORED_HEADER
+from ddtrace.internal.openfeature._flag_selection import count_inherited_drop
+from ddtrace.internal.openfeature._flag_selection import report_ignored
 from ddtrace.internal.openfeature._native import DEPENDENT_FLAG_VARIANT_KEY_V1
 from ddtrace.internal.openfeature._native import get_evaluator_capabilities
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import current_thread
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import retry
@@ -80,7 +84,11 @@ _SERVICE_MAX_BYTES = 100
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
-_PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
+_PollResponse = namedtuple(
+    "_PollResponse",
+    ["status", "etag", "content_encoding", "body", "error", "flag_selection_ignored"],
+    defaults=(None,),
+)
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
@@ -95,6 +103,22 @@ def _describe_error(error: BaseException) -> str:
     except Exception:
         return name
     return f"{name}: {message}" if message else name
+
+
+def with_evaluator_capabilities(url: str) -> str:
+    """Return ``url`` with the capability query parameters the loaded evaluator supports.
+
+    Without support, the configured query is preserved, including an explicitly
+    supplied capability parameter, as Node.js does.
+    """
+    if DEPENDENT_FLAG_VARIANT_KEY_V1 not in get_evaluator_capabilities():
+        return url
+    parts = urlsplit(url)
+    capability_param = "cap_dependent-flags-variant-key"
+    items = parts.query.split("&") if parts.query else []
+    items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
+    items.append(capability_param + "=v1")
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "&".join(items), parts.fragment))
 
 
 def _normalize_service(service: str) -> str:
@@ -178,6 +202,7 @@ class AgentlessConfigurationSource(PeriodicService):
         poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
         env: Optional[str] = None,
+        flag_selection_sent: bool = False,
     ) -> None:
         # A non-positive interval would make PeriodicThread schedule the next run
         # immediately, turning polling into a tight loop against the CDN, so fall
@@ -206,28 +231,24 @@ class AgentlessConfigurationSource(PeriodicService):
         super().__init__(interval=poll_interval, no_wait_at_start=True)
 
         self._apply_configuration = apply_configuration
+        # The thread inside periodic(), so a shutdown from a callback during a poll does not join that thread.
+        self._polling_thread: Optional[object] = None
+        self._exit_callbacks: list[Callable[[], None]] = []
         self._api_key = api_key
         # Only reported in debug logs, to diagnose an SDK env that does not match
         # the environment the flags were configured for.
         self._env = env
         self._request_timeout = request_timeout
+        self._flag_selection_sent = flag_selection_sent
 
         # Split the endpoint into an origin (for the connection) and a request
         # target (path + query). get_connection drops the query, so the target
         # must carry it.
-        parts = urlsplit(endpoint)
-        self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
         # Negotiate once for the loaded evaluator, keeping conditional polls on
-        # the same URL variant. Without support, preserve the configured query,
-        # including an explicitly supplied capability parameter, as Node.js does.
-        query = parts.query
-        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-            capability_param = "cap_dependent-flags-variant-key"
-            items = query.split("&") if query else []
-            items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
-            items.append(capability_param + "=v1")
-            query = "&".join(items)
-        self._request_target = urlunsplit(("", "", parts.path, query, "")) or "/"
+        # the same URL variant.
+        parts = urlsplit(with_evaluator_capabilities(endpoint))
+        self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
+        self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
@@ -265,10 +286,11 @@ class AgentlessConfigurationSource(PeriodicService):
         self._stopping = False
         log.debug(
             "Feature Flags: agentless configuration source settings: sdk_env=%s, requested_env=%s, "
-            "DD-API-KEY header %s, poll interval %.1fs, request timeout %.1fs",
+            "DD-API-KEY header %s, flag selection %s, poll interval %.1fs, request timeout %.1fs",
             self._env or "unset",
             self._requested_env or "not sent",
             "sent" if self._api_key else "not sent",
+            "sent" if self._flag_selection_sent else "not sent",
             self.interval,
             self._request_timeout,
         )
@@ -283,6 +305,34 @@ class AgentlessConfigurationSource(PeriodicService):
         # socket call still to come (connect, then each read).
         self._cancel_in_flight_request()
         super()._stop_service(*args, **kwargs)
+
+    def polling_on_current_thread(self) -> bool:
+        """Whether the current thread is inside this source's poll, where joining the worker would wait forever."""
+        return self._polling_thread is current_thread()
+
+    def call_on_exit(self, callback: Callable[[], None]) -> None:
+        """Run callback on the worker thread once its last poll has returned.
+
+        It runs before a join() from another thread returns, so code on the worker thread, which cannot join it,
+        can still act once the worker's final poll is over.
+        """
+        self._exit_callbacks.append(callback)
+
+    def on_shutdown(self) -> None:  # type: ignore[override]
+        callbacks, self._exit_callbacks = self._exit_callbacks, []
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:
+                log.debug("Feature Flags: agentless configuration source exit callback failed", exc_info=True)
+
+    def discard_in_child(self) -> None:
+        """Keep the poller from restarting in a forked child that does not own it.
+
+        Stopping it there instead would half-close a socket the parent still uses.
+        """
+        if self._worker is not None:
+            self._worker.__autorestart__ = False
 
     def _cancel_in_flight_request(self) -> None:
         """Unblock a poll waiting on the network so shutdown does not wait for it.
@@ -329,6 +379,18 @@ class AgentlessConfigurationSource(PeriodicService):
 
     def periodic(self) -> None:
         """Run one poll with in-tick retries; never let an error escape."""
+        self._polling_thread = current_thread()
+        try:
+            self._poll_once()
+        except BaseException:
+            # The worker skips on_shutdown when its target raises, so a poller stopped in this poll exits here.
+            self.on_shutdown()
+            raise
+        finally:
+            self._polling_thread = None
+
+    def _poll_once(self) -> None:
+        count_inherited_drop()
         if self._stagger_first_poll_after_fork():
             return
 
@@ -442,12 +504,18 @@ class AgentlessConfigurationSource(PeriodicService):
             conn.request("GET", self._request_target, None, self._headers())
             resp = conn.getresponse()
             body = resp.read()
+            flag_selection_ignored = None
+            if self._flag_selection_sent and resp.status == 200:
+                # getheader() returns only the first value; join repeats as http.client does, so they report unknown.
+                values = resp.headers.get_all(FLAG_SELECTION_IGNORED_HEADER)
+                flag_selection_ignored = ", ".join(values) if values else None
             return _PollResponse(
                 status=resp.status,
                 etag=resp.getheader("ETag"),
                 content_encoding=resp.getheader("Content-Encoding"),
                 body=body,
                 error=None,
+                flag_selection_ignored=flag_selection_ignored,
             )
         except Exception as e:
             return _PollResponse(status=None, etag=None, content_encoding=None, body=None, error=e)
@@ -535,6 +603,8 @@ class AgentlessConfigurationSource(PeriodicService):
         etag = (response.etag or "").strip()
         self._etag = etag or None
         self._record_recovery()
+        if response.flag_selection_ignored is not None:
+            report_ignored(response.flag_selection_ignored)
 
         # The SDK environment, the environment requested from the endpoint and the
         # environment the configuration was built for can each differ.
@@ -576,7 +646,14 @@ class AgentlessConfigurationSource(PeriodicService):
             return
         self._failure_warnings.add(category)
 
-        if status:
+        if status in (400, 414) and self._flag_selection_sent:
+            log.warning(
+                "Feature Flagging agentless endpoint returned HTTP %d. Possible causes: the flag_selection query, "
+                "missing or invalid API key, API key not permitted to read this environment, wrong site or endpoint "
+                "URL, unknown environment, or a temporary service problem",
+                status,
+            )
+        elif status:
             log.warning(
                 "Feature Flagging agentless endpoint returned HTTP %d. Possible causes: missing or invalid API key, "
                 "API key not permitted to read this environment, wrong site or endpoint URL, unknown environment, "
