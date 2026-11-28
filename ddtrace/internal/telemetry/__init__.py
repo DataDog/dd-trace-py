@@ -4,9 +4,11 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 ``DD_INSTRUMENTATION_TELEMETRY_ENABLED`` variable to ``False``.
 """
 
+import json
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import _native
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import FLEET_CONFIG
@@ -23,6 +25,7 @@ from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._otel_remapper import select_exporter
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
 from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+from ddtrace.internal.settings._supported_configurations import STARTUP_STRING_CONFIGURATIONS
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -39,6 +42,55 @@ def _is_otel_env_set(otel_env: str) -> bool:
     if otel_env not in env:
         return False
     return not (otel_env in OTEL_EXPORTER_ENV_VARS and is_unset_exporter_list(env[otel_env]))
+
+
+def _startup_string_snapshot(
+    names: list[str], report_sources: bool
+) -> t.Optional[tuple[t.Optional[str], list[tuple[str, str, t.Optional[str]]]]]:
+    resolver_type = getattr(_native, "PyCoreConfigResolver", None)
+    if resolver_type is None:
+        return None
+
+    canonical = names[0]
+    layers = []
+    config_id = None
+    for origin, source in (
+        ("local_stable_config", LOCAL_CONFIG),
+        ("env_var", env),
+        ("fleet_stable_config", FLEET_CONFIG),
+    ):
+        for name in names:
+            if name in source:
+                entry = {"name": canonical, "value": source[name]}
+                if origin == "fleet_stable_config":
+                    config_id = FLEET_CONFIG_IDS.get(name)
+                    if config_id is not None:
+                        entry["config_id"] = config_id
+                layers.append({"origin": origin, "entries": [entry]})
+                break
+
+    if not layers:
+        return None, []
+
+    manifest = {"version": "2", "supportedConfigurations": {canonical: [{"type": "string"}]}}
+    request = {
+        "version": 1,
+        "operation": "initialize",
+        "manifest": {"kind": "json", "value": json.dumps(manifest)},
+        "inputs": {"layers": layers, "report_sources": report_sources},
+    }
+    reply = json.loads(resolver_type().request(json.dumps(request).encode()))
+    if reply["status"] != "complete":
+        log.debug("Unable to resolve %s with libdatadog startup config: %s", canonical, reply.get("message"))
+        return None
+
+    resolved = reply["settings"][0]["resolved"]
+    events = [
+        (event["origin"], event["value"]["value"], config_id if event["origin"] == "fleet_stable_config" else None)
+        for event in reply["sources"]
+        if event["value"] is not None
+    ]
+    return resolved["value"]["value"] if resolved is not None else None, events
 
 
 def get_config(
@@ -77,6 +129,21 @@ def get_config(
         report_telemetry = False
     if report_telemetry:
         telemetry_writer.add_configuration(telemetry_name, default, "default")
+
+    if (
+        modifier is None
+        and canonical in STARTUP_STRING_CONFIGURATIONS
+        and not any(_is_otel_env_set(name) for name in otel_envs)
+    ):
+        snapshot = _startup_string_snapshot(envs, report_telemetry)
+        if snapshot is not None:
+            parsed, events = snapshot
+            for origin, value, config_id in events:
+                if origin == "fleet_stable_config":
+                    telemetry_writer.add_configuration(telemetry_name, value, origin, config_id)
+                else:
+                    telemetry_writer.add_configuration(telemetry_name, value, origin)
+            return effective_val if parsed is None else parsed
 
     for env_name in envs:
         if env_name in LOCAL_CONFIG:

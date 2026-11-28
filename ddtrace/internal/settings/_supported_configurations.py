@@ -1038,3 +1038,11 @@ SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset(
         "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
     }
 )
+
+STARTUP_STRING_CONFIGURATIONS: frozenset[str] = frozenset(
+    {
+        "DD_ENV",
+        "DD_SERVICE",
+        "DD_VERSION",
+    }
+)

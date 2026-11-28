@@ -1,4 +1,84 @@
+import json
+from unittest.mock import Mock
+from unittest.mock import call
+
 import pytest
+
+from ddtrace.internal import telemetry
+from ddtrace.internal.native._native import PyCoreConfigResolver
+
+
+def test_core_config_resolver_reads_manifest_and_applies_programmatic_values(tmp_path):
+    manifest = tmp_path / "supported-configurations.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": "2",
+                "supportedConfigurations": {
+                    "DD_SAMPLE_RATE": [{"type": "decimal", "default": "1", "configurationNames": ["sample_rate"]}]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    request = {
+        "version": 1,
+        "operation": "initialize",
+        "manifest": {"kind": "path", "value": str(manifest)},
+        "inputs": {
+            "layers": [
+                {"origin": "env_var", "entries": [{"name": "DD_SAMPLE_RATE", "value": "0.5"}]},
+                {
+                    "origin": "code",
+                    "entries": [{"name": "sample_rate", "value": {"kind": "number", "value": 0.25}}],
+                },
+            ]
+        },
+    }
+    result = json.loads(PyCoreConfigResolver().request(json.dumps(request).encode()))
+    assert result["status"] == "complete"
+    assert result["settings"][0]["resolved"] == {
+        "value": {"kind": "number", "value": 0.25},
+        "origin": "code",
+        "input_name": "sample_rate",
+    }
+
+
+@pytest.mark.parametrize(("name", "otel_env"), [("DD_ENV", None), ("DD_SERVICE", "OTEL_SERVICE_NAME")])
+def test_core_config_preserves_startup_string_origins(monkeypatch, name, otel_env):
+    resolver = PyCoreConfigResolver()
+    resolve = Mock(wraps=resolver.request)
+    native_resolver = Mock(request=resolve)
+    report = Mock()
+    monkeypatch.setattr(telemetry._native, "PyCoreConfigResolver", lambda: native_resolver)
+    monkeypatch.setattr(telemetry.telemetry_writer, "add_configuration", report)
+    monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {name: "local"})
+    monkeypatch.setattr(telemetry, "FLEET_CONFIG", {name: "fleet"})
+    monkeypatch.setattr(telemetry, "FLEET_CONFIG_IDS", {name: "fleet-id"})
+    monkeypatch.setenv(name, "process")
+    if otel_env:
+        monkeypatch.delenv(otel_env, raising=False)
+
+    assert telemetry.get_config(name, "fallback", otel_env=otel_env) == "fleet"
+    resolve.assert_called_once()
+    assert report.call_args_list == [
+        call(name, "fallback", "default"),
+        call(name, "local", "local_stable_config"),
+        call(name, "process", "env_var"),
+        call(name, "fleet", "fleet_stable_config", "fleet-id"),
+    ]
+
+
+def test_core_config_uses_the_otel_service_mapping_when_set(monkeypatch):
+    resolver = Mock()
+    monkeypatch.setattr(telemetry._native, "PyCoreConfigResolver", resolver)
+    monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {})
+    monkeypatch.setattr(telemetry, "FLEET_CONFIG", {})
+    monkeypatch.delenv("DD_SERVICE", raising=False)
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "otel-service")
+
+    assert telemetry.get_config("DD_SERVICE", otel_env="OTEL_SERVICE_NAME", report_telemetry=False) == "otel-service"
+    resolver.assert_not_called()
 
 
 def test_is_panic_exception():

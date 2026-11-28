@@ -56,6 +56,9 @@ def generate_module(data: dict) -> str:
     aliases = {name: e["aliases"] for name, e in entries.items() if e.get("aliases")}
     deprecated = sorted(name for name, e in entries.items() if e.get("deprecated"))
     sensitive = sorted(name for name, e in entries.items() if e.get("sensitive"))
+    startup_strings = [
+        name for name in ("DD_ENV", "DD_SERVICE", "DD_VERSION") if entries.get(name, {}).get("type") == "string"
+    ]
 
     supported = "\n".join(f'        "{n}",' for n in all_names)
 
@@ -84,6 +87,7 @@ def generate_module(data: dict) -> str:
         if sensitive
         else "SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset()"
     )
+    startup_strings_block = "\n".join(f'        "{name}",' for name in startup_strings)
 
     return f"""\
 {HEADER}
@@ -99,6 +103,12 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
 {deprecated_block}
 
 {sensitive_block}
+
+STARTUP_STRING_CONFIGURATIONS: frozenset[str] = frozenset(
+    {{
+{startup_strings_block}
+    }}
+)
 """
 
 
