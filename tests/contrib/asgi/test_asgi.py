@@ -1263,3 +1263,19 @@ def test_otel_semantics_server_span_attributes():
             assert span.get_metric("server.port") == 8080
 
     asyncio.run(run())
+
+
+def test_is_double_callable_legacy_coroutine_marker():
+    from ddtrace.contrib.internal.asgi.utils import is_double_callable
+
+    def legacy_asgi3_app(scope, receive, send):
+        pass
+
+    legacy_marker = getattr(getattr(asyncio, "coroutines", None), "_is_coroutine", None)
+    if legacy_marker is not None:
+        legacy_asgi3_app._is_coroutine = legacy_marker
+    else:
+        legacy_asgi3_app._is_coroutine = True
+
+    assert is_double_callable(legacy_asgi3_app) is False
+

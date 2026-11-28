@@ -34,11 +34,12 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-import asyncio
 from collections.abc import Mapping
 import inspect
 from typing import Any
 from typing import Union
+
+from ddtrace.internal.compat import iscoroutinefunction
 
 
 def is_double_callable(application):
@@ -57,10 +58,10 @@ def is_double_callable(application):
     if hasattr(application, "__call__"):  # noqa: B004
         # We only check to see if its __call__ is a coroutine function -
         # if it's not, it still might be a coroutine function itself.
-        if asyncio.iscoroutinefunction(application.__call__):
+        if iscoroutinefunction(application.__call__):
             return False
     # Non-classes we just check directly
-    return not asyncio.iscoroutinefunction(application)
+    return not iscoroutinefunction(application)
 
 
 def double_to_single_callable(application):

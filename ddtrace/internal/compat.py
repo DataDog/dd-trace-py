@@ -1,4 +1,7 @@
+import asyncio
+import functools
 from functools import singledispatchmethod
+import inspect
 import ipaddress
 import sys
 from types import TracebackType
@@ -18,6 +21,7 @@ __all__ = [
     "is_at_least_py",
     "is_at_most_py",
     "is_supported_python_version",
+    "iscoroutinefunction",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
@@ -168,3 +172,23 @@ else:
 
 def is_wrapted(o: object) -> bool:
     return isinstance(o, wrapt_class)
+
+
+def iscoroutinefunction(func: Any) -> bool:
+    """Return True if func is a coroutine function or legacy-marked coroutine callable.
+
+    Non-deprecated compatibility predicate that avoids asyncio.iscoroutinefunction's
+    DeprecationWarning on Python 3.12+ while preserving recognition of legacy
+    _is_coroutine markers on Python 3.9-3.11.
+    """
+    while inspect.ismethod(func):
+        func = func.__func__
+    while isinstance(func, functools.partial):
+        func = func.func
+    if inspect.iscoroutinefunction(func):
+        return True
+    legacy_marker = getattr(getattr(asyncio, "coroutines", None), "_is_coroutine", None)
+    if legacy_marker is not None and getattr(func, "_is_coroutine", None) is legacy_marker:
+        return True
+    return getattr(func, "_is_coroutine", None) is True
+

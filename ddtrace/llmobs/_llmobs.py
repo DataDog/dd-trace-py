@@ -35,6 +35,7 @@ from ddtrace.ext import net
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import iscoroutinefunction
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
@@ -322,7 +323,7 @@ def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) 
 def _validate_task_signature(task: Callable[..., Any], is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
-    if is_async and not get_asyncio().iscoroutinefunction(task):
+    if is_async and not iscoroutinefunction(task):
         raise TypeError("task must be an async function (coroutine function).")
     sig = inspect.signature(task)
     params = sig.parameters
