@@ -63,6 +63,7 @@ def generate_module(data: dict, required_startup_properties: set[str]) -> str:
         {"version": data["version"], "supportedConfigurations": {name: [entry] for name, entry in startup.items()}},
         separators=(",", ":"),
     )
+    # Keep the embedded JSON within Ruff's line length and quoting rules.
     startup_manifest_parts = []
     for start in range(0, len(startup_manifest), 100):
         chunk = startup_manifest[start : start + 100]
@@ -185,17 +186,28 @@ def _required_startup_properties() -> set[str]:
         for target in node.targets
         if isinstance(target, ast.Name)
     }
-    return {
-        property_name
-        for node in nodes
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "read"
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id in readers
-        and node.args
-        and (property_name := _literal_str(node.args[0])) is not None
-    }
+    properties = set()
+    for node in nodes:
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "read"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in readers
+        ):
+            continue
+        argument = (
+            node.args[0]
+            if node.args
+            else next((keyword.value for keyword in node.keywords if keyword.arg == "property_name"), None)
+        )
+        property_name = _literal_str(argument)
+        if property_name is None:
+            raise ValueError(
+                f"Startup configuration read requires a string literal at {source.relative_to(REPO_ROOT)}:{node.lineno}"
+            )
+        properties.add(property_name)
+    return properties
 
 
 def _collect_string_constants(module: ast.Module) -> dict[str, str]:

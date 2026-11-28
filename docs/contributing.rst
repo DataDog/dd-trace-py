@@ -255,8 +255,8 @@ before commit, and the CI ``check`` job will enforce it on every PR.
 
 For settings resolved during tracer startup, ``internalPropertyName`` binds
 the value to its Python configuration field. Use ``configurationNames`` for
-the programmatic names of the same setting. Registry generation checks that
-each startup read has a binding.
+the programmatic names of the same setting. Pass a string literal as the field
+name so registry generation can check its binding.
 
 **2. Central Configuration Registry** (FPD)
 
