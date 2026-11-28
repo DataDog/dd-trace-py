@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where ``w3c_tracestate_add_p`` could push the ``dd=``
+    list-member of the W3C ``tracestate`` header past the 256-character limit after
+    appending the parent-id field, causing W3C consumers (e.g. OpenTelemetry) to
+    reject the whole ``tracestate`` header. Optional ``t.*`` fields are now dropped
+    as whole fields so the remaining trace state stays within the limit.
