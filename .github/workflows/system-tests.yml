@@ -27,9 +27,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Check if relevant paths changed
+      - name: Check if System Tests should run
         id: check
+        env:
+          FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
+          if [ "$FORK_PR" = "true" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "GitLab does not build wheels for fork branches, so System Tests did not run." \
+              "A maintainer must run CI on a shadow PR for the reviewed commit." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           .github/scripts/should-run.sh "${{ github.event_name }}" \
             "${{ github.event.pull_request.base.sha }}"
 

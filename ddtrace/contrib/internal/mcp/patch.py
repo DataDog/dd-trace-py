@@ -101,7 +101,7 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
                 span.set_tag(ERROR_MSG, error_message)
 
         return result
-    except Exception:
+    except BaseException:
         error = True
         raise
     finally:
