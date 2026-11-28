@@ -42,6 +42,41 @@ A C extension that calls the loop's `create_task` attribute goes through the wra
 `create_task()`, without calling asyncio's, is not wrapped. The cases that need uvloop or trio run only
 where those are installed.
 
+## Where native line coverage runs
+
+Native line coverage runs on CPython 3.12 and later, in builds with the GIL, where the `_linecov` extension
+is built: every platform but Windows. The extension and the child process bootstrap are loaded when coverage
+starts, so a process that collects no coverage loads neither (`test_coverage_off_session_loads_no_native_module`).
+
+Where native collection should run and does not, coverage is file-level. It does not fall back to the Python
+line collector, which would make the test session 50% to 100% slower without saying so;
+`_DD_COVERAGE_FILE_LEVEL=false` asks for that collector's lines instead. Each case is logged once per process
+and recorded on the test session span. Tests in `tests/testing/internal/test_native_line_coverage_fallback.py`
+make each one happen, except Windows, and a real free-threaded build, which is simulated there.
+
+| Reason | Log level | Collected instead |
+| --- | --- | --- |
+| Python before 3.12 | INFO | lines from the Python collector, as before |
+| Windows | INFO | file-level coverage |
+| free-threaded build | INFO | file-level coverage |
+| extension not found | WARNING | file-level coverage |
+| extension failed to load | WARNING | file-level coverage |
+| start failed | WARNING | file-level coverage |
+| no free sys.monitoring tool slot | WARNING | no coverage |
+
+The session span's `test.code_coverage.fallback` tag gives the reason and what is collected instead, for
+example `native line coverage unavailable: start failed (file-level coverage)`. While native collection runs,
+the `_dd.ci.code_coverage.native_lines.<name>` tags say which path each start-up self-test chose: `rearm`
+(`internal` or `public`), `events` (`INSTRUCTION probes` or `LINE events`), `owner_read` (`cached` or
+`PyContextVar_Get`), and `block_probes` (`on` or `off`) when block probes were asked for. Under pytest-xdist
+the tags are the workers', which run the tests; a tag whose value differs between workers lists their values,
+sorted and separated by `; `. Turning native collection off with `_DD_COVERAGE_NATIVE_LINES=false` is the
+user's choice, and nothing is recorded for it.
+
+A failed start is known only once coverage starts. By then the skippable-tests request has gone out without the
+header that tells the backend not to fill in the coverage of the tests it skips, so the backend does that work
+for nothing.
+
 ## Decisions
 
 **No single-context fast path.** While exactly one test's context is active, the line callback

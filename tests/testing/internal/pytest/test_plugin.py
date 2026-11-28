@@ -32,6 +32,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
 from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
+from ddtrace.testing.internal.pytest.plugin import _merge_coverage_tags
 from ddtrace.testing.internal.pytest.plugin import setup_coverage_collection
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
@@ -697,20 +698,31 @@ class TestSkippingAndITRFeatures:
 
 
 class TestSetupCoverageCollection:
-    @pytest.mark.parametrize("file_level_coverage", [True, False])
-    def test_installs_coverage_in_the_mode_used_for_skippable_requests(self, file_level_coverage: bool) -> None:
-        """The collector mode and the skippable-tests coverage header must come from the same decision."""
+    def test_lets_the_collector_decide_its_mode(self) -> None:
+        """The collector decides its mode as it starts, from whether native line collection runs."""
         with (
             patch("ddtrace.testing.internal.pytest.plugin.get_workspace_path", return_value=Path("/repo")),
-            patch(
-                "ddtrace.testing.internal.pytest.plugin.is_file_level_coverage_enabled",
-                return_value=file_level_coverage,
-            ),
             patch("ddtrace.testing.internal.pytest.plugin.install_coverage") as mock_install_coverage,
         ):
             setup_coverage_collection()
 
-        mock_install_coverage.assert_called_once_with(Path("/repo"), file_level_coverage=file_level_coverage)
+        mock_install_coverage.assert_called_once_with(Path("/repo"))
+
+
+class TestMergeCoverageTags:
+    def test_a_value_the_processes_share_is_kept_and_distinct_values_are_listed(self) -> None:
+        merged = _merge_coverage_tags(
+            [
+                {"fallback": "b", "rearm": "internal"},
+                {"fallback": "a", "rearm": "internal"},
+                {"fallback": "b", "events": "LINE events"},
+            ]
+        )
+
+        assert merged == {"fallback": "a; b", "rearm": "internal", "events": "LINE events"}
+
+    def test_no_processes_give_no_tags(self) -> None:
+        assert _merge_coverage_tags([]) == {}
 
 
 class TestFinalStatusFeatures:

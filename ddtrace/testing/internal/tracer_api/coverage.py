@@ -34,7 +34,10 @@ log = logging.getLogger(__name__)
 log = logging.getLogger(__name__)
 
 
-def install_coverage(workspace_path: Path, file_level_coverage: bool = False) -> None:
+def install_coverage(workspace_path: Path, file_level_coverage: t.Optional[bool] = None) -> None:
+    """Install and start the collector. With file_level_coverage None, the collector decides its mode as it
+    starts: line-level where native line collection runs, else the Python collector's default.
+    """
     native_lines.set_report_root(resolved_path(str(workspace_path)))
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
@@ -190,6 +193,16 @@ def get_shared_coverage_bitmaps() -> dict[str, list[tuple[str, bytes]]]:
     Empty unless native line collection is enabled.
     """
     return native_lines.shared()
+
+
+def native_line_coverage_status() -> tuple[t.Optional[str], dict[str, str]]:
+    """Native line collection, once coverage started.
+
+    Returns the marker that says why it does not run where it was expected, and what is collected instead (None
+    otherwise), and, while it runs, the path each start-up self-test chose, by self-test name.
+    """
+    marker = native_lines.unavailable(ModuleCodeCollector.file_level_coverage_enabled())
+    return marker, native_lines.self_tests()
 
 
 def native_line_coverage_requested() -> bool:

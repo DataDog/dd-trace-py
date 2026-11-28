@@ -12,12 +12,15 @@ faster on any repository measured. They also need PY_UNWIND events, and switch o
 greenlet is imported.
 
 On by default where it can run (CPython 3.12+ builds with the GIL and this extension), and then coverage is
-line-level. _DD_COVERAGE_NATIVE_LINES=false turns it off.
+line-level. _DD_COVERAGE_NATIVE_LINES=false turns it off. The extension and the child process bootstrap are
+loaded when coverage starts, so a process that collects no coverage does not load them. Where native collection
+was expected and does not run, coverage is file-level, and unavailable() says why.
 """
 
 import builtins
 from contextvars import ContextVar
 import dis
+import importlib.util
 import marshal
 import os
 import sys
@@ -26,7 +29,6 @@ from types import CodeType
 import typing as t
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.coverage.child_bootstrap import _ddtrace_child_coverage as _child_coverage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env
@@ -35,15 +37,38 @@ from ddtrace.internal.utils.formats import asbool
 
 log = get_logger(__name__)
 
-# The extension declares no Py_mod_gil slot, so importing it would turn the GIL back on in a free-threaded build.
-# It is not loaded there, and coverage stays file-level.
-if not sysconfig.get_config_var("Py_GIL_DISABLED"):
-    try:
-        from ddtrace.internal.coverage import _linecov  # type: ignore[attr-defined]
-    except ImportError:
-        _linecov = None
-else:
-    _linecov = None
+_EXTENSION = "ddtrace.internal.coverage._linecov"
+# The extension and the child process bootstrap, once init() loaded them.
+_linecov: t.Any = None
+_child_coverage: t.Any = None
+
+# Why native line collection does not run where coverage expected it. The extension is not built, or not used, on
+# the first three: they are logged at INFO. The others are logged at WARNING.
+_BEFORE_PYTHON_312 = "Python before 3.12"
+_WINDOWS = "Windows"
+_FREE_THREADED = "free-threaded build"
+_NOT_FOUND = "extension not found"
+_LOAD_FAILED = "extension failed to load"
+_START_FAILED = "start failed"
+_NO_TOOL_SLOT = "no free sys.monitoring tool slot"
+_NOT_BUILT_OR_NOT_USED = frozenset((_BEFORE_PYTHON_312, _WINDOWS, _FREE_THREADED))
+
+
+def _unavailable_here() -> t.Optional[str]:
+    """Why this interpreter cannot run native line collection, or None. Does not load the extension."""
+    # Not an early return: mypy checks one Python version, and before 3.12 it would find the rest unreachable.
+    if sys.version_info < (3, 12):
+        return _BEFORE_PYTHON_312
+    else:
+        if os.name == "nt":
+            return _WINDOWS
+        # The extension declares no Py_mod_gil slot, so importing it would turn the GIL back on in a free-threaded
+        # build.
+        if sysconfig.get_config_var("Py_GIL_DISABLED"):
+            return _FREE_THREADED
+        if importlib.util.find_spec(_EXTENSION) is None:
+            return _NOT_FOUND
+        return None
 
 
 # The native context that the current thread or task runs for. Threads, executor work items and
@@ -53,7 +78,13 @@ ctx_native: ContextVar[t.Optional[t.Any]] = ContextVar("ddtrace_coverage_native_
 # sys.monitoring exists on 3.12+ only.
 _monitoring: t.Any = getattr(sys, "monitoring", None)
 
-_requested: bool = sys.version_info >= (3, 12) and asbool(env.get("_DD_COVERAGE_NATIVE_LINES", "true"))
+# Turning native line collection off is the user's choice, and no reason is recorded for it.
+_switched_on: bool = asbool(env.get("_DD_COVERAGE_NATIVE_LINES", "true"))
+_reason: t.Optional[str] = _unavailable_here() if _switched_on else None
+# The error behind _reason, for the log.
+_error: t.Optional[str] = None
+_requested: bool = _switched_on and _reason is None
+_block_probes_requested: bool = asbool(env.get("_DD_COVERAGE_BLOCK_PROBES", "false"))
 _enabled: bool = False
 _report_root: t.Optional[str] = None
 _file_ids: dict[str, int] = {}
@@ -63,12 +94,101 @@ _exec_wrapping: t.Optional[tuple[t.Any, t.Any]] = None
 
 
 def requested() -> bool:
-    """Whether native line collection was asked for and can be used on this interpreter."""
-    return _requested and _linecov is not None and not _linecov.FREE_THREADED
+    """Whether native line collection was asked for and can run on this interpreter, as far as is known before
+    init() loads the extension. False once loading or starting it failed.
+    """
+    return _requested
 
 
 def enabled() -> bool:
     return _enabled
+
+
+def _fail(reason: str, error: t.Optional[BaseException] = None) -> None:
+    global _reason, _error, _requested
+
+    _reason = reason
+    _error = None if error is None else f"{type(error).__name__}: {error}"
+    _requested = False
+
+
+def no_tool_slot() -> None:
+    """Record that native line collection, if it was asked for, found no free sys.monitoring tool slot."""
+    if _requested:
+        _fail(_NO_TOOL_SLOT)
+
+
+def unavailable(file_level: bool) -> t.Optional[str]:
+    """A marker saying why native line collection does not run where it was expected.
+
+    It reads "native line coverage unavailable: <reason> (<what is collected instead>)". file_level says
+    whether the collector is file-level. None while native collection runs, or when
+    _DD_COVERAGE_NATIVE_LINES turned it off.
+    """
+    if _reason is None:
+        return None
+    return f"native line coverage unavailable: {_reason} ({_collected_instead(file_level)})"
+
+
+def log_unavailable(file_level: bool) -> None:
+    """Log why native line collection does not run, if it was expected: at INFO where the extension is not built
+    or not used, at WARNING where it should have run.
+    """
+    if _reason is None:
+        return
+    instead = _collected_instead(file_level)
+    detail = "" if _error is None else ": " + _error
+    if _reason in _NOT_BUILT_OR_NOT_USED:
+        log.info("Native line coverage unavailable: %s (%s)%s", _reason, instead, detail)
+    else:
+        log.warning("Native line coverage unavailable: %s (%s)%s", _reason, instead, detail)
+
+
+def _collected_instead(file_level: bool) -> str:
+    if _reason == _NO_TOOL_SLOT:
+        return "no coverage"
+    return "file-level coverage" if file_level else "lines from the Python collector"
+
+
+def self_tests() -> dict[str, str]:
+    """The paths the self-tests chose when native line collection started, by name; empty when it does not run.
+
+    rearm: "internal" or "public". events: "INSTRUCTION probes" or "LINE events". owner_read: "cached" when the
+    callbacks read the context variable's cache, else "PyContextVar_Get". block_probes, when
+    _DD_COVERAGE_BLOCK_PROBES asked for them: "on" or "off".
+    """
+    if not _enabled:
+        return {}
+    stats = _linecov.stats()
+    fields = {
+        "rearm": "internal" if stats["internal_rearm"] else "public",
+        "events": "INSTRUCTION probes" if stats["instruction_probes"] else "LINE events",
+        "owner_read": "cached" if stats["cached_owner"] else "PyContextVar_Get",
+    }
+    if _block_probes_requested:
+        fields["block_probes"] = "on" if stats["block_probes"] else "off"
+    return fields
+
+
+def _load() -> bool:
+    """Import the extension and the child process bootstrap."""
+    global _linecov, _child_coverage
+
+    if _linecov is not None:
+        return True
+    try:
+        # Imported here and not at module level: only a process that collects coverage loads them.
+        from ddtrace.internal.coverage import _linecov as linecov  # type: ignore[attr-defined]
+        from ddtrace.internal.coverage.child_bootstrap import _ddtrace_child_coverage as child_coverage
+    except Exception as e:
+        _fail(_LOAD_FAILED, e)
+        log.debug("Could not load %s", _EXTENSION, exc_info=True)
+        return False
+    if linecov.FREE_THREADED:
+        _fail(_FREE_THREADED)
+        return False
+    _linecov, _child_coverage = linecov, child_coverage
+    return True
 
 
 def _all_opcodes() -> dict[str, int]:
@@ -161,13 +281,16 @@ def _block_tables() -> t.Optional[tuple[bytes, bytes]]:
 
 
 def init(tool_id: int) -> bool:
-    """Register the native callbacks for tool_id. Returns False when native collection is unusable."""
+    """Load the extension and register the native callbacks for tool_id, if native line collection was asked
+    for. Returns False when it cannot run: requested() is then False, and unavailable() says why.
+    """
     global _enabled
 
-    if not requested() or _linecov is None:
+    if _enabled:
+        return True
+    if not _requested or not _load():
         return False
-    block_probes = asbool(env.get("_DD_COVERAGE_BLOCK_PROBES", "false"))
-    tables = _block_tables() if block_probes and _linecov.HAVE_BLOCK_PROBES else None
+    tables = _block_tables() if _block_probes_requested and _linecov.HAVE_BLOCK_PROBES else None
     try:
         events = _monitoring.events
         # Block probes start off: the first self-tests check the probes that block probes fall back on.
@@ -193,8 +316,9 @@ def init(tool_id: int) -> bool:
         _monitoring.register_callback(tool_id, events.LINE, _linecov.line_event)
         if _linecov.HAVE_INSTRUCTION_PROBES:
             _monitoring.register_callback(tool_id, events.INSTRUCTION, _linecov.instruction_event)
-    except Exception:
-        log.debug("Native line coverage unavailable", exc_info=True)
+    except Exception as e:
+        _fail(_START_FAILED, e)
+        log.debug("Native line coverage could not start", exc_info=True)
         return False
 
     _enabled = True

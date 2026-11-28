@@ -20,3 +20,5 @@ class TestOptPluginProtocol(t.Protocol):
     # Coverage data files persisted by xdist workers that delegated their coverage
     # report upload to this controller (collected by XdistTestOptPlugin.pytest_testnodedown).
     delegated_coverage_data_files: list[str]
+    # The native line coverage session tags of each xdist worker (collected the same way).
+    worker_coverage_tags: list[dict[str, str]]

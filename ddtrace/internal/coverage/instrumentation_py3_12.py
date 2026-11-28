@@ -200,9 +200,19 @@ def update_disable_optimization() -> bool:
     return _use_disable_optimization
 
 
+def start_native_lines() -> None:
+    """Start native line collection, if it was asked for, before the collector decides its mode.
+
+    It claims the tool slot now. When native collection cannot start, coverage is collected as without the
+    extension: file-level, unless _DD_COVERAGE_FILE_LEVEL asks for lines.
+    """
+    if native_lines.requested():
+        _ensure_registered()
+
+
 def _ensure_registered() -> bool:
     """Claim a tool slot on first call; return True if registered, False if all slots are taken."""
-    global _DD_TOOL_ID
+    global _DD_TOOL_ID, _USE_FILE_LEVEL_COVERAGE, EVENT
 
     if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
         return True
@@ -215,16 +225,21 @@ def _ensure_registered() -> bool:
         except ValueError:
             continue
     else:
+        native_lines.no_tool_slot()
         log.warning(
             "No sys.monitoring tool slot available (tried slots %s), not gathering coverage",
             _DD_CANDIDATE_SLOTS,
         )
         return False
 
+    if not _USE_FILE_LEVEL_COVERAGE:
+        if native_lines.init(_DD_TOOL_ID):
+            log.debug("Registered native line-level coverage tool (tool_id=%d)", _DD_TOOL_ID)
+            return True
+        # native_lines.requested() is False from now on, so this follows _DD_COVERAGE_FILE_LEVEL.
+        _USE_FILE_LEVEL_COVERAGE = is_file_level_coverage_enabled()
+        EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
     mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
-    if not _USE_FILE_LEVEL_COVERAGE and native_lines.init(_DD_TOOL_ID):
-        log.debug("Registered native line-level coverage tool (tool_id=%d)", _DD_TOOL_ID)
-        return True
     log.debug("Registered %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
     sys.monitoring.register_callback(_DD_TOOL_ID, EVENT, _event_handler)
     return True

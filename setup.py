@@ -1858,8 +1858,8 @@ if not IS_PYSTON:
             )
         )
         if sys.version_info >= (3, 12) and sys.implementation.name == "cpython":
-            # Per-test line coverage on sys.monitoring. Optional: without it, coverage falls back to
-            # the Python collector.
+            # Per-test line coverage on sys.monitoring. Optional: without it, coverage is file-level
+            # and the test session records why.
             ext_modules.append(
                 Extension(
                     "ddtrace.internal.coverage._linecov",

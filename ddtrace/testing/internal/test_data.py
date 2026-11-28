@@ -510,6 +510,10 @@ class TestTag:
     BROWSER_DRIVER = "test.browser.driver"
 
     CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
+    # Why native line coverage does not run where it was expected, and what is collected instead.
+    CODE_COVERAGE_FALLBACK = "test.code_coverage.fallback"
+    # Followed by a self-test's name: the path that native line coverage self-test chose.
+    CODE_COVERAGE_NATIVE_SELF_TEST_PREFIX = "_dd.ci.code_coverage.native_lines."
 
     # Library configuration error tags — set when backend requests fail.
     LIBRARY_CONFIGURATION_ERROR_SETTINGS = "_dd.ci.library_configuration_error.settings"

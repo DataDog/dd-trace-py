@@ -157,11 +157,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         cls._instance._include_paths = [p.resolve() for p in include_paths]
         cls._instance._rejected_files.clear()
         cls._instance._collect_import_coverage = collect_import_time_coverage
+        # The mode starts native line collection where it was asked for: whether it runs decides the default.
+        cls._instance._mode.install()
         cls._instance._file_level_coverage = (
             is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
         )
-
-        cls._instance._mode.install()
+        native_lines.log_unavailable(cls._instance._file_level_coverage)
 
         if cls._instance._collect_import_coverage:
             ModuleCodeCollector.register_import_exception_hook(

@@ -18,11 +18,13 @@ from __future__ import annotations
 import gzip
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
+import importlib.util
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import textwrap
 import threading
@@ -40,6 +42,7 @@ from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
 import ddtrace.testing.internal.pytest.xdist as xdist_module
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
+from ddtrace.testing.internal.test_data import TestTag
 
 
 # ---------------------------------------------------------------------------
@@ -1835,3 +1838,86 @@ class TestXdistCoverageReportUpload:
 
         assert result.returncode == 0, result.stdout + result.stderr
         assert mock_server.recorded_coverage_uploads == []
+
+
+# A sitecustomize that makes the native line coverage extension fail to load in processes whose environment asks for it.
+_FAIL_NATIVE_EXTENSION_LOAD = """\
+import importlib.abc
+import importlib.machinery
+import os
+import sys
+
+
+class _FailingLoader(importlib.abc.Loader):
+    def create_module(self, spec):
+        raise ImportError("simulated load failure")
+
+    def exec_module(self, module):
+        pass
+
+
+class _FailingFinder(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path=None, target=None):
+        # Read when the extension is looked for: an xdist worker's environment is set after it starts.
+        if name == "ddtrace.internal.coverage._linecov" and os.environ.get("_TEST_FAIL_NATIVE_EXTENSION_LOAD"):
+            return importlib.machinery.ModuleSpec(name, _FailingLoader())
+        return None
+
+
+sys.meta_path.insert(0, _FailingFinder())
+"""
+
+_LOAD_FAILED = "native line coverage unavailable: extension failed to load (file-level coverage)"
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 12)
+    or bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+    or importlib.util.find_spec("ddtrace.internal.coverage._linecov") is None,
+    reason="needs native line coverage: CPython 3.12+ with the GIL and the extension",
+)
+class TestXdistNativeLineCoverageTags:
+    """Under xdist the workers run the tests, so the session span says how their coverage was collected."""
+
+    def _session_tags(
+        self, mock_server: MockCIVisibilityServer, test_project: Path, *xdist_args: str
+    ) -> dict[str, str]:
+        settings = _settings_attributes()
+        settings["code_coverage"] = True
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+        hooks = test_project.parent / "hooks"
+        hooks.mkdir()
+        (hooks / "sitecustomize.py").write_text(_FAIL_NATIVE_EXTENSION_LOAD)
+        (test_project / "test_a.py").write_text("def test_a():\n    assert True\n")
+        (test_project / "test_b.py").write_text("def test_b():\n    assert True\n")
+        _git_commit(test_project)
+        python_path = os.pathsep.join(filter(None, [str(hooks), os.environ.get("PYTHONPATH")]))
+        env = _make_env(mock_server.url, {"PYTHONPATH": python_path})
+        for name in ("_DD_COVERAGE_NATIVE_LINES", "_DD_COVERAGE_FILE_LEVEL", "_DD_COVERAGE_BLOCK_PROBES"):
+            env.pop(name, None)
+
+        result = _run_pytest_subprocess(test_project, "--dist", "load", *xdist_args, env=env)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        [session] = mock_server.get_session_events()
+        return {
+            name: value
+            for name, value in session["content"]["meta"].items()
+            if name == TestTag.CODE_COVERAGE_FALLBACK or name.startswith(TestTag.CODE_COVERAGE_NATIVE_SELF_TEST_PREFIX)
+        }
+
+    def test_the_workers_fallback_is_the_sessions(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """The controller runs native line coverage and its workers do not: the session reports the workers."""
+        tags = self._session_tags(mock_server, test_project, "--tx", "2*popen//env:_TEST_FAIL_NATIVE_EXTENSION_LOAD=1")
+
+        assert tags == {TestTag.CODE_COVERAGE_FALLBACK: _LOAD_FAILED}
+
+    def test_each_workers_tags_reach_the_session(self, mock_server: MockCIVisibilityServer, test_project: Path) -> None:
+        tags = self._session_tags(
+            mock_server, test_project, "--tx", "popen//env:_TEST_FAIL_NATIVE_EXTENSION_LOAD=1", "--tx", "popen"
+        )
+
+        assert tags[TestTag.CODE_COVERAGE_FALLBACK] == _LOAD_FAILED
+        assert tags[TestTag.CODE_COVERAGE_NATIVE_SELF_TEST_PREFIX + "rearm"] in ("internal", "public")

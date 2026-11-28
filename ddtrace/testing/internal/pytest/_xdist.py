@@ -25,6 +25,7 @@ _CRASH_RETRY_REASON = "xdist_worker_crash"
 _CRASH_RETRY_STATE_WORKER_INPUT = "dd_atr_crash_retry_state"
 _CRASH_RETRY_READY_WORKER_INPUT = "dd_atr_crash_collection_ready"
 _DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT = "dd_coverage_upload_delegated"
+_COVERAGE_TAGS_WORKER_OUTPUT = "dd_coverage_tags"
 
 
 class CrashRetryBudget(t.NamedTuple):
@@ -153,6 +154,10 @@ class XdistTestOptPlugin:
         # globbing every parallel data file in the workspace.
         if coverage_data_file := node.workeroutput.get("dd_coverage_data_file"):
             self.main_plugin.delegated_coverage_data_files.append(coverage_data_file)
+
+        # Each worker collected its own coverage: the session says how, for all of them.
+        if coverage_tags := node.workeroutput.get(_COVERAGE_TAGS_WORKER_OUTPUT):
+            self.main_plugin.worker_coverage_tags.append(coverage_tags)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logstart(self, nodeid: str, location: t.Any) -> None:

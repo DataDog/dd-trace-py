@@ -27,7 +27,6 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_relative_path as _cached_relative_path
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
-from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
@@ -45,6 +44,7 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest._xdist import _COVERAGE_TAGS_WORKER_OUTPUT
 from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_READY_WORKER_INPUT
 from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_STATE_WORKER_INPUT
 from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
@@ -88,6 +88,7 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percen
 from ddtrace.testing.internal.tracer_api.coverage import native_coverage_window_type
 from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_enabled
 from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_requested
+from ddtrace.testing.internal.tracer_api.coverage import native_line_coverage_status
 from ddtrace.testing.internal.tracer_api.coverage import native_record_bitmaps
 from ddtrace.testing.internal.tracer_api.coverage import native_records_packable
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
@@ -443,6 +444,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         # Coverage data files persisted by delegated xdist workers; only meaningful
         # in the controller, filled by XdistTestOptPlugin.pytest_testnodedown.
         self.delegated_coverage_data_files: list[str] = []
+        # The native line coverage tags of each xdist worker, filled the same way.
+        self.worker_coverage_tags: list[dict[str, str]] = []
         # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
         # Every xdist worker performs a full, unsharded collection pass (so they all discover the
         # same ignored suites), but we must only report/count them once per session. We elect the
@@ -568,6 +571,12 @@ class TestOptPlugin(TestOptPluginProtocol):
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
+            if self.manager.settings.coverage_enabled:
+                session.config.workeroutput[_COVERAGE_TAGS_WORKER_OUTPUT] = _native_line_coverage_tags()
+        elif self.manager.settings.coverage_enabled:
+            # Under xdist the workers run the tests, so their coverage is the session's.
+            processes = self.worker_coverage_tags or [_native_line_coverage_tags()]
+            self.session.set_tags(_merge_coverage_tags(processes))
 
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
@@ -1096,8 +1105,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         Each execution, a retry included, gets its own record. False when tests never run in one:
         native line coverage is not requested, or coverage goes per suite in suite-skipping mode. None
-        while native collection is not enabled yet, which happens at the first instrumented module,
-        so a test can import it: the next test asks again.
+        while native collection is not enabled: the next test asks again.
         """
         if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE or not native_line_coverage_requested():
             self._native_window = False
@@ -1975,7 +1983,28 @@ def pytest_unconfigure() -> t.Generator[None, None, None]:
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path, file_level_coverage=is_file_level_coverage_enabled())
+    # The collector decides its mode as it starts. When native line collection fails to start, coverage is file-level,
+    # but the skippable-tests request, sent before, did not ask the backend to skip filling in the skipped tests'
+    # coverage: that work goes unused.
+    install_coverage(workspace_path)
+
+
+def _native_line_coverage_tags() -> dict[str, str]:
+    """This process's session tags on native line coverage: why it does not run, or what its self-tests chose."""
+    fallback, self_tests = native_line_coverage_status()
+    tags = {TestTag.CODE_COVERAGE_NATIVE_SELF_TEST_PREFIX + name: value for name, value in self_tests.items()}
+    if fallback is not None:
+        tags[TestTag.CODE_COVERAGE_FALLBACK] = fallback
+    return tags
+
+
+def _merge_coverage_tags(processes: list[dict[str, str]]) -> dict[str, str]:
+    """The session tags of the processes' coverage tags: a value they share, or their distinct values, sorted."""
+    values: dict[str, set[str]] = defaultdict(set)
+    for tags in processes:
+        for name, value in tags.items():
+            values[name].add(value)
+    return {name: "; ".join(sorted(distinct)) for name, distinct in values.items()}
 
 
 def pytest_configure(config: pytest.Config) -> None:

@@ -14,6 +14,7 @@ import typing as t
 
 from ddtrace.internal.coverage import native_lines
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
+from ddtrace.internal.coverage.instrumentation import start_native_lines
 from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
@@ -44,7 +45,8 @@ class InstrumentedCoverage(CoverageMode):
         self._seen: dict[int, CodeType] = {}
 
     def install(self) -> None:
-        """The instrumentation modules are imported at module level; nothing to wire."""
+        """Start native line collection where it was asked for, before the collector decides its mode."""
+        start_native_lines()
 
     def uninstall(self) -> None:
         """Nothing to undo (the shared uninstall handles hooks and exec)."""
