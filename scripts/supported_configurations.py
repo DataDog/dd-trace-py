@@ -63,9 +63,12 @@ def generate_module(data: dict, required_startup_properties: set[str]) -> str:
         {"version": data["version"], "supportedConfigurations": {name: [entry] for name, entry in startup.items()}},
         separators=(",", ":"),
     )
-    startup_manifest_lines = "\n".join(
-        f"    {startup_manifest[start : start + 100]!r}" for start in range(0, len(startup_manifest), 100)
-    )
+    startup_manifest_parts = []
+    for start in range(0, len(startup_manifest), 100):
+        chunk = startup_manifest[start : start + 100]
+        literal = repr(chunk) if '"' in chunk else json.dumps(chunk)
+        startup_manifest_parts.append(f"    {literal}")
+    startup_manifest_lines = "\n".join(startup_manifest_parts)
     startup_bindings = []
     properties = set()
     converters: dict[str, Callable[[str], object]] = {

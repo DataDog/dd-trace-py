@@ -6490,7 +6490,6 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "internalPropertyName": "_lib_was_injected",
         "default": "false",
         "internal": true
       }

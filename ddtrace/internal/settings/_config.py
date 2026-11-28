@@ -822,8 +822,6 @@ class Config:
                 category=DDTraceDeprecationWarning,
             )
         self._inject_force = startup.read("_inject_force", None)
-        # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
-        self._lib_was_injected = startup.read("_lib_was_injected", report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         if "DD_TRACE_INFERRED_SPANS_ENABLED" in env:
             deprecate(

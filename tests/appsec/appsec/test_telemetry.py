@@ -449,25 +449,21 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer,
 
 
 @pytest.mark.parametrize(
-    "environment,appsec_enabled,rc_enabled,expected_result,ssi_enabled,expected_origin",
+    "environment,appsec_enabled,rc_enabled,expected_result,expected_origin",
     (
-        ({}, False, False, 0, False, APPSEC.ENABLED_ORIGIN_DEFAULT),
-        ({APPSEC_ENV: "true"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
-        ({}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_DEFAULT),
-        ({}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_DEFAULT),
-        ({}, False, True, 1, False, APPSEC.ENABLED_ORIGIN_RC),
-        ({"_DD_PY_SSI_INJECT": "true"}, False, True, 1, True, APPSEC.ENABLED_ORIGIN_RC),
-        ({APPSEC_ENV: "true"}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        ({}, False, False, 0, APPSEC.ENABLED_ORIGIN_DEFAULT),
+        ({APPSEC_ENV: "true"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_DEFAULT),
+        ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_DEFAULT),
+        ({}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
+        ({APPSEC_ENV: "true"}, True, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
         # 0 because RC should not change the value if env var is set
-        ({APPSEC_ENV: "true"}, False, True, 0, False, APPSEC.ENABLED_ORIGIN_ENV),
-        # SSI set but AppSec disabled and no RC: origin remains UNKNOWN and value 0
-        ({"_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_DEFAULT),
+        ({APPSEC_ENV: "true"}, False, True, 0, APPSEC.ENABLED_ORIGIN_ENV),
         # APPSEC_ENV present with value "false" still counts as ENV origin by implementation
-        ({APPSEC_ENV: "false"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
+        ({APPSEC_ENV: "false"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
         # APPSEC_ENV present with empty value still counts as ENV origin by implementation
-        ({APPSEC_ENV: ""}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
-        # APPSEC_ENV present and SSI set but AppSec disabled: not enabled => origin ENV and value 0
-        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_ENV),
+        ({APPSEC_ENV: ""}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        ({APPSEC_ENV: "true"}, False, False, 0, APPSEC.ENABLED_ORIGIN_ENV),
     ),
 )
 def test_appsec_enabled_metric(
@@ -475,7 +471,6 @@ def test_appsec_enabled_metric(
     appsec_enabled,
     rc_enabled,
     expected_result,
-    ssi_enabled,
     expected_origin,
     telemetry_writer,
     test_agent_session,
@@ -497,9 +492,7 @@ def test_appsec_enabled_metric(
     # Start the test
     with (
         override_env(environment),
-        override_global_config(
-            dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled, _lib_was_injected=ssi_enabled)
-        ),
+        override_global_config(dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled)),
     ):
         tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_DEFAULT)
         if rc_enabled:

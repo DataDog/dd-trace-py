@@ -71,8 +71,8 @@ class StartupConfig:
             for canonical, kind, _ in STARTUP_CONFIGURATIONS.values():
                 names = (canonical, *CONFIGURATION_ALIASES.get(canonical, ()))
                 for name in names:
-                    raw = source.get(name)
-                    if raw is not None:
+                    if name in source:
+                        raw = source[name]
                         break
                 else:
                     continue
@@ -105,7 +105,7 @@ class StartupConfig:
             "version": 1,
             "operation": "initialize",
             "manifest": {"kind": "json", "value": STARTUP_CONFIG_MANIFEST},
-            "inputs": {"layers": layers, "report_sources": True},
+            "inputs": {"layers": layers, "report_sources": telemetry_enabled},
         }
         try:
             encoded = json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode()
@@ -140,10 +140,10 @@ class StartupConfig:
             return get_config(canonical, default, _STARTUP_MODIFIERS.get(kind), otel_env, report_telemetry)
 
         resolved = self._settings[property_name]
-        sources = self._sources.get(canonical)
-        if use_manifest_default and sources and sources[0]["origin"] == "default":
-            default = sources[0]["value"]["value"]
-        if report_telemetry and canonical not in SENSITIVE_CONFIGURATIONS:
+        if report_telemetry and telemetry_enabled and canonical not in SENSITIVE_CONFIGURATIONS:
+            sources = self._sources.get(canonical)
+            if use_manifest_default and sources and sources[0]["origin"] == "default":
+                default = sources[0]["value"]["value"]
             telemetry_writer.add_configuration(canonical, default, "default")
             for event in sources or ():
                 origin = event["origin"]
@@ -154,7 +154,9 @@ class StartupConfig:
                     telemetry_writer.add_configuration(canonical, value, origin, resolved.get("config_id"))
                 else:
                     telemetry_writer.add_configuration(canonical, value, origin)
-        return default if resolved is None or resolved["origin"] == "default" else resolved["value"]["value"]
+        if resolved is None or (resolved["origin"] == "default" and not use_manifest_default):
+            return default
+        return resolved["value"]["value"]
 
 
 def get_config(

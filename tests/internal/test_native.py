@@ -63,6 +63,7 @@ def test_core_config_loads_one_tracer_startup_snapshot(monkeypatch, buffer_size)
     resolve = Mock(wraps=PyCoreConfigResolver().request)
     report = Mock()
     monkeypatch.setattr(telemetry._native, "PyCoreConfigResolver", lambda: Mock(request=resolve))
+    monkeypatch.setattr(telemetry, "telemetry_enabled", True)
     monkeypatch.setattr(telemetry.telemetry_writer, "add_configuration", report)
     monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {"DD_ENV": "local", "DD_TRACE_STARTUP_LOGS": "true"})
     monkeypatch.setattr(telemetry, "FLEET_CONFIG", {"DD_ENV": "fleet", "DD_REMOTECONFIG_POLL_SECONDS": "7.5"})
@@ -81,6 +82,7 @@ def test_core_config_loads_one_tracer_startup_snapshot(monkeypatch, buffer_size)
     config = Config()
 
     resolve.assert_called_once()
+    assert json.loads(resolve.call_args.args[0])["inputs"]["report_sources"] is True
     assert config.env == "fleet"
     assert config.service == "service"
     assert config.version == "version"
@@ -124,12 +126,17 @@ def test_core_config_accepts_environment_strings_with_surrogate_escapes(monkeypa
 def test_core_config_uses_the_compiled_manifest_default(monkeypatch):
     manifest = json.loads(telemetry.STARTUP_CONFIG_MANIFEST)
     manifest["supportedConfigurations"]["DD_TRACE_STARTUP_LOGS"][0]["default"] = "false"
+    resolve = Mock(wraps=PyCoreConfigResolver().request)
+    monkeypatch.setattr(telemetry._native, "PyCoreConfigResolver", lambda: Mock(request=resolve))
+    monkeypatch.setattr(telemetry, "telemetry_enabled", False)
     monkeypatch.setattr(telemetry, "STARTUP_CONFIG_MANIFEST", json.dumps(manifest))
     monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {})
     monkeypatch.setattr(telemetry, "FLEET_CONFIG", {})
     monkeypatch.delenv("DD_TRACE_STARTUP_LOGS", raising=False)
 
     assert Config()._startup_logs_enabled is False
+    resolve.assert_called_once()
+    assert json.loads(resolve.call_args.args[0])["inputs"]["report_sources"] is False
 
 
 @pytest.mark.parametrize("resolver_available", [False, True])

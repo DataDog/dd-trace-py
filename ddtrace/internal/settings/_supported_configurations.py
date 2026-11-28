@@ -1119,14 +1119,13 @@ STARTUP_CONFIG_MANIFEST = (
     '_reuse","default":"false"}],"DD_VERSION":[{"implementation":"A","type":"string","configurationNames"'
     ':["version"],"internalPropertyName":"version","default":""}],"OTEL_TRACES_SPAN_METRICS_ENABLED":[{"i'
     'mplementation":"A","type":"boolean","internalPropertyName":"_otel_stats_computation_enabled","defaul'
-    't":null}],"_DD_PY_SSI_INJECT":[{"implementation":"A","type":"boolean","internalPropertyName":"_lib_w'
-    'as_injected","default":"false","internal":true}],"_DD_TRACE_NATIVE_BUFFER_ENABLED":[{"implementation'
-    '":"A","type":"boolean","internalPropertyName":"_trace_native_buffer_enabled","default":"false","inte'
-    'rnal":true}],"_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED":[{"version":"C","'
-    'type":"boolean","internalPropertyName":"_client_side_stats_obfuscation","default":"true","propertyKe'
-    'ys":["trace_stats_computation_experimental_client_obfuscation_enabled"]}],"_DD_TRACE_WRITER_LOG_ERRO'
-    'R_PAYLOADS":[{"implementation":"A","type":"boolean","internalPropertyName":"_trace_writer_log_err_pa'
-    'yload","default":"false","internal":true}]}}'
+    't":null}],"_DD_TRACE_NATIVE_BUFFER_ENABLED":[{"implementation":"A","type":"boolean","internalPropert'
+    'yName":"_trace_native_buffer_enabled","default":"false","internal":true}],"_DD_TRACE_STATS_COMPUTATI'
+    'ON_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED":[{"version":"C","type":"boolean","internalPropertyName":'
+    '"_client_side_stats_obfuscation","default":"true","propertyKeys":["trace_stats_computation_experimen'
+    'tal_client_obfuscation_enabled"]}],"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS":[{"implementation":"A","typ'
+    'e":"boolean","internalPropertyName":"_trace_writer_log_err_payload","default":"false","internal":tru'
+    "e}]}}"
 )
 
 STARTUP_CONFIGURATIONS: dict[str, tuple[str, str, object]] = {
@@ -1196,7 +1195,6 @@ STARTUP_CONFIGURATIONS: dict[str, tuple[str, str, object]] = {
     "_trace_writer_connection_reuse": ("DD_TRACE_WRITER_REUSE_CONNECTIONS", "boolean", False),
     "version": ("DD_VERSION", "string", ""),
     "_otel_stats_computation_enabled": ("OTEL_TRACES_SPAN_METRICS_ENABLED", "boolean", None),
-    "_lib_was_injected": ("_DD_PY_SSI_INJECT", "boolean", False),
     "_trace_native_buffer_enabled": ("_DD_TRACE_NATIVE_BUFFER_ENABLED", "boolean", False),
     "_client_side_stats_obfuscation": (
         "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
