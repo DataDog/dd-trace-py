@@ -322,7 +322,7 @@ def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) 
 def _validate_task_signature(task: Callable[..., Any], is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
-    if is_async and not get_asyncio().iscoroutinefunction(task):
+    if is_async and not inspect.iscoroutinefunction(task):
         raise TypeError("task must be an async function (coroutine function).")
     sig = inspect.signature(task)
     params = sig.parameters

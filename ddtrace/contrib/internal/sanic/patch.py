@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio
+import inspect
 import sys
 from types import TracebackType
 from typing import TYPE_CHECKING
@@ -104,7 +104,7 @@ def _wrap_response_callback(ctx: core.ExecutionContext[WebFrameworkRequestEvent]
         _update_request_event(ctx, response)
         return r
 
-    if asyncio.iscoroutinefunction(callback):
+    if inspect.iscoroutinefunction(callback):
         return wrap_async(callback)
 
     return wrap_sync(callback)

@@ -1023,7 +1023,7 @@ if PydanticEvaluator is not None:
                 metrics=None,
             )
 
-            if asyncio.iscoroutinefunction(evaluator.evaluate):
+            if inspect.iscoroutinefunction(evaluator.evaluate):
                 try:
                     asyncio.get_running_loop()
                 except RuntimeError:
@@ -2796,7 +2796,7 @@ class Experiment:
                     task_args.append(record_metadata)
                 for attempt in range(1 + max_retries):
                     try:
-                        if asyncio.iscoroutinefunction(self._task):
+                        if inspect.iscoroutinefunction(self._task):
                             output_data = await self._task(*task_args)  # type: ignore[misc]
                         else:
                             output_data = await asyncio.to_thread(self._task, *task_args)
@@ -2946,7 +2946,7 @@ class Experiment:
                                 trace_id=task_result.get("trace_id"),
                             )
                             eval_result = await evaluator.evaluate(context)
-                        elif asyncio.iscoroutinefunction(evaluator):
+                        elif inspect.iscoroutinefunction(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                             eval_result = await evaluator(
                                 input_data,
@@ -3192,7 +3192,7 @@ class Experiment:
                             metadata=metadata_list,
                         )
                         eval_result = await summary_evaluator.evaluate(context)
-                    elif asyncio.iscoroutinefunction(summary_evaluator):
+                    elif inspect.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
                         signature = inspect.signature(summary_evaluator)
                         if len(signature.parameters) == 1:
