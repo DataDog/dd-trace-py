@@ -1,4 +1,11 @@
+from crewai import Crew
 import pytest
+
+from tests.contrib.crewai.utils import CREWAI_VERSION
+from tests.contrib.crewai.utils import FailingTool
+from tests.contrib.crewai.utils import MaxTool
+from tests.contrib.crewai.utils import requires_akickoff
+from tests.contrib.crewai.utils import sum_tool
 
 
 @pytest.mark.snapshot
@@ -85,7 +92,7 @@ async def test_conditional_crew_async(crewai, conditional_crew, request_vcr):
         await conditional_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
 def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
@@ -127,3 +134,178 @@ def test_complex_flow(crewai, complex_flow):
 @pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow")
 async def test_complex_flow_async(crewai, complex_flow_async):
     await complex_flow_async.kickoff_async(inputs={"continent": "North America"})
+
+
+@requires_akickoff
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+async def test_basic_crew_akickoff(crewai, basic_crew, request_vcr):
+    with request_vcr.use_cassette("test_basic_crew.yaml"):
+        await basic_crew.akickoff(inputs={"topic": "AI"})
+
+
+# akickoff runs tasks inline rather than in a worker thread, which only changes _dd.top_level on the task span.
+@requires_akickoff
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool", ignores=["metrics._dd.top_level"])
+async def test_crew_with_tool_akickoff(crewai, tool_crew, request_vcr):
+    with request_vcr.use_cassette("test_crew_with_tool.yaml"):
+        await tool_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+
+
+@requires_akickoff
+@pytest.mark.snapshot(
+    token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks", ignores=["metrics._dd.top_level"]
+)
+async def test_crew_with_async_tasks_akickoff(crewai, async_exec_crew, request_vcr):
+    with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
+        await async_exec_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+
+
+@requires_akickoff
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+async def test_crew_akickoff_error(crewai, failing_llm_crew, request_vcr):
+    with request_vcr.use_cassette("test_crew_akickoff_error.yaml"):
+        with pytest.raises(Exception):
+            await failing_llm_crew.akickoff()
+
+
+@pytest.mark.skipif(CREWAI_VERSION < (1, 6, 0), reason="requires crewai>=1.6")
+@pytest.mark.snapshot
+def test_crew_stream(crewai, streaming_crew, request_vcr):
+    with request_vcr.use_cassette("test_crew_stream.yaml"):
+        output = streaming_crew.kickoff()
+        for _ in output:
+            pass
+
+
+@pytest.fixture
+def basic_crew_checkpoint(basic_crew, monkeypatch):
+    # Restoring calls kickoff again on the restored crew. Return the same crew so the run replays the basic recording;
+    # on_events=[] keeps the restored run from writing checkpoints.
+    monkeypatch.setattr(Crew, "from_checkpoint", classmethod(lambda cls, config: basic_crew))
+    # CheckpointConfig only exists in crewai>=1.15.
+    from crewai import CheckpointConfig
+
+    yield CheckpointConfig(restore_from="unused", on_events=[])
+
+
+@pytest.mark.skipif(CREWAI_VERSION < (1, 15, 0), reason="requires crewai>=1.15")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+def test_crew_kickoff_from_checkpoint(crewai, basic_crew, basic_crew_checkpoint, request_vcr):
+    with request_vcr.use_cassette("test_basic_crew.yaml"):
+        basic_crew.kickoff(inputs={"topic": "AI"}, from_checkpoint=basic_crew_checkpoint)
+
+
+@pytest.mark.skipif(CREWAI_VERSION < (1, 15, 0), reason="requires crewai>=1.15")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+async def test_crew_akickoff_from_checkpoint(crewai, basic_crew, basic_crew_checkpoint, request_vcr):
+    with request_vcr.use_cassette("test_basic_crew.yaml"):
+        await basic_crew.akickoff(inputs={"topic": "AI"}, from_checkpoint=basic_crew_checkpoint)
+
+
+@requires_akickoff
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+async def test_simple_flow_akickoff(crewai, simple_flow_async):
+    await simple_flow_async.akickoff(inputs={"continent": "North America"})
+
+
+# Flow streaming exists since crewai 1.6, but kickoff_async returns an async-iterable session only since 1.15.10.
+@pytest.mark.skipif(CREWAI_VERSION < (1, 15, 10), reason="requires crewai>=1.15.10")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+async def test_simple_flow_stream(crewai, simple_flow_async):
+    simple_flow_async.stream = True
+    session = await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
+    async for _ in session:
+        pass
+
+
+# Native function calling (crewai 1.x) calls Tool.run (decorated tools) and BaseTool.run (subclasses) directly.
+@pytest.mark.snapshot
+def test_tool_run(crewai):
+    assert sum_tool.run(entries=[10, 12, 14]) == 36
+    assert MaxTool().run(entries=[10, 12, 14]) == 14
+
+
+@pytest.mark.snapshot
+async def test_tool_ainvoke(crewai):
+    assert await MaxTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]}) == 14
+
+
+@pytest.mark.parametrize("use_ainvoke", [False, True], ids=["run", "ainvoke"])
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_tool_error", ignores=["meta.error.stack"])
+async def test_tool_error(crewai, use_ainvoke):
+    with pytest.raises(ValueError):
+        if use_ainvoke:
+            await FailingTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]})
+        else:
+            FailingTool().run(entries=[10, 12, 14])
+
+
+async def test_flow_kickoff_cancellation_is_recorded(crewai, test_spans):
+    import asyncio
+
+    from ddtrace.contrib.internal.crewai.utils import traced_flow_kickoff
+
+    async def cancelled(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await traced_flow_kickoff(cancelled, object(), (), {})
+
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "asyncio.exceptions.CancelledError"
+
+
+async def test_flow_method_cancellation_is_recorded(crewai, test_spans):
+    import asyncio
+    from types import SimpleNamespace
+
+    from ddtrace.contrib.internal.crewai.utils import traced_flow_method
+
+    async def cancelled(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await traced_flow_method(cancelled, SimpleNamespace(state={}), ("method",), {})
+
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "asyncio.exceptions.CancelledError"
+
+
+async def test_flow_method_span_finishes_when_state_capture_raises(crewai, tracer, test_spans):
+    from types import SimpleNamespace
+
+    from ddtrace.contrib.internal.crewai.utils import traced_flow_method
+
+    class BrokenState:
+        def model_dump(self):
+            raise ValueError("cannot serialize state")
+
+    async def method(*args, **kwargs):
+        raise AssertionError("the method must not run when its state cannot be captured")
+
+    with pytest.raises(ValueError):
+        await traced_flow_method(method, SimpleNamespace(state=BrokenState()), ("method",), {})
+
+    assert tracer.current_span() is None
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "builtins.ValueError"
+
+
+async def test_async_tool_cancellation_is_recorded(crewai, test_spans):
+    import asyncio
+    from types import SimpleNamespace
+
+    from ddtrace.contrib.internal.crewai.utils import traced_tool_ainvoke
+
+    async def cancelled(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await traced_tool_ainvoke(cancelled, SimpleNamespace(name="tool"), (), {"input": {}})
+
+    (span,) = [span for trace in test_spans.pop_traces() for span in trace]
+    assert span.error == 1
+    assert span.get_tag("error.type") == "asyncio.exceptions.CancelledError"

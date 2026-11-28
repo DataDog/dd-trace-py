@@ -6,6 +6,7 @@ import contextvars
 from enum import Enum
 import sys
 from typing import Any
+from typing import Callable
 from typing import Literal
 from typing import Optional
 from typing import TypeVar
@@ -207,6 +208,9 @@ class SharedRuntime:
         ...
     def after_fork_parent(self) -> None:
         """Resume the shared runtime in the parent process after forking."""
+        ...
+    def restart_pending(self) -> bool:
+        """Return whether the runtime was inherited through a fork and not rebuilt yet."""
         ...
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
@@ -592,6 +596,9 @@ class TraceExporter:
         :param data: The msgpack encoded trace payload to send.
         """
         ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the resource attributes used by subsequent OTLP trace exports."""
+        ...
     def shutdown(self, timeout_ns: int) -> None:
         """
         Shutdown the TraceExporter, releasing any resources and ensuring all pending stats are sent.
@@ -894,6 +901,61 @@ class TraceExporterBuilder:
         """
         ...
 
+class TraceBuffer:
+    """Buffer finished trace chunks and export them from a libdatadog worker."""
+
+    def __init__(
+        self,
+        builder: TraceExporterBuilder,
+        shared_runtime: SharedRuntime,
+        max_buffered_bytes: Optional[int] = None,
+        flush_threshold_bytes: Optional[int] = None,
+        max_flush_interval_ns: Optional[int] = None,
+        synchronous_export: bool = False,
+        synchronous_export_timeout_ns: Optional[int] = None,
+    ) -> None:
+        """Consume builder and start the export worker. None keeps the libdatadog default."""
+        ...
+    def write(self, spans: Iterable[SpanData], dd_origin: Optional[str] = None) -> Optional[str]:
+        """Add one trace chunk. Return None if the buffer took every span, or else the reason.
+
+        This method never raises, because Span.finish() calls it inside application code.
+        """
+        ...
+    def force_flush(self) -> None:
+        """Tell the worker to export the buffered chunks, and do not wait."""
+        ...
+    def flush(self, timeout_ns: int) -> None:
+        """Export the buffered chunks and wait up to timeout_ns. A timeout_ns of 0 does not wait."""
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Export the buffered chunks, then stop the worker and the exporter within about timeout_ns.
+
+        Call this method before you discard the buffer. If you do not, the exporter workers run
+        until the runtime shuts down. The exporter shutdown gets 20% of timeout_ns, between 0.5 and
+        2 seconds and never more than timeout_ns.
+        """
+        ...
+    def discard(self, timeout_ns: int) -> None:
+        """Stop the worker within about timeout_ns and drop the queued chunks without exporting them.
+
+        Unlike shutdown, this neither flushes the buffer nor sends the final client-side stats. The
+        exporter workers stay registered on the runtime until it shuts down.
+        """
+        ...
+    def set_otlp_resource_attributes(self, attributes: dict[str, str]) -> None:
+        """Replace the custom resource attributes of subsequent OTLP trace exports.
+
+        Does nothing after shutdown or discard.
+        """
+        ...
+    def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
+        """Send the exporter health metrics through worker. None stops the metrics."""
+        ...
+    def take_agent_response(self) -> Optional[str]:
+        """Return and clear the body of the most recent changed agent response."""
+        ...
+
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""
 
@@ -1140,7 +1202,13 @@ class Context:
         self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
     ) -> None: ...
     @staticmethod
-    def _init_tracestate_helpers() -> None: ...
+    def _register_tracestate_helpers(
+        w3c_get_dd_list_member: Callable[..., str],
+        w3c_build_tracestate_members: Callable[..., list[str]],
+        normalize_otel_tracestate: Callable[[dict[str, str]], None],
+        materialize_otel_sampling_decision: Callable[[dict[str, str], Optional[int], bool, float, bool], None],
+        tracestate_max_bytes: int,
+    ) -> None: ...
 
 class SpanData:
     name: str
@@ -1158,7 +1226,7 @@ class SpanData:
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
-    _parent_context: Optional[Any]  # parent Context, or None
+    _parent_context: Optional[Context]  # parent Context, or None
     context: Context  # this span's trace context, built lazily on first read
 
     def __new__(

@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.contrib.internal.mcp.patch import MCP_VERSION
 from ddtrace.contrib.internal.mcp.patch import get_version
 from ddtrace.contrib.internal.mcp.patch import patch
@@ -87,3 +89,40 @@ except ModuleNotFoundError as error:
 
     assert status == 0, stderr.decode()
     assert b"failed to enable ddtrace support for mcp" not in stderr
+
+
+@pytest.mark.subprocess()
+def test_patch_module_does_not_import_llmobs():
+    # patch() loads the LLMObs hooks through the ddtrace.integration_hooks entry point,
+    # but importing the contrib itself must not pull in the product.
+    import sys
+
+    import mcp  # noqa: F401
+
+    import ddtrace.contrib.internal.mcp.patch  # noqa: F401
+
+    assert "ddtrace.llmobs" not in sys.modules, [m for m in sys.modules if m.startswith("ddtrace.llmobs")]
+
+
+@pytest.mark.parametrize(
+    "environ,expected",
+    [
+        ({}, {"enrichment_enabled": True, "capture_intent": True}),
+        ({"DD_MCP_ENRICHMENT_ENABLED": "false"}, {"enrichment_enabled": False, "capture_intent": False}),
+        ({"DD_MCP_CAPTURE_INTENT": "false"}, {"enrichment_enabled": True, "capture_intent": False}),
+        (
+            {"DD_MCP_ENRICHMENT_ENABLED": "false", "DD_MCP_CAPTURE_INTENT": "true"},
+            {"enrichment_enabled": False, "capture_intent": False},
+        ),
+    ],
+)
+def test_enrichment_config(monkeypatch, environ, expected):
+    from ddtrace.contrib.internal.mcp.patch import _mcp_config
+
+    monkeypatch.delenv("DD_MCP_ENRICHMENT_ENABLED", raising=False)
+    monkeypatch.delenv("DD_MCP_CAPTURE_INTENT", raising=False)
+    for key, value in environ.items():
+        monkeypatch.setenv(key, value)
+
+    config = _mcp_config()
+    assert {key: config[key] for key in expected} == expected

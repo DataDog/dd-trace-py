@@ -1,3 +1,4 @@
+import inspect
 from unittest import mock
 
 import pytest
@@ -6,26 +7,63 @@ from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
 from tests.contrib.litellm.utils import consume_stream_iter
 from tests.contrib.litellm.utils import consume_stream_next
 from tests.contrib.litellm.utils import expected_router_settings
+from tests.contrib.litellm.utils import gateway_request_kwargs
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
 LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"}
+
+
+def test_llmobs_test_writer_without_agent(tracer, monkeypatch, request):
+    monkeypatch.setattr("ddtrace.llmobs._writer._SHOULD_USE_AGENTLESS", None)
+    monkeypatch.setattr("ddtrace.llmobs._writer.agent.info", lambda: None)
+    request.getfixturevalue("litellm_llmobs")
+    assert isinstance(tracer._span_aggregator.writer, DummyWriter)
+
+
+def _gateway(span):
+    metadata_dd = (get_llmobs_metadata(span) or {}).get("_dd")
+    return metadata_dd.get("gateway") if isinstance(metadata_dd, dict) else None
+
+
+def _assert_gateway_is_not_a_tag(span):
+    """No tag key names the gateway. A tag value can contain the word, for example in a host name."""
+    assert not [key for key in span.get_tags() if "gateway" in key]
+    assert not [key for key in (get_llmobs_tags(span) or {}) if "gateway" in key]
+    event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
+    assert event is not None
+    assert not [tag for tag in event["tags"] if "gateway" in tag.split(":", 1)[0]]
+
+
+def _assert_gateway_marker(test_spans, use_router, expected):
+    """Only the llm span carries the marker. The router span is a workflow span."""
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert sorted(get_llmobs_span_kind(s) for s in spans) == (["llm", "workflow"] if use_router else ["llm"])
+    for span in spans:
+        assert _gateway(span) == (expected if get_llmobs_span_kind(span) == "llm" else None)
+        _assert_gateway_is_not_a_tag(span)
 
 
 @pytest.mark.parametrize(
@@ -275,6 +313,8 @@ class TestLLMObsLiteLLM:
             },
             tags=LITELLM_TAGS,
         )
+        # A client of the proxy is not inside the proxy.
+        assert _gateway(spans[0]) is None
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_base_url_set(
@@ -476,6 +516,55 @@ class TestLLMObsLiteLLM:
             tags=LITELLM_TAGS,
         )
 
+    @pytest.mark.parametrize("proxied", [True, False])
+    @pytest.mark.parametrize("use_router", [False, True])
+    @pytest.mark.parametrize("operation", ["completion", "text_completion"])
+    def test_gateway_marker(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, operation, use_router, proxied
+    ):
+        """The LiteLLM proxy server gives proxy_server_request to litellm. Only then is the llm span marked."""
+        is_completion = operation == "text_completion"
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            resp = getattr(router if use_router else litellm, operation)(
+                **gateway_request_kwargs(operation, proxied, stream, n)
+            )
+            if stream:
+                consume_stream_iter(resp, n, is_completion=is_completion)
+
+        _assert_gateway_marker(test_spans, use_router, expected="litellm" if proxied else None)
+
+    @pytest.mark.parametrize("proxied", [True, False])
+    @pytest.mark.parametrize("use_router", [False, True])
+    @pytest.mark.parametrize("operation", ["acompletion", "atext_completion"])
+    async def test_gateway_marker_async(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, operation, use_router, proxied
+    ):
+        is_completion = operation == "atext_completion"
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            resp = await getattr(router if use_router else litellm, operation)(
+                **gateway_request_kwargs(operation, proxied, stream, n)
+            )
+            if stream:
+                await async_consume_stream_aiter(resp, n, is_completion=is_completion)
+
+        _assert_gateway_marker(test_spans, use_router, expected="litellm" if proxied else None)
+
+    @pytest.mark.parametrize("use_router", [False, True])
+    async def test_gateway_marker_does_not_leak_to_the_next_call(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, use_router
+    ):
+        """In one task, a proxied call comes before a plain call. Only the llm span of the first call is marked."""
+        for proxied in (True, False):
+            with request_vcr.use_cassette(get_cassette_name(stream, n)):
+                resp = await (router if use_router else litellm).acompletion(
+                    **gateway_request_kwargs("acompletion", proxied, stream, n)
+                )
+                if stream:
+                    await async_consume_stream_aiter(resp, n)
+
+        spans = sorted((s for trace in test_spans.pop_traces() for s in trace), key=lambda s: s.start_ns)
+        assert [_gateway(s) for s in spans if get_llmobs_span_kind(s) == "llm"] == ["litellm", None]
+
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_openai_enabled(
@@ -631,6 +720,7 @@ class TestLLMObsLiteLLM:
 
 
 _OPENAI_ENABLED = "ddtrace.contrib.internal.litellm.utils._openai_is_patched"
+_SENDS_POST = "ddtrace.contrib.internal.litellm.utils._litellm_sends_openai_chat_with_post"
 
 
 def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
@@ -723,6 +813,8 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
         ("gpt-4o", False, True, True),
         ("azure/gpt-4", False, True, True),
         ("openai/gpt-4", False, True, True),
+        ("azure/my-deployment", False, True, True),
+        ("azure_ai/gpt-4o", False, True, True),
         # streaming disables downstream check
         ("gpt-4o", True, True, False),
         # OpenAI integration disabled disables downstream check
@@ -733,43 +825,214 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
         ("openrouter/openai/gpt-oss-120b", False, True, False),
     ],
 )
-def test_has_downstream_openai_span(model, stream, openai_enabled, expected):
+@pytest.mark.parametrize("operation", ["completion", "text_completion"])
+# These kwargs do not change the result for litellm before 1.108.1.
+@pytest.mark.parametrize(
+    "extra_kwargs",
+    [{}, {"custom_llm_provider": "azure"}, {"base_model": "azure/o3-mini"}, {"deployment_id": "my-deploy"}],
+)
+def test_has_downstream_openai_span(model, stream, openai_enabled, expected, operation, extra_kwargs):
+    """litellm before 1.108.1 sends OpenAI chat requests with a create method of the OpenAI SDK."""
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
-    kwargs = {"stream": stream}
-    with mock.patch(_OPENAI_ENABLED, return_value=openai_enabled):
-        assert has_downstream_openai_span(kwargs, model) is expected
+    kwargs = {"stream": stream, **extra_kwargs}
+    with mock.patch(_OPENAI_ENABLED, return_value=openai_enabled), mock.patch(_SENDS_POST, return_value=False):
+        assert has_downstream_openai_span(kwargs, model, operation) is expected
 
 
-def test_has_downstream_openai_span_use_litellm_proxy_kwarg():
+@pytest.mark.parametrize(
+    "model,operation,kwargs,openai_enabled,expected",
+    [
+        # OpenAI chat requests use the post method of the OpenAI client, so no OpenAI span exists.
+        ("gpt-4o", "completion", {}, True, False),
+        ("openai/gpt-4", "acompletion", {}, True, False),
+        ("gpt-3.5-turbo", "text_completion", {}, True, False),
+        ("gpt-4o", "atext_completion", {}, True, False),
+        ("openai/gpt-3.5-turbo-instruct", "completion", {}, True, False),
+        # litellm sends Azure AI requests with its own HTTP client, so no OpenAI span exists.
+        ("azure_ai/gpt-4o", "completion", {}, True, False),
+        # litellm sends Azure o-series models to the OpenAI chat handler.
+        ("azure/o3-mini", "completion", {}, True, False),
+        ("azure/o_series/my-deployment", "completion", {}, True, False),
+        ("azure/my-deployment", "completion", {"base_model": "azure/o3-mini"}, True, False),
+        ("azure/my-deployment", "completion", {"model_info": {"base_model": "azure/o1"}}, True, False),
+        ("gpt-4", "completion", {"deployment_id": "o3-mini-deploy"}, True, False),
+        # The Azure and text completion handlers call a create method of the OpenAI SDK.
+        ("azure/gpt-4", "completion", {}, True, True),
+        ("azure/gpt-4", "completion", {"custom_llm_provider": ""}, True, True),
+        ("gpt-4o", "completion", {"custom_llm_provider": "azure"}, True, True),
+        ("gpt-4o", "completion", {"azure": True}, True, True),
+        ("gpt-4", "completion", {"deployment_id": "my-deploy"}, True, True),
+        ("azure/o3-mini", "completion", {"deployment_id": "my-deploy"}, True, True),
+        ("gpt-35-turbo-instruct", "text_completion", {"custom_llm_provider": "azure_text"}, True, True),
+        ("gpt-3.5-turbo-instruct", "completion", {}, True, True),
+        ("text-completion-openai/gpt-3.5-turbo-instruct", "completion", {}, True, True),
+        ("gpt-3.5-turbo", "text_completion", {"custom_llm_provider": "text-completion-openai"}, True, True),
+        # litellm.text_completion() sends an OpenAI model that is not a chat model to the text completion handler.
+        ("openai/my-local-model", "text_completion", {}, True, True),
+        ("openai/my-local-model", "atext_completion", {}, True, True),
+        ("openai/myorg/gpt-4o", "text_completion", {}, True, True),
+        ("openai/GPT-4o", "text_completion", {}, True, True),
+        # The other checks do not change.
+        ("gpt-4o", "completion", {"stream": True}, True, False),
+        ("gpt-4o", "completion", {}, False, False),
+        ("litellm_proxy/gpt-4o", "completion", {}, True, False),
+        ("openrouter/openai/gpt-4o", "completion", {}, True, False),
+    ],
+)
+def test_has_downstream_openai_span_when_litellm_sends_chat_with_post(
+    model, operation, kwargs, openai_enabled, expected
+):
+    """litellm 1.108.1 and later send OpenAI chat requests with the post method of the OpenAI client."""
+    from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
+
+    with mock.patch(_OPENAI_ENABLED, return_value=openai_enabled), mock.patch(_SENDS_POST, return_value=True):
+        assert has_downstream_openai_span(kwargs, model, operation) is expected
+
+
+def test_litellm_sends_openai_chat_with_post_matches_litellm_source():
+    """The version check and a check of the installed litellm source code give the same result."""
+    import litellm.llms.openai.openai as litellm_openai
+
+    from ddtrace.contrib.internal.litellm.utils import _litellm_sends_openai_chat_with_post
+
+    calls_create = "chat.completions.with_raw_response.create" in inspect.getsource(litellm_openai)
+    assert _litellm_sends_openai_chat_with_post() is not calls_create
+
+
+@pytest.mark.parametrize("sends_post", [False, True])
+def test_has_downstream_openai_span_use_litellm_proxy_kwarg(sends_post):
     """use_litellm_proxy=True in kwargs suppresses downstream check regardless of model name."""
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
     kwargs = {"stream": False, "use_litellm_proxy": True}
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=sends_post):
         assert has_downstream_openai_span(kwargs, "gpt-4o") is False
 
 
-def test_has_downstream_openai_span_use_litellm_proxy_module_flag():
+@pytest.mark.parametrize("sends_post", [False, True])
+def test_has_downstream_openai_span_use_litellm_proxy_module_flag(sends_post):
     """litellm.use_litellm_proxy = True suppresses downstream check regardless of model name."""
     import litellm
 
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
     kwargs = {"stream": False}
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=sends_post):
         with mock.patch.object(litellm, "use_litellm_proxy", True, create=True):
             assert has_downstream_openai_span(kwargs, "gpt-4o") is False
 
 
-def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch):
+@pytest.mark.parametrize("sends_post", [False, True])
+def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch, sends_post):
     """USE_LITELLM_PROXY=true env var suppresses downstream check regardless of model name."""
     from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
 
     monkeypatch.setenv("USE_LITELLM_PROXY", "true")
     kwargs = {"stream": False}
-    with mock.patch(_OPENAI_ENABLED, return_value=True):
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=sends_post):
         assert has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
+def test_gateway_marker_keeps_cost_tags(litellm, request_vcr, litellm_llmobs, test_spans):
+    """The marker is merged into meta.metadata._dd, and the cost tags stay there."""
+    with litellm_llmobs.annotation_context(tags={"team": "ml-platform"}, cost_tags=["team"]):
+        with request_vcr.use_cassette(get_cassette_name(False, 1)):
+            litellm.completion(**gateway_request_kwargs("completion", proxied=True, stream=False, n=1))
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert get_llmobs_metadata(spans[0])["_dd"] == {"cost_tags": ["team"], "gateway": "litellm"}
+
+
+@pytest.mark.subprocess(
+    parametrize={
+        "_TEST_LITELLM_OPERATION": [
+            "completion",
+            "acompletion",
+            "text_completion",
+            "router.completion",
+            "router.acompletion",
+            "router.atext_completion",
+        ]
+    },
+    env={"OPENAI_API_KEY": "<not-a-real-key>", "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"},
+    err=None,
+)
+def test_gateway_marker_on_downstream_openai_llm_span():
+    """A non-streamed OpenAI call through litellm has one llm span, and this span has the gateway marker.
+
+    Before litellm 1.108.1, the OpenAI span is the llm span. From litellm 1.108.1, the litellm span is the llm span.
+    """
+    import asyncio
+    import inspect
+    import os
+    from unittest import mock
+
+    from ddtrace import patch
+
+    # This test runs in a new process. The process patches litellm and openai before it imports them,
+    # so each run gives the same result.
+    patch(litellm=True, openai=True)
+
+    import litellm
+    import litellm.llms.openai.openai as litellm_openai
+
+    import ddtrace
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._utils import get_llmobs_metadata
+    from ddtrace.llmobs._utils import get_llmobs_span_kind
+    from tests.contrib.litellm.utils import gateway_request_kwargs
+    from tests.contrib.litellm.utils import get_cassette_name
+    from tests.contrib.litellm.utils import get_request_vcr
+    from tests.contrib.litellm.utils import model_list
+    from tests.utils import DummyWriter
+
+    # The OpenAI integration makes a span only when litellm calls a create method of the OpenAI SDK.
+    calls_create = "chat.completions.with_raw_response.create" in inspect.getsource(litellm_openai)
+    operation = os.environ["_TEST_LITELLM_OPERATION"]
+    method = operation.split(".")[-1]
+    use_router = operation.startswith("router.")
+    ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=False)
+    LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=False)
+    LLMObs._instance._llmobs_span_writer.stop()
+    LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+
+    client = litellm.Router(model_list=model_list) if use_router else litellm
+    # A chat model also sends a text completion to /chat/completions, so the cassette matches.
+    with get_request_vcr().use_cassette(get_cassette_name(False, 1)):
+        response = getattr(client, method)(**gateway_request_kwargs(method, proxied=True))
+        if asyncio.iscoroutine(response):
+            asyncio.run(response)
+
+    spans = ddtrace.tracer._span_aggregator.writer.pop()
+    summary = [(s.name, s.resource, s.span_type, get_llmobs_span_kind(s)) for s in spans]
+    # Count the LLM Observability spans of the llm kind. The router span is a workflow span.
+    llm_spans = [s for s in spans if s.span_type == "llm" and get_llmobs_span_kind(s) == "llm"]
+    assert len(llm_spans) == 1, summary
+    litellm_span = next(s for s in spans if s.resource == method)
+    if calls_create:
+        assert len(spans) == (3 if use_router else 2), summary
+        openai_span = next(s for s in spans if s.name == "openai.request")
+        # The litellm span is not an LLMObs span here, so the OpenAI span is the only llm span.
+        assert litellm_span.span_type is None, summary
+        assert openai_span.parent_id == litellm_span.span_id, summary
+        assert openai_span.span_type == "llm", summary
+        assert get_llmobs_span_kind(openai_span) == "llm", summary
+        assert get_llmobs_metadata(openai_span)["_dd"] == {"gateway": "litellm"}, summary
+    else:
+        assert len(spans) == (2 if use_router else 1), summary
+        # No OpenAI span exists, so the litellm span is the only llm span.
+        assert not [s for s in spans if s.name == "openai.request"], summary
+        assert litellm_span.span_type == "llm", summary
+        assert get_llmobs_span_kind(litellm_span) == "llm", summary
+        assert get_llmobs_metadata(litellm_span)["_dd"] == {"gateway": "litellm"}, summary
+    for span in spans:
+        assert not [key for key in span.get_tags() if "gateway" in key], summary
+    if use_router:
+        router_span = next(s for s in spans if s.resource == operation)
+        assert get_llmobs_span_kind(router_span) == "workflow", summary
+        assert "_dd" not in (get_llmobs_metadata(router_span) or {}), summary
 
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
@@ -1073,3 +1336,356 @@ def test_completion_openrouter_byok_cost(litellm, request_vcr, litellm_llmobs, t
     assert metrics["total_cost"] > 0
     if "input_cost" in metrics or "output_cost" in metrics:
         assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
+
+
+def _completion_with_fallbacks(litellm, request_vcr, test_spans, calls=1):
+    is_new_litellm = parse_version(get_version()) >= (1, 74, 15)
+    cassette_name = "completion_anthropic{}.yaml".format("_v1_74_15" if is_new_litellm else "")
+    counts = []
+    with request_vcr.use_cassette(cassette_name):
+        for _ in range(calls):
+            litellm.completion(
+                model="anthropic/claude-sonnet-4-5-20250929",
+                messages=[{"content": "Hey, what is up?", "role": "user"}],
+                fallbacks=["anthropic/claude-3-haiku-20240307"],
+            )
+            spans = [s for trace in test_spans.pop_traces() for s in trace]
+            counts.append([s.resource for s in spans if s.span_type == "llm"])
+    return counts
+
+
+def test_completion_with_fallbacks_submits_single_llm_span(litellm, request_vcr, litellm_llmobs, test_spans):
+    """litellm's fallback runner re-enters ``litellm.completion``; the request must yield one LLM span."""
+    assert _completion_with_fallbacks(litellm, request_vcr, test_spans) == [["completion"]]
+
+
+def test_completion_with_fallbacks_without_reentry_keeps_llm_span(litellm, litellm_llmobs, test_spans):
+    """A cache hit returns before the fallback runner re-enters ``completion``; the outer span must be submitted."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def completion(*args, **kwargs):
+        return litellm.ModelResponse(model="claude-sonnet-4-5-20250929")
+
+    traced_completion(
+        completion,
+        None,
+        (),
+        {
+            "model": "anthropic/claude-sonnet-4-5-20250929",
+            "messages": [{"content": "Hey, what is up?", "role": "user"}],
+            "fallbacks": ["anthropic/claude-3-haiku-20240307"],
+        },
+    )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [s.resource for s in spans if s.span_type == "llm"] == ["completion"]
+
+
+def test_completion_with_fallbacks_attributes_span_to_successful_model(litellm, litellm_llmobs, test_spans):
+    """When a fallback model produces the response, the single LLM span is attributed to that model."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    fallback_model = "anthropic/claude-3-haiku-20240307"
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="claude-3-haiku-20240307")
+
+    def completion(*args, **kwargs):
+        # The fallback runner re-enters ``litellm.completion`` once per attempt, without ``fallbacks``.
+        traced_completion(inner_completion, None, (), {"model": "anthropic/claude-sonnet-4-5-20250929"})
+        return traced_completion(inner_completion, None, (), {"model": fallback_model, "messages": messages})
+
+    traced_completion(
+        completion,
+        None,
+        (),
+        {"model": "anthropic/claude-sonnet-4-5-20250929", "messages": messages, "fallbacks": [fallback_model]},
+    )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert len(llm_spans) == 1
+    assert _get_llmobs_data_metastruct(llm_spans[0])["meta"]["model_name"] == fallback_model
+
+
+PRIMARY_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+FALLBACK_MODEL = "anthropic/claude-3-haiku-20240307"
+FALLBACK_MESSAGES = [{"content": "Hey, what is up?", "role": "user"}]
+FALLBACK_OVERRIDE_MESSAGES = [{"content": "Fallback prompt", "role": "user"}]
+
+
+def _failing_primary_kwargs(litellm):
+    """Make the primary model fail with a real exception while the fallback model answers with a mock response.
+
+    The mock responses go through litellm's real completion path and fallback runner, so no network is needed.
+    """
+    return {
+        "model": PRIMARY_MODEL,
+        "messages": FALLBACK_MESSAGES,
+        # The string form is deep-copied safely by the fallback runner of every litellm version.
+        "mock_response": "litellm.RateLimitError",
+        "fallbacks": [
+            {
+                "model": FALLBACK_MODEL,
+                "mock_response": "fallback answer",
+                "messages": FALLBACK_OVERRIDE_MESSAGES,
+                "temperature": 0.25,
+            }
+        ],
+    }
+
+
+def _assert_single_fallback_span(test_spans):
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
+    assert span.get_tag("litellm.request.model") == FALLBACK_MODEL
+    # LLMObs drops the provider prefix once litellm has resolved the provider.
+    assert _get_llmobs_data_metastruct(span)["meta"]["model_name"].split("/")[-1] == FALLBACK_MODEL.split("/")[-1]
+    assert get_llmobs_output_messages(span)[0]["content"] == "fallback answer"
+    # The dict fallback overrides the prompt and params; the span carries the successful attempt's request.
+    assert get_llmobs_input_messages(span) == FALLBACK_OVERRIDE_MESSAGES
+    assert _get_llmobs_data_metastruct(span)["meta"]["metadata"]["temperature"] == 0.25
+
+
+def test_completion_runs_fallback_after_primary_failure(litellm, litellm_llmobs, test_spans):
+    # Sync streaming is not covered: litellm's sync fallback runner returns an async generator for streams.
+    litellm.completion(**_failing_primary_kwargs(litellm))
+    _assert_single_fallback_span(test_spans)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_acompletion_runs_fallback_after_primary_failure(litellm, litellm_llmobs, test_spans, stream):
+    resp = await litellm.acompletion(stream=stream, **_failing_primary_kwargs(litellm))
+    if stream:
+        await async_consume_stream_aiter(resp, 1)
+    _assert_single_fallback_span(test_spans)
+
+
+def test_completion_with_global_model_fallbacks_attributes_span_to_fallback(
+    litellm, litellm_llmobs, test_spans, monkeypatch
+):
+    """``litellm.model_fallbacks`` selects the fallback runner without a ``fallbacks`` kwarg.
+
+    The runner itself is stubbed: litellm re-applies the global list to the runner's inner calls, so a failing
+    primary model would recurse.
+    """
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    monkeypatch.setattr(litellm, "model_fallbacks", [FALLBACK_MODEL])
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(
+            model="claude-3-haiku-20240307", choices=[{"message": {"role": "assistant", "content": "fallback answer"}}]
+        )
+
+    def completion(*args, **kwargs):
+        traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
+        fallback_kwargs = {"model": FALLBACK_MODEL, "messages": FALLBACK_OVERRIDE_MESSAGES, "temperature": 0.25}
+        return traced_completion(inner_completion, None, (), fallback_kwargs)
+
+    traced_completion(completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
+    _assert_single_fallback_span(test_spans)
+
+
+def test_completion_with_openai_fallback_defers_to_openai_span(litellm, litellm_llmobs, test_spans):
+    """When the successful fallback is an OpenAI model, the OpenAI integration owns the LLM span, not litellm."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    openai_model = "openai/gpt-4o-mini"
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="gpt-4o-mini")
+
+    def openai_completion(*args, **kwargs):
+        # Stands in for the span of the OpenAI integration, which starts inside litellm's call.
+        with LLMObs.llm(model_name="gpt-4o-mini", model_provider="openai", name="OpenAI.createChatCompletion"):
+            return inner_completion()
+
+    def completion(*args, **kwargs):
+        traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
+        return traced_completion(openai_completion, None, (), {"model": openai_model, "messages": FALLBACK_MESSAGES})
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True), mock.patch(_SENDS_POST, return_value=False):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": [openai_model]},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    outer = next(s for s in spans if s.name == "litellm.request")
+    child = next(s for s in spans if s.name == "OpenAI.createChatCompletion")
+    # The OpenAI span is the only LLM span; the outer one is a workflow span with no tokens of its own.
+    assert get_llmobs_span_kind(outer) == "workflow"
+    assert get_llmobs_span_kind(child) == "llm"
+    assert get_llmobs_parent_id(child) == str(outer.span_id)
+
+
+def test_completion_with_failed_openai_fallback_keeps_span_of_answering_model(litellm, litellm_llmobs, test_spans):
+    """An OpenAI attempt that fails must not drop the span when a later, non-OpenAI fallback answers."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="claude-3-haiku-20240307")
+
+    def failing_openai_completion(*args, **kwargs):
+        with LLMObs.llm(model_name="gpt-4o-mini", model_provider="openai", name="OpenAI.createChatCompletion"):
+            raise RuntimeError("rate limited")
+
+    def completion(*args, **kwargs):
+        traced_completion(inner_completion, None, (), {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES})
+        try:
+            traced_completion(
+                failing_openai_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
+            )
+        except RuntimeError:
+            pass
+        return traced_completion(inner_completion, None, (), {"model": FALLBACK_MODEL, "messages": FALLBACK_MESSAGES})
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {
+                "model": PRIMARY_MODEL,
+                "messages": FALLBACK_MESSAGES,
+                "fallbacks": ["openai/gpt-4o-mini", FALLBACK_MODEL],
+            },
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_names = sorted(s.name for s in spans if s.span_type == "llm")
+    assert llm_names == ["OpenAI.createChatCompletion", "litellm.request"]
+    outer = next(s for s in spans if s.name == "litellm.request")
+    assert get_llmobs_span_kind(outer) == "llm"
+    assert outer.get_tag("litellm.request.model") == FALLBACK_MODEL
+
+
+@pytest.mark.parametrize(
+    "fallback_kwargs",
+    [
+        {"model": "gpt-35-turbo-instruct", "custom_llm_provider": "azure_text"},
+        {"model": "azure/my-deployment"},
+    ],
+)
+def test_completion_with_azure_fallback_defers_to_openai_span(litellm, litellm_llmobs, test_spans, fallback_kwargs):
+    from ddtrace.contrib.internal.litellm.utils import _emits_openai_span
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        assert _emits_openai_span(fallback_kwargs, fallback_kwargs["model"])
+
+
+def test_completion_with_openai_fallback_cache_hit_keeps_outer_span(litellm, litellm_llmobs, test_spans):
+    """A cache hit never calls the OpenAI SDK, so no OpenAI span exists and the outer span must be kept."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def cached_completion(*args, **kwargs):
+        response = litellm.ModelResponse(model="gpt-4o-mini")
+        response._hidden_params["cache_hit"] = True
+        return response
+
+    def completion(*args, **kwargs):
+        return traced_completion(
+            cached_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
+        )
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"]},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [(s.name, get_llmobs_span_kind(s)) for s in spans if s.span_type == "llm"] == [("litellm.request", "llm")]
+
+
+def test_completion_with_openai_fallback_failing_before_sdk_keeps_error_span(litellm, litellm_llmobs, test_spans):
+    """An OpenAI attempt that fails before the OpenAI SDK runs creates no OpenAI span, so the outer span records it."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def failing_completion(*args, **kwargs):
+        raise RuntimeError("rate limited")
+
+    def completion(*args, **kwargs):
+        return traced_completion(
+            failing_completion, None, (), {"model": "openai/gpt-4o-mini", "messages": FALLBACK_MESSAGES}
+        )
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with pytest.raises(RuntimeError):
+            traced_completion(
+                completion,
+                None,
+                (),
+                {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": ["openai/gpt-4o-mini"]},
+            )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    llm_spans = [s for s in spans if s.span_type == "llm"]
+    assert [s.name for s in llm_spans] == ["litellm.request"]
+    assert get_llmobs_span_kind(llm_spans[0]) == "llm"
+    assert llm_spans[0].error == 1
+
+
+@pytest.mark.parametrize(
+    "fallback_kwargs",
+    [
+        {"model": "ollama/gpt-oss:20b"},
+        {"model": "openai/gpt-4o-mini", "mock_response": "fallback answer"},
+        {"model": "gpt-oss:20b", "custom_llm_provider": "ollama"},
+    ],
+    ids=["non_openai_provider_named_gpt", "mock_response", "provider_override"],
+)
+def test_completion_with_fallback_without_openai_span_keeps_llm_span(
+    litellm, litellm_llmobs, test_spans, fallback_kwargs
+):
+    """Only fallbacks that really emit an OpenAI span turn the outer span into a workflow span."""
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="answer")
+
+    def completion(*args, **kwargs):
+        return traced_completion(inner_completion, None, (), {"messages": FALLBACK_MESSAGES, **fallback_kwargs})
+
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {"model": PRIMARY_MODEL, "messages": FALLBACK_MESSAGES, "fallbacks": [fallback_kwargs]},
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [(s.name, get_llmobs_span_kind(s)) for s in spans if s.span_type == "llm"] == [("litellm.request", "llm")]
+
+
+def test_completion_with_direct_fallback_after_proxy_primary_keeps_llm_span(litellm, litellm_llmobs, test_spans):
+    """A fallback that leaves an instrumented proxy for a direct provider is an LLM span, not a workflow span."""
+    from ddtrace import config
+    from ddtrace.contrib.internal.litellm.patch import traced_completion
+
+    proxy_url = "http://localhost:4000"
+
+    def inner_completion(*args, **kwargs):
+        return litellm.ModelResponse(model="claude-3-haiku-20240307")
+
+    def completion(*args, **kwargs):
+        return traced_completion(
+            inner_completion, None, (), {"model": FALLBACK_MODEL, "messages": FALLBACK_MESSAGES, "api_base": None}
+        )
+
+    with mock.patch.object(config, "_llmobs_instrumented_proxy_urls", {proxy_url}):
+        traced_completion(
+            completion,
+            None,
+            (),
+            {
+                "model": PRIMARY_MODEL,
+                "messages": FALLBACK_MESSAGES,
+                "api_base": proxy_url,
+                "fallbacks": [{"model": FALLBACK_MODEL, "api_base": None}],
+            },
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [(s.name, get_llmobs_span_kind(s)) for s in spans if s.span_type == "llm"] == [("litellm.request", "llm")]

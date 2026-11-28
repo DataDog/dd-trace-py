@@ -16,6 +16,13 @@ from ddtrace.constants import SPAN_KIND
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+from ddtrace.contrib.internal.botocore.patch import _remove_before_sign_handler
+from ddtrace.contrib.internal.botocore.patch import _service_disabled_in_progress
+from ddtrace.contrib.internal.botocore.services.kinesis import dispatch_received_records
+from ddtrace.contrib.internal.botocore.services.kinesis import select_records_for_injection
+from ddtrace.contrib.internal.botocore.services.kinesis import update_record
+from ddtrace.contrib.internal.botocore.services.sqs import update_messages
+from ddtrace.contrib.internal.botocore.utils import extract_DD_json
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -24,11 +31,14 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -36,6 +46,8 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
 
+
+log = get_logger(__name__)
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
 AIOBOTOCORE_VERSION = parse_version(aiobotocore_version_str)
@@ -48,6 +60,12 @@ elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+
+_DATA_STREAMS_OPERATIONS = {
+    "sqs": {"SendMessage", "SendMessageBatch", "ReceiveMessage"},
+    "sns": {"Publish", "PublishBatch"},
+    "kinesis": {"PutRecord", "PutRecords", "GetRecords"},
+}
 
 config._add(
     "aiobotocore",
@@ -89,6 +107,39 @@ def unpatch():
         # The before-sign handler is registered per-client on its own emitter
         # (see _ensure_before_sign_handler in botocore.patch); it self-gates on
         # patch state, so any retained registration goes inert after unpatch.
+
+
+async def _call_with_data_streams(span, original_func, args, kwargs, endpoint_name, operation, params):
+    if not (config._data_streams_enabled and params and operation in _DATA_STREAMS_OPERATIONS.get(endpoint_name, ())):
+        return await original_func(*args, **kwargs)
+
+    with core.context_with_data(
+        "aiobotocore.patched_api_call", params=params, endpoint_name=endpoint_name, operation=operation
+    ) as ctx:
+        store_span_on_context(ctx, span)
+        try:
+            if operation == "ReceiveMessage":
+                core.dispatch("botocore.sqs.ReceiveMessage.pre", (params,))
+            elif operation in ("PutRecord", "PutRecords"):
+                stream = params.get("StreamARN", params.get("StreamName", ""))
+                inject_trace_context = bool(config.botocore["distributed_tracing"])
+                for record, inject in select_records_for_injection(params, inject_trace_context):
+                    update_record(ctx, record, stream, inject_trace_context=inject)
+            elif endpoint_name in ("sqs", "sns") and config.botocore["distributed_tracing"]:
+                update_messages(ctx, endpoint_service=endpoint_name)
+        except Exception:
+            log.debug("Unable to set data streams checkpoint for %s.%s", endpoint_name, operation, exc_info=True)
+
+        result = await original_func(*args, **kwargs)
+
+        try:
+            if operation == "ReceiveMessage":
+                core.dispatch("botocore.sqs.ReceiveMessage.post", (ctx, params, result, False, extract_DD_json))
+            elif operation == "GetRecords" and (params.get("StreamARN") or params.get("StreamName")):
+                dispatch_received_records(ctx, params, result, False)
+        except Exception:
+            log.debug("Unable to set data streams checkpoint for %s.%s", endpoint_name, operation, exc_info=True)
+        return result
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
@@ -133,14 +184,29 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    fallback_service = config._get_service(default=f"aws.{endpoint_name}")
+    # Service disabled via DD_TRACE_AWS_SDK_<SERVICE>_ENABLED=false: no span and no propagation headers.
+    if endpoint_name in config.botocore["disabled_services"]:
+        _remove_before_sign_handler(instance)
+        token = _http_propagation_suppressed.set(True)
+        disabled_token = _service_disabled_in_progress.set(True)
+        try:
+            return await original_func(*args, **kwargs)
+        finally:
+            _service_disabled_in_progress.reset(disabled_token)
+            _http_propagation_suppressed.reset(token)
+
+    # An explicit integration service (service or service_name) is used as-is; otherwise match botocore's
+    # ``aws.<endpoint>`` rather than falling back to DD_SERVICE.
+    service = ext_service(None, config.aiobotocore)
+    if service is None:
+        service = schematize_service_name(f"aws.{endpoint_name}")
     with tracer.trace(
         schematize_cloud_api_operation(f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
         set_service_and_source(
             span,
-            ext_service(None, config.aiobotocore, default=schematize_service_name(fallback_service)),
+            service,
             config.aiobotocore,
         )
         span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
@@ -160,6 +226,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
                 aws._add_api_param_span_tags(span, endpoint_name, params)
         except ArgumentError:
             operation = None
+            params = None
             span.resource = endpoint_name
 
         region_name = deep_getattr(instance, "meta.region_name")
@@ -194,7 +261,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         elif _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
             token = _http_propagation_suppressed.set(True)
         try:
-            result = await original_func(*args, **kwargs)
+            result = await _call_with_data_streams(span, original_func, args, kwargs, endpoint_name, operation, params)
         finally:
             if token is not None:
                 _http_propagation_suppressed.reset(token)

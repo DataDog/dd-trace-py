@@ -52,8 +52,9 @@ ddtrace/aiguard/
 │                           #   AIGuardClient, AIGuardClientError,
 │                           #   AIGuardAbortError, Message, Evaluation, Options,
 │                           #   ToolCall, Function, … (lazily via __getattr__)
-├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport
-├── _types.py               # Message / ToolCall / Function / ContentPart TypedDicts
+├── _api_client.py          # AIGuardClient.evaluate(), _evaluate_policies() + HTTP transport
+├── _types.py               # Message / ToolCall / Function / ContentPart TypedDicts,
+│                           #   policy evaluation targets and results
 ├── _constants.py           # AI_GUARD constants: tags, metrics, telemetry values
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
 ├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks,
@@ -77,7 +78,7 @@ ddtrace/aiguard/
     ├── _anthropic_streaming.py # Anthropic stream reconstruction
     ├── _anthropic_errors.py    # Anthropic-compatible abort error class
     ├── _langchain.py       # LangChain agent/chatmodel/llm listeners
-    ├── _mcp.py             # MCP server IDs and entries, OpenAI MCP approval decision cache,
+    ├── _mcp.py             # mcp_servers entries and their URL, OpenAI MCP approval decision cache,
     │                       #   MCP SDK client transport capture
     └── _openai_agents.py   # openai-agents MCP server tool listeners
 ```
@@ -97,21 +98,64 @@ Preserve their lazy forwarding and deprecation behavior when changing public exp
 missing credentials. Direct `AIGuardClient` construction takes both credentials explicitly;
 see `_api_client.py` for the signatures.
 
-MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (server IDs, `mcp_servers` entries,
-the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners and
-the openai-agents MCP server listeners, gated by `DD_AI_GUARD_MCP_ENABLED`. Keep these invariants when changing it:
+MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (`mcp_servers` entries,
+the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners,
+the openai-agents MCP server listeners and the Anthropic listeners, gated by `DD_AI_GUARD_MCP_ENABLED`.
+The LiteLLM proxy guardrail uses the OpenAI Responses converters for the hosted MCP items of Responses
+answers, without the approval decision cache. Keep these invariants when changing it:
 - Requests carry a request-level `mcp_servers` list; each MCP tool call carries only
   `mcp.server_id`, which must match an entry in the same request. Ordinary tools carry no `mcp`.
-- The server ID is `mcp_` + the first 16 hex characters of SHA-256 of the first applicable key
-  (`url|<origin>`, `connector|<id>`, `stdio|<command>|<args>`, `name|<label>`). Other tracers
-  compute the same ID, so do not change the keys, their order or the URL normalization.
-- URLs are reduced to their origin with `ddtrace.internal.utils.http.url_origin`: never send
-  userinfo, path, query or fragment, nor tool `headers` or `authorization`.
+- The server ID only joins the tool calls of one request to their entry: `mcp_1`, `mcp_2`... by
+  position. It is not stable across requests and never computed from the server; the backend derives the
+  server identity for policies from the url, the stdio command or the name. An entry without any of them
+  is not sent, and its tool calls stay ordinary.
+- URLs are sent with `mcp_url`: scheme, host, port and path, never userinfo, query or fragment, nor tool
+  `headers` or `authorization`; a token in the path is sent with it. http, https, ws and wss URLs follow the
+  WHATWG URL Standard: the host is percent-decoded, IP literals get their canonical form
+  (`http://2130706433/mcp` gives `http://127.0.0.1/mcp`), and the path gets backslashes read as slashes, dot
+  segments resolved and the WHATWG path percent-encoding. A backslash in the authority gives no url: WHATWG
+  ends the authority there and HTTP clients such as httpx do not, so they can reach different hosts. Other
+  schemes keep a lowercase host and the path as written. Whatever the scheme, an IDN host (one that does not
+  map to ASCII, or that has an `xn--` label) has no url. The vectors are in
+  `tests/aiguard/api/test_mcp_url.py`.
 - Resolve tools per request through `server_id` and `function.name`; never keep a
   process-wide map indexed only by tool name.
 - stdio servers send only `command` plus `safe_stdio_args`: never other arguments or the environment.
 - New MCP code inside the listeners fails open (debug log) and only lets `AIGuardAbortError`
   propagate.
+
+`AIGuardClient._evaluate_policies()` evaluates one target against the AI Guard policies, for example an MCP
+server connection. It is protected: no integration calls it yet, and it is not part of the public SDK.
+- It sends one target to `{endpoint}/policies/evaluate`, with the `custom_agents` profile and `meta`.
+- It uses the result whose `target_index` is the int 0, or a single result without `target_index`.
+  A missing or ambiguous result is a `bad_response` error and never an `ALLOW`.
+- It applies the blocking rule of `evaluate()`. Middlewares do not run for it. It shares only
+  `_copy_request_tags()` with `evaluate()`, for the client IP and the anomaly-detection tags.
+- It sends the target as it gets it. The integration builds the target from its sanitized `mcp_servers` entry.
+
+Provider-managed MCP for Anthropic (the MCP connector: `mcp_servers` of `beta.messages.create`) is
+converted in `_anthropic.py`:
+- Content blocks convert in block order (`_format_content_blocks`): each result of a tool Anthropic ran
+  (server tools, `mcp_tool_result`) ends the assistant message before it and follows as a tool message, in
+  responses and history, whatever the flag. With the flag, each `mcp_tool_use` call references
+  `mcp_server("provider", "unknown", name=server_name, url=...)`, built from the `name` and `url` of the
+  request `mcp_servers` entry with that name (never `authorization_token`), or from the name alone when
+  the request does not declare it.
+  Tools map to themselves; only referenced servers are sent.
+- Anthropic has already run the call when the response arrives: a block withholds the response only.
+- In an assistant turn, client `tool_use` calls go in the last assistant message, after any result of a tool
+  Anthropic ran, so a response that stops for a client call stays an output evaluation.
+- The before-hook lists iterable `messages`, `system`, `tools` and `mcp_servers` once, in the kwargs the SDK
+  gets (`_list_iterable_params`), with no try/except: an error from a caller iterable propagates as it would
+  from the SDK. The SDK merges `extra_body` over the params, so every read goes through `_sent_param`:
+  a param that `extra_body` replaces is left unread, and the `extra_body` values are listed into a new
+  `extra_body` dict (the caller's stays intact). Nested content (tool result, document source,
+  web search result) is read only when it is a list or tuple: any other iterable may be single-use, so it
+  is left unread (`_may_be_single_use`), the SDK still sends it, and AI Guard does not evaluate it.
+  Buffered streams evaluate with the contrib stream handler's `request_kwargs`, that same dict.
+- The contrib stream rebuild drops `server_name` and renames `mcp_tool_result` to `tool_result`;
+  `reconstruct_anthropic` restores both from the `content_block_start` chunks and leaves the contrib
+  shape that LLM Obs reads unchanged.
 
 Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic_mcp.py`, installed on
 `anthropic.patch`:
@@ -120,28 +164,49 @@ Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic
   generator `asynccontextmanager` drives for a proxy that records the server per read stream; a
   `ClientSession` resolves it from its own read stream. Never read headers, `env` or `cwd`; stdio
   `args` only keep the package or module of `npx`/`uvx`/`python -m`-style launchers (`safe_stdio_args`).
-- `mcp_tool` / `async_mcp_tool` are wrapped in place. A converted tool with a known server gets its
-  own copy of `input_schema` (to_dict() copies share it, which is how listeners resolve a request's
-  MCP tools) and a guarded `call` that evaluates before `tools/call` is sent. Sessions without a
-  transport-derived key (in-memory) produce no MCP metadata and no call check.
-- One check per operation: each request with MCP tools gets its own ContextVar holder in its
-  before-hook, owned by the current asyncio task (else thread). The after-hook stores in it the root
-  span ID and (tool, arguments) of the MCP tool calls it evaluated (cleared on block, failure or
-  middleware skip), in place, because async buffered streams evaluate in asyncio.to_thread whose copied
-  context cannot set the caller's ContextVar. `call` consumes a matching entry only from its owner and
-  under the same root span; tasks inheriting a holder never consume it. The key is the root span_id, or
-  None without a root or when the root is the `anthropic.request` span itself; use the same rule at mark
-  and call time. `beta.messages.parse` (the non-streaming tool runner, which fires no hook) is wrapped
-  only to clear the holder at that operation boundary. Never keep these marks process-wide, nor
-  unscoped to the trace: thread-pool servers reuse a thread's context. Unmarked calls (the parse-based
-  tool runner, streams without stream analysis, direct calls) are evaluated as a lone assistant tool
-  call with a local ID, off the event loop for async tools.
+- `mcp_tool` / `async_mcp_tool` are wrapped in place. Every call of a converted tool is evaluated where it is
+  sent, before `tools/call`: a lone assistant tool call with a local ID (the tool runner does not pass the
+  `tool_use` ID), off the event loop for async tools. It carries the MCP metadata when the session comes from
+  a known transport and its server has a url or command; otherwise it is an ordinary tool call. The
+  `messages.create` hooks evaluate the model response without MCP metadata, so `beta.messages.tool_runner`
+  gets the response evaluation and then the call check, like openai-agents and LangChain. Exceptions: before
+  anthropic 2.2.0 the non-streaming `beta.messages.tool_runner` calls `beta.messages.parse`, which is not
+  instrumented, so it gets the call check alone (from 2.2.0 its message thread sends each turn with
+  `beta.messages.create`). Streams without stream analysis get the request evaluation and the call check, but
+  no response evaluation.
 - Guard both `tool.call` and `tool.func`: `tool(...)` is a property returning `tool.func`, while `call()`
   runs the validated original function captured at init, so each path is checked exactly once.
 - A call check raises the bare `AIGuardAbortError`: the tool runner converts any `Exception`,
   including the Anthropic-compatible wrapper, into a tool result and would keep running.
 - Do not wrap async generator functions with `ddtrace.internal.wrapping.wrap`: its trampoline calls
   `athrow` on the inner generator while it is awaiting (for example on anyio cancellation).
+
+LangChain client-managed MCP (`managed_by: client`) is captured in `_langchain.py` by wrapping
+`langchain_mcp_adapters.tools.convert_mcp_tool_to_langchain_tool` with a plain `wrap()` on
+`langchain.patch` (skipped when the package is missing). Known gap: when an app imports
+`langchain_mcp_adapters.tools` before any other LangChain module, the patch fires while that module is
+half-imported and the converter stays unwrapped (no MCP checks). Supported: `langchain-mcp-adapters`
+>= 0.2.0 (first release with `connection`, `server_name` and `tool_name_prefix`; `load_mcp_tools` and
+`MultiServerMCPClient.get_tools` reach the converter through the module global). Not supported yet:
+`langchain.mcp.MCPAdapter` (FastMCP). Keep these rules:
+- The server and original tool name ride on the converted tool's own `coroutine` (wrapped with
+  `functools.wraps` so runtime injection is unchanged); never on `metadata` or in a name-keyed map.
+- Server fields: url (sse, streamable HTTP, websocket), stdio `command` plus `safe_stdio_args` (the
+  package or module of `npx`/`uvx`/`python -m`-style launchers, never other `args`, `env`, `headers` or
+  `auth`), and `server_name`. A session-only tool with no server name stays ordinary. Use the same
+  `_mcp.py` helpers as Anthropic so both report the same fields.
+- In a `create_agent` run the model-response evaluation runs as before, without MCP metadata (it
+  cannot tell MCP tools apart). The `ToolNode._arun_one` check is the MCP-aware tool-permission
+  check: it evaluates the call with the conversation and `mcp_servers` even when the response
+  evaluation already covered it, then sets `_TOOLNODE_MCP_TOOL` to that tool's guarded coroutine and
+  the evaluated arguments. The tool skips its own check only when both match (identity, never name),
+  so arguments rewritten by `awrap_tool_call` middleware are checked again.
+- Outside ToolNode the converted tool evaluates a single assistant tool call, with no conversation
+  context and a generated id unless a runtime carries one, before the MCP session is used. Legacy
+  `AgentExecutor` (langchain-classic) MCP tools therefore get the response check plus this in-tool
+  check. MCP tools are async only.
+- Known gap: the adapter's own `tool_interceptors` run inside the converted tool, after the check, and
+  can change the tool name or arguments sent to the MCP session; those rewrites are not re-evaluated.
 
 ## How AI Guard Works: High-Level Architecture
 
@@ -231,23 +296,82 @@ logged at debug and ignored.
 
 ### 5. Double-scan avoidance (`_context.py`)
 
-A framework integration (LangChain, Strands) and a provider integration
-(OpenAI, Anthropic) can both fire for the same call. To avoid scanning twice,
-the framework claims the AI Guard context for its whole model call, and
-provider listeners short-circuit when `is_aiguard_context_active()` returns
-`True`. The framework evaluates both the request and the response itself:
+A framework integration (LangChain, Strands, the LiteLLM proxy guardrail) and a
+provider integration (OpenAI, Anthropic) can both fire for the same call. To
+avoid scanning twice, the framework claims the AI Guard context for its whole
+model call, and provider listeners short-circuit when `is_aiguard_context_active()`
+returns `True`. The framework evaluates both the request and the response itself:
 
 | Framework path | Claim held from / to |
 |----------------|----------------------|
 | LangChain `generate` / `agenerate` | `.before` to `.finally` |
 | LangChain `stream` / `astream` | iteration start to stream end (`.stream.started` / `.stream.finally`) |
 | Strands invocation | before-invocation to after-invocation |
+| LiteLLM proxy guardrail (chat, text completion, Responses API and Anthropic Messages requests, `pre_call` and `post_call` modes) | pre-call check to the end of the request (post-call hook, end of the model stream, or failure hook) |
 
 A claim is a shared object released by the handle `set_aiguard_context_active`
 returns, so a release from another asyncio task is seen by the claiming task.
 Strands keeps the handle on `invocation_state`; a LangChain generate keeps it on
 its `_CallScope`, and a stream on the per-stream state the contrib passes to
 both stream events.
+
+The LiteLLM guardrail keeps the handle in a ContextVar of the request task. It claims only when
+the data has `proxy_server_request`, the `post_call` mode applies, and the post-call hooks evaluate
+the answer: every chat or text completion, and a `responses`, `aresponses` or `anthropic_messages`
+request that is not streamed and uses a create route (`/responses` or `/v1/messages`). Thus streamed
+Responses and Messages requests, and `/cursor/chat/completions` (call type `aresponses` on LiteLLM
+1.82.6), are not claimed, and the provider listeners keep their checks. AI Guard must
+also complete the prompt evaluation: after an AI Guard error, the provider listeners evaluate the
+prompt again. For `anthropic_messages`, the Anthropic converter must also read the body: after the
+chat conversion fallback described below, the guardrail does not claim, so a provider listener that
+sees the model call also evaluates it, for example the OpenAI listener when LiteLLM sends the request
+as an OpenAI chat completion. The proxy awaits the pre-call hook in the request task, and copies that
+context into the model call. The SDK `guardrails` argument runs the hook in the caller task, and a
+`during_call` hook runs beside the model call: they do not claim. With only the `pre_call` mode, the
+guardrail does not claim either, and the provider listeners still evaluate the model calls.
+
+LiteLLM sends Responses API and Anthropic Messages calls with its own HTTP client, or a `/v1/messages`
+request to a chat model as a raw chat completion, so the provider listeners do not evaluate their
+answers: the guardrail does. The post-call hook gets no call type, so it finds these answers by the
+proxy route. Only a path that ends with `/responses` (a Responses create) or `/v1/messages` gets the
+OpenAI Responses or the Anthropic converters. The answers of the retrieve, cancel, `input_items` and
+`compact` routes, and a non-streamed `/cursor/chat/completions` answer, are not evaluated. A streamed
+`/cursor/chat/completions` answer is a chat stream, so the chat stream hook evaluates it. The prompt
+of the answer evaluation comes from the request body (Responses `instructions`, `input` and `prompt`
+variables, Anthropic `system` and `messages`), never from `data["metadata"]`, which the client
+controls. The pre-call check of a Responses request uses the same converter, because LiteLLM drops the
+`prompt` variables that the provider gets. The pre-call check of `/v1/messages` also uses the
+Anthropic converter, so it keeps the
+system prompt, `tool_use` and `tool_result`. Before the conversion, the guardrail reads each string
+item of the `system`, message and `tool_result` content lists as a text block, in a copy, because
+the converter skips such items and LiteLLM can send them to a chat model as text. When the Anthropic
+converter fails on a body, both evaluations use the chat conversion of `messages` instead. That
+conversion keeps the text of the messages but drops the system prompt and the `tool_use`,
+`tool_result`, `image`, `document` and `thinking` blocks, so the guardrail does not claim the
+request. Where no provider listener sees the model call, for example
+on the native Anthropic path or the LiteLLM 1.82.6 Responses API adapter, those parts of such a body
+are not evaluated.
+
+Known limit: LiteLLM's chat completions adapter for `/v1/messages` can send an `image` block inside a
+`tool_result` to the model as tool text, and the guardrail does not evaluate that text as text: it
+converts the image to an `image_url` part, or drops it when it cannot read the `source`. LiteLLM
+1.78.5 uses this adapter for every model without a native Anthropic Messages API in LiteLLM, for
+example OpenAI and Azure OpenAI models, and sends `data:image;base64,` followed by the string form of
+the whole `source` for each image item of the `tool_result` content list. LiteLLM 1.82.6 uses it for
+such models too, except models of the `openai` provider, which use the Responses API adapter (it drops
+these images) unless `use_chat_completions_url_for_anthropic_messages` is set. Its chat completions
+adapter sends the `url`, or `data:<media_type>;base64,<data>` with `image/jpeg` as the default media
+type, as tool text only when the image is the only item of the list.
+
+In `post_call` mode, `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` controls a streamed chat or text
+answer. When it is on, the guardrail holds the answer, evaluates it, and can block it before the
+first chunk. When it is off, the chunks go out live, and the guardrail evaluates the full answer after
+the last chunk without blocking. Other streams, for example streamed Responses API and Anthropic
+Messages answers, pass through live without an answer evaluation, although the request is claimed.
+Some LiteLLM versions run the post-call success hook on the full stream, in a task that they start
+during a read of the model stream. The streaming hook sets a ContextVar around each read of the model
+stream, and the success hook skips while it is set. Do not use a key in the request metadata for this:
+the client controls that dict.
 
 With `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` on, LangChain itself buffers
 `stream()` / `astream()`: every chunk is read, the response is evaluated, and

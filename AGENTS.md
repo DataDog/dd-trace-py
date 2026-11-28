@@ -19,9 +19,54 @@ Paths below are relative to the repository root.
 - Update documentation when changing APIs, configuration, or contributor workflows.
   When modifying integrations, review the relevant integration skills and update references that
   describe changed patterns.
-- Do not hide circular imports with function-local imports or type-checking guards.
-  Fix ownership or dependency direction. Preserve deliberate lazy imports for startup cost or
-  gevent compatibility when they are unrelated to a cycle.
+- Before committing a change that touches threads, locks, fork hooks, services, writers,
+  remote config callbacks, module layout or cross-package imports, run the
+  `architecture-review` skill on the diff and fix what it reports.
+
+## Architectural constraints
+
+These hold for all new code. `docs/contributing-architecture.rst` has the full rules (`FS-*`,
+`LA-*`) with the reasons behind them; design against them from the start. The
+`architecture-review` skill checks a diff against them.
+
+Fork safety and background threads:
+
+- Register fork hooks with `ddtrace.internal.forksafe`, never `os.register_at_fork`. Hooks are
+  fast; after-in-child hooks recreate process-local state and never flush or do I/O.
+- Run background work on `periodic.PeriodicService`, `threads.Thread` or `periodic.Timer`,
+  never on `threading.Thread`, `threading.Timer` or executors. Recreate locks in the child
+  rather than releasing inherited ones. Locks taken from weakref/finalizer callbacks are
+  `RLock`s.
+- Code on application threads acting for the application uses what the application uses,
+  gevent-patched or not (`threads.current_thread()`, `threads.Event()`, `threads.local()`).
+  Internal ddtrace usage, including anything a ddtrace thread also touches, takes ddtrace's own
+  unpatched primitives (`threads.Lock`, `RLock`, `SimpleQueue`, `original_Event`,
+  `original_local`, or the `forksafe` equivalents).
+- ddtrace threads never synchronize with each other (except remote config toggling products
+  and the fork machinery), never fork, and bound every blocking call in their targets with a
+  timeout. Application threads never wait on a ddtrace thread outside explicit shutdown;
+  `awake()` stays non-blocking.
+- Start threads from the product lifecycle, not lazily on first use from an application
+  thread. A disabled product's threads go dormant instead of stopping and restarting.
+- Code on ddtrace threads does not import `threading`, `uuid`, `subprocess`, `queue`,
+  `importlib.metadata` or similar stdlib modules inside functions (module cloning); use the
+  `ddtrace.internal.threads` re-exports and `ddtrace.internal.native.uuid4()`.
+
+Layering and imports:
+
+- Dependencies point from products to shared code: `ddtrace/internal` does not import
+  products, `ddtrace/contrib` imports no product other than tracing, and products do not import
+  each other, except as listed in `scripts/import-analysis/layers.json`. Contrib may import the tracer; tracing never imports
+  contrib (the detector does not catch this one). Invert dependencies with a `Protocol`,
+  callback or core event registered by the product.
+- Do not hide circular imports or layering violations with function-local imports or
+  type-checking guards. Fix ownership or dependency direction. Preserve deliberate lazy imports
+  for startup cost or gevent compatibility when they are unrelated to a cycle.
+- Shared infrastructure contains no product-specific branches, names or cleanup; the consumer
+  overrides its own hook. Contrib integrations reach products other than tracing only through
+  core events.
+- Classify new top-level modules in `layers.json`. New zone exceptions need a stated
+  architectural reason for human review.
 
 ## Docstrings and Comments
 
@@ -55,7 +100,8 @@ in `ddtrace/trace/`, and startup in `ddtrace/bootstrap/`. Contrib patch modules 
 
 Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
 `ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, Rust in
-`src/native/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
+`src/native/`, and profiler code in `ddtrace/profiling/`, `ddtrace/internal/profiling/`, and
+`ddtrace/internal/datadog/profiling/`.
 
 Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
 Shared skills live at `.agents/skills/<name>/SKILL.md` and are discovered directly by Codex,
@@ -74,19 +120,26 @@ current signatures and defaults.
 | LLMObs integration changes | `llmobs-integrations`; also `apm-integrations` when changing contrib plumbing |
 | Added/moved modules or new import cycles | `circular-import-analysis` |
 | Architectural dependency direction | `dependency-direction-analysis` |
+| Architectural review of a change or PR (fork safety, threads, layering) | `architecture-review`; `docs/contributing-architecture.rst` |
 | Package-split API inventories | `package-split` |
+| Pre-push or PR code review | `sdk-review` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Profiling hot spots and optimization opportunities | `profile` |
+| Profiler changes (`ddtrace/profiling/`, `ddtrace/internal/profiling/`, `ddtrace/internal/datadog/profiling/`) | `ddtrace/internal/datadog/profiling/docs/README.md` (`Architecture.md` for design; `Testing.md` for build, test, and CI checks; `Standalone.md` for `build_standalone.sh`) |
 | Build-cache performance | `debug-build-times` |
 | Native crash investigation | `analyze-crash` |
 | CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |
 | AppSec / IAST | `.cursor/rules/appsec.mdc`; `.cursor/rules/iast.mdc` for IAST |
 | AI Guard | `.cursor/rules/ai-guard.mdc` |
-| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc` |
-| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md` |
+| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc`; `docs/native-code-review.md` |
+| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md`; `docs/contributing-architecture.rst` |
 | Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
 | Build or installation failures | `docs/troubleshooting.rst` |
+
+## Code Review Rules
+
+Before pushing code or creating a pull request, you must run the [sdk-review](./.claude/skills/sdk-review/SKILL.md) skill on the committed changes unless the user specifically says not to. You must also do a standard self review (using the /review or /code-review skill if available). All other required publication checks still apply.
 
 ## Pull requests
 
@@ -94,8 +147,11 @@ Follow the Pull Request Requirements in `docs/contributing.rst` and use
 `.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
 Include validation, risks, and relevant issues. Before deciding or answering whether a release
 note is needed, invoke `releasenote` (or read `.agents/skills/releasenote/SKILL.md` if skill
-invocation is unavailable), including for internal-only refactors. Follow its decision workflow;
-when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
+invocation is unavailable), including for internal-only refactors. Follow its decision workflow.
+Whether a change is customer-facing is the user's decision: ask the user for the customer-facing
+impact before choosing the commit type or deciding on a note. Propose a decision with evidence
+(files changed, visible effect). Do not pick a commit type, or apply `changelog/no-changelog`, just
+to make CI pass. `ci`, `test` and `docs` PRs need neither a note nor the label.
 
 This repository is public. PR text, commits, and release notes must describe the change itself.
 Keep internal discussions, other teams' tickets, backend/data-pipeline names, and open internal

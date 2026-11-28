@@ -71,14 +71,18 @@ setup_env() {
 
 # ext_cache invokes `setup.py ext_hashes`, which imports the build backend. uv build's
 # isolated environment is not reachable from here, so give it an ephemeral one.
-ext_cache() {
+ext_cache_python() {
   uv run --no-project \
     --with "setuptools" \
     --with "cython" \
     --with "setuptools-rust<2" \
     --with "cmake>=3.24.2,<3.28" \
     --with "patchelf>=0.17.0.0" \
-    python scripts/ext_cache.py --build-lib --no-shared-deps "$1"
+    python "$@"
+}
+
+ext_cache() {
+  ext_cache_python scripts/ext_cache.py --build-lib --no-shared-deps "$1"
 }
 
 # A hit here skips the Rust fat-LTO link, which is ~88% of the build and is not cacheable
@@ -112,8 +116,14 @@ build_wheel() {
   export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_TAG}.log"
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
 
-  # Redirect build output to log file
-  if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . > "${BUILD_LOG}" 2>&1; then
+  # Keep the full build log while surfacing cache health checks before a job timeout.
+  # pipefail preserves build failures through tee and the progress filter.
+  if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . 2>&1 | tee "${BUILD_LOG}" | \
+      while IFS= read -r build_line; do
+        case "$build_line" in
+          *"INFO: sccache "*|*"WARNING: sccache "*) printf '%s\n' "$build_line" ;;
+        esac
+      done; then
     echo "✓ Build completed successfully"
     export BUILT_WHEEL_FILE=$(ls ${BUILT_WHEEL_DIR}/*.whl | head -n 1)
   else
@@ -131,7 +141,7 @@ repair_wheel() {
   section_start "extract_debug_symbols" "Extracting debug symbols"
   uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" \
     --output-dir "${DEBUG_WHEEL_DIR}" \
-    --ignore-patterns "libddwaf*,libdd_heap_gotter*"
+    --ignore-patterns "libddwaf*,libdd_heap_gotter*" "$@"
   section_end "extract_debug_symbols"
 
   # Heap-gotter cdylib debug symbols are extracted in setup.py (build_heap_gotter);

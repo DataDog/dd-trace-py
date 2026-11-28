@@ -4,6 +4,7 @@ from copy import deepcopy
 from inspect import getmodule
 import os
 from pathlib import Path
+import sysconfig
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -28,10 +29,6 @@ from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.packages import platlib_path
-from ddtrace.internal.packages import platstdlib_path
-from ddtrace.internal.packages import purelib_path
-from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.paths import is_contained
 from ddtrace.internal.utils.paths import relative_path
@@ -43,6 +40,12 @@ _original_exec = exec
 
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
 _SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
+
+# Resolved once at import, like ddtrace.internal.packages does, to avoid depending on it (and its
+# distribution-scanning machinery) just for four paths.
+_DEFAULT_EXCLUDE_PATHS: tuple[Path, ...] = tuple(
+    Path(sysconfig.get_path(name)).resolve() for name in ("stdlib", "platstdlib", "platlib", "purelib")
+)
 
 
 def _is_site_packages_path(path: Path) -> bool:
@@ -59,7 +62,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._include_paths: list[Path] = []
         # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
         # in the root directory of a repository)
-        self._exclude_paths: list[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
+        self._exclude_paths: list[Path] = list(_DEFAULT_EXCLUDE_PATHS)
 
         # Avoid instrumenting anything in the current module
         self._exclude_paths.append(Path(__file__).resolve().parent)
@@ -417,7 +420,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             self.is_import_coverage = is_import_coverage
             self._test_file = test_file
 
-        def __enter__(self):
+        def __enter__(self) -> "ModuleCodeCollector.CollectInContext":
             # Collector objects compare by identity, so value-based context restores
             # distinguish different collectors even when their coverage data is empty.
             self._covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
@@ -451,7 +454,7 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             return self
 
-        def __exit__(self, *args, **kwargs):
+        def __exit__(self, *args: t.Any, **kwargs: t.Any) -> None:
             # Closing the shared collector expires it in every inherited stack.
             self.closed = True
             stack = ctx_collectors.get()

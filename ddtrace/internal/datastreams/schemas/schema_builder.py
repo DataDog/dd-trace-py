@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import json
 from typing import Any
+from typing import ClassVar
 from typing import Optional
 
 from ddtrace.internal.utils.fnv import fnv1_64
@@ -22,8 +23,8 @@ class SchemaIterator:
 class SchemaBuilder:
     max_depth = 10
     max_properties = 1000
-    CACHE: dict[str, Schema] = {}
-    properties = 0
+    CACHE: ClassVar[dict[str, Schema]] = {}
+    properties: int = 0
 
     def __init__(self, iterator: SchemaIterator) -> None:
         self.schema: OpenApiSchema = OpenApiSchema()
@@ -38,7 +39,7 @@ class SchemaBuilder:
         description: Optional[str],
         ref: Optional[str],
         format_: Optional[str],
-        enum_values: Optional[list[Any]],
+        enum_values: Optional[list[str]],
     ) -> bool:
         if self.properties >= self.max_properties:
             return False

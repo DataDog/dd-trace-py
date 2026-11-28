@@ -35,7 +35,6 @@ def test_shared_bundle_is_idempotent_and_can_restore_listeners() -> None:
     calls = []
 
     class RequestSubscriber(Subscriber):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -102,7 +101,6 @@ def test_products_can_share_events_without_sharing_listener_ownership(monkeypatc
     calls: list[str] = []
 
     class TracingRequestSubscriber(Subscriber):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -110,7 +108,6 @@ def test_products_can_share_events_without_sharing_listener_ownership(monkeypatc
             calls.append("tracing")
 
     class SecurityRequestSubscriber(ContextSubscriber[RegistrationEvent]):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -157,7 +154,6 @@ def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.
     calls: list[str] = []
 
     class RequestSubscriber(ContextSubscriber[RegistrationEvent]):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -207,13 +203,15 @@ def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.
 
 @pytest.mark.subprocess
 def test_bundle_reactivates_after_full_hub_reset() -> None:
-    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace._trace._registration import register_subscribers
     from ddtrace.internal import core
     from ddtrace.internal.core import event_hub
 
-    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    register_subscribers()
     event_hub.reset()
     assert not core.has_listeners("context.started.web.request")
-    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    assert not core.has_listeners("context.exception")
+    register_subscribers()
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("context.exception")

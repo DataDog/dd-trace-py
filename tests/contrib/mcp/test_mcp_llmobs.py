@@ -6,10 +6,13 @@ import os
 from textwrap import dedent
 from unittest import mock
 
+import pytest
+
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -425,7 +428,7 @@ def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans,
             result = await client.list_tools()
             return result
 
-    with override_config("mcp", dict(capture_intent=True)):
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
         result = asyncio.run(run_test())
     tool = next(t for t in result.tools if t.name == "calculator")
     schema = tool.inputSchema
@@ -447,8 +450,8 @@ def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans,
     assert schema["properties"]["a"]["type"] == "integer"
     assert schema["properties"]["b"]["type"] == "integer"
 
-    # Verify intent is required at top level, and original required args still present
-    assert "intent" in schema["required"]
+    # Verify telemetry is required at top level, and original required args still present
+    assert "telemetry" in schema["required"]
     assert "operation" in schema["required"]
     assert "a" in schema["required"]
     assert "b" in schema["required"]
@@ -470,7 +473,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
                 },
             )
 
-    with override_config("mcp", dict(capture_intent=True)):
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
         asyncio.run(run_test())
 
     traces = test_spans.pop_traces()
@@ -501,7 +504,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
     assert "b" in arguments
 
 
-def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+def test_intent_capture_disabled(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture is disabled by default and telemetry property is not injected."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -519,38 +522,25 @@ def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, m
     assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
 
 
-def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
-    """Regression: llmobs_set_tags must run AFTER await func(), not before.
+def test_respond_records_request_after_respond(mcp_setup):
+    """Regression: LLMObs tagging must not run before await func().
 
-    Before the fix, llmobs_set_tags ran synchronously before ``await func(*args, **kwargs)``.
-    This widened the race window in which the MCP session's ``_receive_loop`` could exit and
-    close ``_write_stream``, causing ``anyio.ClosedResourceError`` instead of a clean
-    cancellation (see TASK_MCP_CLOSED_RESOURCE_ERROR.md).
-
-    The fix wraps ``await func(...)`` in a try/finally so that llmobs_set_tags is called
-    AFTER the response is sent.  This test verifies:
-    1. ``func`` (i.e. ``respond``) is called before ``llmobs_set_tags``.
-    2. ``llmobs_set_tags`` still runs even when ``func`` raises ``ClosedResourceError``.
+    Tagging before ``await func(*args, **kwargs)`` widened the race window in which the MCP session's
+    ``_receive_loop`` could exit and close ``_write_stream``, causing ``anyio.ClosedResourceError``
+    instead of a clean cancellation. respond() only records the request on the event once func has
+    returned or raised, and the request is tagged when the responder's __exit__ finishes it.
     """
     import anyio
 
     from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
 
-    call_order = []
+    mock_instance = mock.MagicMock()
+    mock_instance._dd_ctx.event.request_kwargs = {}
+    recorded_before_func = []
 
     async def mock_func_raises_closed_resource(*args, **kwargs):
-        call_order.append("func")
+        recorded_before_func.append(dict(mock_instance._dd_ctx.event.request_kwargs))
         raise anyio.ClosedResourceError()
-
-    mock_instance = mock.MagicMock()
-    mock_instance._dd_span = mock.MagicMock()
-
-    original_llmobs_set_tags = mcp_setup._datadog_integration.llmobs_set_tags
-
-    def tracking_llmobs_set_tags(*args, **kwargs):
-        call_order.append("llmobs_set_tags")
-
-    mcp_setup._datadog_integration.llmobs_set_tags = tracking_llmobs_set_tags
 
     async def run():
         try:
@@ -561,8 +551,145 @@ def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
             pass
 
     asyncio.run(run())
-    mcp_setup._datadog_integration.llmobs_set_tags = original_llmobs_set_tags
 
-    assert call_order == ["func", "llmobs_set_tags"], (
-        f"llmobs_set_tags must run after func (in finally block), not before it. Actual call order: {call_order}"
-    )
+    assert recorded_before_func == [{}]
+    assert mock_instance._dd_ctx.event.request_kwargs == {"request_responder": mock_instance}
+
+
+def _server_tool_spans(test_spans):
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    return [s for s in spans if (get_llmobs_tags(s) or {}).get("mcp_tool_kind") == "server"]
+
+
+def test_conversation_id_capture(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            tools = await client.list_tools()
+            first = await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+            conversation_id = first.content[-1].text.split('"')[1]
+            second = await client.call_tool(
+                "calculator",
+                {"operation": "add", "a": 1, "b": 2, "telemetry": {"conversation_id": conversation_id}},
+            )
+            return tools, first, second, conversation_id
+
+    with override_config("mcp", dict(enrichment_enabled=True)):
+        tools, first, second, conversation_id = asyncio.run(run_test())
+
+    schema = next(t for t in tools.tools if t.name == "calculator").inputSchema
+    assert schema["properties"]["telemetry"]["properties"]["conversation_id"]["type"] == "string"
+    assert schema["properties"]["telemetry"]["required"] == []
+    assert "telemetry" not in schema["required"]
+
+    assert len(conversation_id) == 32
+    assert len(first.content) == 2
+    assert len(second.content) == 1
+
+    first_span, second_span = _server_tool_spans(test_spans)
+    assert get_llmobs_session_id(first_span) == conversation_id
+    assert get_llmobs_session_id(second_span) == conversation_id
+    assert "telemetry" not in json.loads(get_llmobs_input_value(second_span))["params"]["arguments"]
+
+
+def test_conversation_id_capture_disabled(mcp_setup, mcp_llmobs, test_spans, mcp_server):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            return await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+
+    result = asyncio.run(run_test())
+
+    assert len(result.content) == 1
+    (server_span,) = _server_tool_spans(test_spans)
+    assert get_llmobs_session_id(server_span) is None
+
+
+def test_intent_capture_lowlevel_server_validation(mcp_setup, mcp_llmobs, test_spans):
+    """Low-level servers validate calls against the listed tool objects, which must keep the tool's own schema."""
+    from mcp.server.lowlevel import Server
+    from mcp.shared.memory import create_connected_server_and_client_session
+    import mcp.types as types
+
+    server = Server("LowLevelServer")
+
+    @server.list_tools()
+    async def list_tools():
+        schema = {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}
+        return [types.Tool(name="echo", inputSchema=schema)]
+
+    @server.call_tool()
+    async def call_tool(name, arguments):
+        return [types.TextContent(type="text", text=",".join(sorted(arguments)))]
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server) as client:
+            tools = await client.list_tools()
+            result = await client.call_tool("echo", {"a": "x", "telemetry": {"intent": "Testing low-level servers"}})
+            return tools, result
+
+    with override_config("mcp", dict(capture_intent=True, enrichment_enabled=True)):
+        tools, result = asyncio.run(run_test())
+
+    assert "telemetry" in tools.tools[0].inputSchema["properties"]
+    assert not result.isError
+    assert result.content[0].text == "a"
+    (server_span,) = _server_tool_spans(test_spans)
+    assert _get_llmobs_data_metastruct(server_span)["meta"]["intent"] == "Testing low-level servers"
+
+
+def test_own_telemetry_argument_kept_with_capture_disabled(mcp_setup, mcp_llmobs, test_spans):
+    from mcp.server.fastmcp import FastMCP
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    server = FastMCP(name="TelemetryServer")
+
+    @server.tool(description="Records an event")
+    def record_event_disabled(telemetry: dict) -> dict:
+        return telemetry
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server._mcp_server) as client:
+            return await client.call_tool("record_event_disabled", {"telemetry": {"event": "click"}})
+
+    result = asyncio.run(run_test())
+
+    assert not result.isError
+    assert json.loads(result.content[0].text) == {"event": "click"}
+
+
+@pytest.mark.skipif(MCP_VERSION < (1, 19, 0), reason="Low-level servers return result objects from mcp 1.19.0")
+def test_enrichment_does_not_change_cached_results(mcp_setup, mcp_llmobs, test_spans):
+    """Low-level servers can return the same result objects on every request."""
+    from mcp.server.lowlevel import Server
+    from mcp.shared.memory import create_connected_server_and_client_session
+    import mcp.types as types
+
+    schema = {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}
+    cached_tools = types.ListToolsResult(tools=[types.Tool(name="echo", inputSchema=schema)])
+    cached_result = types.CallToolResult(content=[types.TextContent(type="text", text="ok")])
+    server = Server("CachedServer")
+
+    @server.list_tools()
+    async def list_tools():
+        return cached_tools
+
+    @server.call_tool()
+    async def call_tool(name, arguments):
+        return cached_result
+
+    async def run_test():
+        async with create_connected_server_and_client_session(server) as client:
+            listed = [await client.list_tools() for _ in range(2)]
+            results = [await client.call_tool("echo", {"a": "x"}) for _ in range(2)]
+            return listed, results
+
+    with override_config("mcp", dict(enrichment_enabled=True)):
+        listed, results = asyncio.run(run_test())
+
+    assert all("telemetry" in tools.tools[0].inputSchema["properties"] for tools in listed)
+    assert "telemetry" not in cached_tools.tools[0].inputSchema["properties"]
+    assert [len(result.content) for result in results] == [2, 2]
+    assert len(cached_result.content) == 1

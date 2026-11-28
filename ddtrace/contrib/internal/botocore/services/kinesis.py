@@ -45,8 +45,9 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
         if line_break is not None:
             data_json += line_break
 
-        data_size = len(data_json)
-        if data_size >= MAX_KINESIS_DATA_SIZE:
+        # Kinesis limits a record's data blob plus its partition key to 1 MiB, measured in bytes.
+        data_size = len(data_json.encode("utf-8")) + len(str(record.get("PartitionKey") or "").encode("utf-8"))
+        if data_size > MAX_KINESIS_DATA_SIZE:
             log.warning("Data including trace injection (%d) exceeds (%d)", data_size, MAX_KINESIS_DATA_SIZE)
             return
 
@@ -66,6 +67,25 @@ def select_records_for_injection(params: list[Any], inject_trace_context: bool) 
     elif "Data" in params:
         records_to_inject_into.append((params, inject_trace_context))
     return records_to_inject_into
+
+
+def dispatch_received_records(ctx, params: dict[str, Any], result: dict[str, Any], propagate: bool) -> None:
+    for record in result["Records"]:
+        _, data_obj = get_kinesis_data_object(record["Data"])
+        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
+        core.dispatch(
+            "botocore.kinesis.GetRecords.post",
+            (
+                ctx,
+                params,
+                time_estimate,
+                data_obj.get("_datadog") if data_obj else None,
+                record,
+                result,
+                propagate,
+                extract_DD_json,
+            ),
+        )
 
 
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
@@ -91,25 +111,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
             is_getrecords_call = True
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
             result = original_func(*args, **kwargs)
-
-            records = result["Records"]
-
-            for record in records:
-                _, data_obj = get_kinesis_data_object(record["Data"])
-                time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-                core.dispatch(
-                    f"botocore.{endpoint_name}.{operation}.post",
-                    (
-                        parent_ctx,
-                        params,
-                        time_estimate,
-                        data_obj.get("_datadog") if data_obj else None,
-                        record,
-                        result,
-                        config.botocore.propagation_enabled,
-                        extract_DD_json,
-                    ),
-                )
+            dispatch_received_records(parent_ctx, params, result, config.botocore.propagation_enabled)
 
         except Exception as e:
             getrecords_error = e

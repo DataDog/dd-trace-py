@@ -1,5 +1,6 @@
 import collections
 from contextlib import contextmanager
+import weakref
 
 import grpc
 import wrapt
@@ -27,6 +28,7 @@ from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
+
 
 # DEV: Follows Python interceptors RFC laid out in
 # https://github.com/grpc/proposal/blob/master/L13-python-interceptors.md
@@ -137,10 +139,13 @@ def _activated_span(span: Span):
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
     def __init__(self, wrapped, span):
         super().__init__(wrapped)
-        self._span = span
+        self._self_span = span
         # Registers callback on the _MultiThreadedRendezvous future to finish
         # span in case StopIteration is never raised but RPC is terminated
-        _handle_response(self._span, self.__wrapped__)
+        _handle_response(self._self_span, self.__wrapped__)
+        if not hasattr(wrapped, "add_done_callback"):
+            # A plain iterator has no done callback: finish the span if the caller drops it before the end.
+            weakref.finalize(self, span.finish).atexit = False
 
     def __iter__(self):
         return self
@@ -154,22 +159,37 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
         # https://github.com/googleapis/python-api-core/blob/35e87e0aca52167029784379ca84e979098e1d6c/google/api_core/grpc_helpers.py#L84
         # https://github.com/GoogleCloudPlatform/grpc-gcp-python/blob/5a2cd9807bbaf1b85402a2a364775e5b65853df6/src/grpc_gcp/_channel.py#L102
         try:
-            with _activated_span(self._span):
+            with _activated_span(self._self_span):
                 return next(self.__wrapped__)
         except StopIteration:
-            # Callback will handle span finishing
+            # A grpc rendezvous finishes the span through its done callback. Plain
+            # iterators such as generators have none, so finish the span here.
+            # A generator that already raised is closed: the next pull is StopIteration,
+            # and must not overwrite the failure status recorded on that raise.
+            if not hasattr(self.__wrapped__, "add_done_callback") and not self._self_span.finished:
+                self._self_span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(grpc.StatusCode.OK))
+                self._self_span.finish()
             raise
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
             # handle as a response
-            _handle_response(self._span, rpc_error)
+            _handle_response(self._self_span, rpc_error)
+            if not hasattr(self.__wrapped__, "add_done_callback"):
+                # A plain iterator has no done callback to record the failure: record it here.
+                status_code = rpc_error.code() if callable(getattr(rpc_error, "code", None)) else None
+                if status_code is not None:
+                    self._self_span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(status_code))
+                _handle_error(self._self_span, rpc_error, status_code)
+                if not self._self_span.error:
+                    self._self_span.set_traceback()
+                self._self_span.finish()
             raise
         except Exception:
             # DEV: added for safety though should not be reached since wrapped response
             log.debug("unexpected non-grpc exception raised, closing open span", exc_info=True)
-            self._span.set_traceback()
-            self._span.finish()
+            self._self_span.set_traceback()
+            self._self_span.finish()
             raise
 
     def __next__(self):

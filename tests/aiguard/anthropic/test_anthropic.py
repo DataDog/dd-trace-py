@@ -18,6 +18,9 @@ from ddtrace.contrib.internal.anthropic.patch import ANTHROPIC_VERSION
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.trace import tracer
+from tests.aiguard.anthropic.conftest import MessagesTransport
+from tests.aiguard.anthropic.conftest import payloads
+from tests.aiguard.anthropic.conftest import sync_client
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 
@@ -27,6 +30,17 @@ _ANTHROPIC_CASSETTES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "
 
 CHAT_MODEL = "claude-3-opus-20240229"
 CHAT_PARAMS = dict(model=CHAT_MODEL, max_tokens=256)
+
+
+class _RecordingClient:
+    """An AI Guard client that records the messages of its last evaluation."""
+
+    def __init__(self):
+        self.evaluated = None
+
+    def evaluate(self, messages, options, **kwargs):
+        self.evaluated = list(messages)
+        return None
 
 
 def _user_messages(content="Hello"):
@@ -173,6 +187,23 @@ class TestConvertAnthropicMessages:
         assert result[0]["tool_call_id"] == "toolu_1"
         assert result[0]["content"] == "72F sunny"
 
+    def test_user_tool_result_before_user_text(self):
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "toolu_1", "content": "72F sunny"},
+                    {"type": "text", "text": "Now book a flight."},
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        # The tool result answers the previous turn, so the new user text stays the last turn.
+        assert result == [
+            {"role": "tool", "tool_call_id": "toolu_1", "content": "72F sunny"},
+            {"role": "user", "content": "Now book a flight."},
+        ]
+
     def test_user_tool_result_block_list(self):
         messages = [
             {
@@ -221,11 +252,11 @@ class TestConvertAnthropicMessages:
             },
         ]
         result = _convert_anthropic_messages("Be helpful", messages)
-        # system, user(question), assistant(tool_use), user("Here's the result:"), tool(72F)
-        assert [m["role"] for m in result] == ["system", "user", "assistant", "user", "tool"]
-        assert result[3]["content"] == "Here's the result:"
-        assert result[4]["tool_call_id"] == "toolu_w"
-        assert result[4]["content"] == "72F"
+        # system, user(question), assistant(tool_use), tool(72F), user("Here's the result:")
+        assert [m["role"] for m in result] == ["system", "user", "assistant", "tool", "user"]
+        assert result[3]["tool_call_id"] == "toolu_w"
+        assert result[3]["content"] == "72F"
+        assert result[4]["content"] == "Here's the result:"
 
     def test_redacted_thinking_dropped_binary_document_marked(self):
         """``redacted_thinking`` is non-scannable and dropped; a binary
@@ -561,8 +592,8 @@ class TestConvertAnthropicMessages:
         tool_msg = [m for m in result if m["role"] == "tool"][0]
         assert tool_msg["content"] == "STDOUT: /tmp"
 
-    def test_server_tool_result_without_matching_tool_use_is_dropped(self):
-        """Server tool result blocks alone do not create orphan tool messages."""
+    def test_server_tool_result_without_matching_tool_use_is_kept(self):
+        """A server tool result whose call is in an earlier message (a resumed turn) is still evaluated."""
         messages = [
             {
                 "role": "assistant",
@@ -577,9 +608,10 @@ class TestConvertAnthropicMessages:
             }
         ]
         result = _convert_anthropic_messages(None, messages)
-        assert len(result) == 1
-        assert result[0]["role"] == "assistant"
-        assert result[0]["content"] == "Here are the results."
+        assert result == [
+            {"role": "assistant", "content": "Here are the results."},
+            {"role": "tool", "tool_call_id": "srv_orphan", "content": "Example: https://e.com"},
+        ]
 
     # ---------------------------------------------------------------------------
     # tool_result with image content (dd-source parity)
@@ -900,14 +932,6 @@ def test_before_hook_materializes_iterator_messages():
     so the SDK still sees the messages after AI Guard reads them.
     """
 
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
-
     def _gen():
         yield {"role": "user", "content": "Hello"}
 
@@ -922,14 +946,6 @@ def test_before_hook_materializes_iterator_messages():
 
 def test_before_hook_materializes_iterator_system():
     """Iterable system blocks are written back so the SDK receives them too."""
-
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
 
     def _system_blocks():
         yield {"type": "text", "text": "Be concise."}
@@ -947,16 +963,109 @@ def test_before_hook_materializes_iterator_system():
     assert client.evaluated[0]["content"] == "Be concise.\nUse JSON."
 
 
+def test_before_hook_reads_params_from_extra_body():
+    """extra_body, which the SDK merges over the params, carries what is sent: the replaced params stay unread."""
+
+    unsent = {
+        "messages": iter([{"role": "user", "content": "Unsent"}]),
+        "system": iter([{"type": "text", "text": "Unsent system"}]),
+        "tools": iter([{"name": "unsent", "input_schema": {"type": "object"}}]),
+    }
+    extra_body = {"messages": iter([{"role": "user", "content": "Sent"}]), "system": "Sent system", "tools": iter([])}
+    caller_extra_body = dict(extra_body)
+    client = _RecordingClient()
+    kwargs = dict(unsent, extra_body=extra_body)
+
+    _anthropic_messages_create_before(client, kwargs)
+
+    assert all(next(value, None) is not None for value in unsent.values())
+    assert client.evaluated == [{"role": "system", "content": "Sent system"}, {"role": "user", "content": "Sent"}]
+    assert kwargs["extra_body"] == {
+        "messages": [{"role": "user", "content": "Sent"}],
+        "system": "Sent system",
+        "tools": [],
+    }
+    # The caller's extra_body is not modified.
+    assert all(extra_body[key] is value for key, value in caller_extra_body.items())
+
+
+def test_web_search_error_result_is_not_reported():
+    """A web search error result is a model, not single-use content: it converts without a report."""
+    types = pytest.importorskip("anthropic.types")
+    if not hasattr(types, "WebSearchToolResultError"):
+        pytest.skip("this Anthropic SDK has no web search tool")
+    error = types.WebSearchToolResultError(type="web_search_tool_result_error", error_code="unavailable")
+    block = {"type": "web_search_tool_result", "tool_use_id": "s1", "content": error}
+
+    with patch("ddtrace.aiguard.integrations._anthropic._report_converter_error") as report:
+        messages = _convert_anthropic_response({"role": "assistant", "content": [block]})
+
+    assert messages == [{"role": "tool", "tool_call_id": "s1"}]
+    report.assert_not_called()
+
+
+@pytest.mark.parametrize("in_extra_body", [False, True])
+def test_before_hook_leaves_one_shot_nested_content_unread(in_extra_body):
+    """One-shot document source and web search result content stays unread, so the SDK still sends it."""
+
+    source = iter([{"type": "text", "text": "Doc"}])
+    results = iter([{"type": "web_search_result", "title": "T", "url": "https://example.com"}])
+    messages = [
+        {"role": "assistant", "content": [{"type": "web_search_tool_result", "tool_use_id": "s1", "content": results}]},
+        {"role": "user", "content": [{"type": "document", "source": {"type": "content", "content": source}}]},
+    ]
+    kwargs = {"messages": [{"role": "user", "content": "Unsent"}], "extra_body": {"messages": messages}}
+    if not in_extra_body:
+        kwargs = {"messages": messages}
+
+    client = _RecordingClient()
+    _anthropic_messages_create_before(client, kwargs)
+
+    # Both blocks were converted, without their content.
+    assert client.evaluated == [
+        {"role": "tool", "tool_call_id": "s1"},
+        {"role": "user", "content": "[non-text document]"},
+    ]
+    assert next(source, None) is not None
+    assert next(results, None) is not None
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_sdk_evaluates_extra_body_params(mock_execute_request, anthropic_sdk):
+    """Both evaluations read the messages and system that extra_body sends, not the params it replaces."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    transport = MessagesTransport(
+        [
+            {
+                "id": "msg_1",
+                "type": "message",
+                "role": "assistant",
+                "model": CHAT_MODEL,
+                "content": [{"type": "text", "text": "Hi"}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            }
+        ]
+    )
+    sent = [{"role": "system", "content": "Sent system"}, {"role": "user", "content": "Sent"}]
+
+    sync_client(anthropic_sdk, transport).messages.create(
+        messages=[{"role": "user", "content": "Unsent"}],
+        system="Unsent system",
+        extra_body={"messages": [{"role": "user", "content": "Sent"}], "system": "Sent system"},
+        **CHAT_PARAMS,
+    )
+
+    assert transport.requests[0]["messages"] == [{"role": "user", "content": "Sent"}]
+    assert transport.requests[0]["system"] == "Sent system"
+    before, after = payloads(mock_execute_request)
+    assert before["messages"] == sent
+    assert after["messages"] == sent + [{"role": "assistant", "content": "Hi"}]
+
+
 def test_before_hook_evaluates_final_assistant_prefill():
     """Anthropic treats a final assistant message as response prefill, so it is request input."""
-
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
 
     client = _RecordingClient()
     kwargs = {
@@ -976,14 +1085,6 @@ def test_before_hook_evaluates_document_only_prompt():
     """APMSP-3286 regression: a document-only prompt must reach AI Guard
     instead of skipping evaluation entirely.
     """
-
-    class _RecordingClient:
-        def __init__(self):
-            self.evaluated = None
-
-        def evaluate(self, messages, options, **kwargs):
-            self.evaluated = list(messages)
-            return None
 
     client = _RecordingClient()
     kwargs = {

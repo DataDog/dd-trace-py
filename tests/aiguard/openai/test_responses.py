@@ -6,7 +6,6 @@ into openai.responses.create. Streaming requests have their inputs
 evaluated by the before-hook; buffered response evaluation lives in test_streaming.py.
 """
 
-import hashlib
 import json
 import traceback
 from unittest.mock import ANY
@@ -21,7 +20,6 @@ from ddtrace.aiguard._listener import _with_listed_tools
 from ddtrace.aiguard.integrations._mcp import ApprovalDecision
 from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.aiguard.integrations._mcp import mcp_server
-from ddtrace.aiguard.integrations._mcp import mcp_server_id
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_output
 from ddtrace.aiguard.integrations._openai_responses import _hosted_mcp_servers
@@ -1287,10 +1285,6 @@ def test_listeners_registered():
 # ---------------------------------------------------------------------------
 
 
-def _server_id(key):
-    return "mcp_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
-
-
 MCP_TOOLS = [
     {
         "type": "mcp",
@@ -1303,13 +1297,14 @@ MCP_TOOLS = [
     {"type": "mcp", "server_label": "gmail", "connector_id": "connector_gmail", "authorization": "oauth-secret"},
     {"type": "function", "name": "lookup"},
 ]
-DEEPWIKI_ID = _server_id("url|https://mcp.deepwiki.com")
-GMAIL_ID = _server_id("connector|connector_gmail")
+# Server IDs only join the tool calls of a request to their entry: the position of the server in its request.
+DEEPWIKI_ID = "mcp_1"
+GMAIL_ID = "mcp_2"
 DEEPWIKI_SERVER = {
     "id": DEEPWIKI_ID,
     "managed_by": "provider",
     "name": "deepwiki",
-    "url": "https://mcp.deepwiki.com",
+    "url": "https://mcp.deepwiki.com/mcp",
     "transport": "unknown",
     "tools": {"ask_question": "ask_question"},
 }
@@ -1357,65 +1352,26 @@ def _mcp_call(call_id="mcp_1", server_label="deepwiki", name="ask_question"):
     }
 
 
-@pytest.mark.parametrize(
-    "kwargs,key,expected",
-    [
-        (dict(url="https://mcp.example.com/mcp"), "url|https://mcp.example.com", "mcp_b77bc22583ac5006"),
-        (dict(command="uvx", args=["mcp-example"]), "stdio|uvx|mcp-example", "mcp_0f2f11f8cafdbcc5"),
-        (dict(connector_id="connector_dropbox"), "connector|connector_dropbox", "mcp_abe2e7cd19597a09"),
-        (dict(name="atlassian"), "name|atlassian", "mcp_4b1df2a2d821278c"),
-    ],
-    ids=["url", "stdio", "connector", "name"],
-)
-def test_mcp_server_id_keys(kwargs, key, expected):
-    """The RFC example of each key."""
-    assert mcp_server_id(**kwargs) == _server_id(key) == expected
-
-
-def test_mcp_server_id_uses_the_first_applicable_key():
-    everything = dict(
-        url="https://mcp.example.com/mcp", connector_id="connector_dropbox", command="uvx", name="example"
-    )
-    assert mcp_server_id(**everything) == _server_id("url|https://mcp.example.com")
-    everything.pop("url")
-    assert mcp_server_id(**everything) == _server_id("connector|connector_dropbox")
-    everything.pop("connector_id")
-    assert mcp_server_id(**everything) == _server_id("stdio|uvx")
-    everything.pop("command")
-    assert mcp_server_id(**everything) == _server_id("name|example")
-    assert mcp_server_id() is None
-
-
-def test_mcp_server_id_ignores_transport_and_manager():
-    ids = {
-        mcp_server(managed_by, transport, name="example", url="https://mcp.example.com/mcp")["id"]
-        for managed_by in ("client", "provider")
-        for transport in ("streamable_http", "sse", "unknown")
-    }
-    assert ids == {"mcp_b77bc22583ac5006"}
-
-
-def test_mcp_server_url_is_sanitized_before_fingerprinting():
+def test_mcp_server_url_drops_userinfo_query_and_fragment():
     clean = mcp_server("provider", "unknown", name="example", url="https://mcp.example.com/mcp")
     dirty = mcp_server("provider", "unknown", name="example", url="https://u:p@mcp.example.com/mcp?token=t#f")
     assert (
         dirty
         == clean
         == {
-            "id": "mcp_b77bc22583ac5006",
+            "id": "mcp_1",
             "managed_by": "provider",
             "name": "example",
-            "url": "https://mcp.example.com",
+            "url": "https://mcp.example.com/mcp",
             "transport": "unknown",
             "tools": {},
         }
     )
 
 
-def test_mcp_server_invalid_url_falls_back_to_name():
+def test_mcp_server_invalid_url_is_omitted():
     server = mcp_server("provider", "unknown", name="example", url="not a url")
-    assert server["id"] == _server_id("name|example")
-    assert "url" not in server
+    assert server == {"id": "mcp_1", "managed_by": "provider", "name": "example", "transport": "unknown", "tools": {}}
 
 
 def test_hosted_mcp_servers_disabled(mcp_disabled):
@@ -1433,55 +1389,42 @@ def test_hosted_mcp_servers(mcp_enabled):
     assert _hosted_mcp_servers(None) == {}
 
 
-def test_hosted_mcp_servers_share_the_entry_of_one_server(mcp_enabled):
-    tools = [
-        {"type": "mcp", "server_label": "wiki", "server_url": "https://mcp.deepwiki.com/mcp"},
-        {"type": "mcp", "server_label": "wiki_admin", "server_url": "https://admin@mcp.deepwiki.com/mcp"},
-    ]
-    servers = _hosted_mcp_servers(tools)
-    assert servers["wiki"] is servers["wiki_admin"]
-    assert servers["wiki"]["id"] == DEEPWIKI_ID
-
-
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_servers_on_one_host_share_an_id_and_drop_the_path(mock_execute_request, mcp_enabled):
-    """Only the origin is sent: a path, which can hold a token, never reaches the payload."""
+def test_servers_on_one_host_keep_their_own_entry_and_path(mock_execute_request, mcp_enabled):
+    """Each label is its own entry, with the URL path it was configured with; userinfo is never sent."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     tools = [
-        {"type": "mcp", "server_label": "wiki", "server_url": "https://mcp.deepwiki.com/api/mcp/s/s3cr3t-t0ken/mcp"},
-        {"type": "mcp", "server_label": "wiki_sse", "server_url": "https://mcp.deepwiki.com/sse"},
+        {"type": "mcp", "server_label": "wiki", "server_url": "https://mcp.deepwiki.com/mcp"},
+        {"type": "mcp", "server_label": "wiki_sse", "server_url": "https://admin@mcp.deepwiki.com/sse"},
     ]
     resp = _Item(output=[_mcp_call("mcp_1", "wiki", "ask_question"), _mcp_call("mcp_2", "wiki_sse", "read")])
 
     _openai_response_create_after(new_ai_guard_client(), {"input": "Ask deepwiki", "tools": tools}, resp)
 
     attributes = _evaluated_attributes(mock_execute_request)
-    assert attributes["mcp_servers"] == [
-        {**DEEPWIKI_SERVER, "name": "wiki", "tools": {"ask_question": "ask_question", "read": "read"}}
-    ]
-    assert DEEPWIKI_ID == "mcp_58c928ebb7fc7a85"
-    payload = json.dumps(mock_execute_request.call_args.args[1])
-    for fragment in ("s3cr3t-t0ken", "/api/mcp", "/sse"):
-        assert fragment not in payload
+    sse_server = {"id": "mcp_2", "name": "wiki_sse", "url": "https://mcp.deepwiki.com/sse", "tools": {"read": "read"}}
+    assert attributes["mcp_servers"] == [{**DEEPWIKI_SERVER, "name": "wiki"}, {**DEEPWIKI_SERVER, **sse_server}]
+    server_ids = [m["tool_calls"][0]["mcp"]["server_id"] for m in attributes["messages"] if m.get("tool_calls")]
+    assert server_ids == ["mcp_1", "mcp_2"]
+    assert "admin" not in json.dumps(mock_execute_request.call_args.args[1])
 
 
-def test_labels_of_one_server_merge_into_the_first_label(mcp_enabled):
+def test_only_called_servers_are_sent_with_their_ids(mcp_enabled):
+    """A declared server that no tool call references is left out; the others keep their request IDs."""
     tools = [
         {"type": "mcp", "server_label": "wiki", "server_url": "https://mcp.deepwiki.com/mcp"},
-        {"type": "mcp", "server_label": "wiki_admin", "server_url": "https://mcp.deepwiki.com/mcp?k=v"},
+        {"type": "mcp", "server_label": "docs", "server_url": "https://docs.example.com/mcp?k=v"},
     ]
     servers = _hosted_mcp_servers(tools)
-    messages = _convert_openai_response_output(
-        _Item(output=[_mcp_call("mcp_1", "wiki", "ask_question"), _mcp_call("mcp_2", "wiki_admin", "read")]), servers
-    )
+    messages = _convert_openai_response_output(_Item(output=[_mcp_call("mcp_1", "docs", "read")]), servers)
     assert _mcp_servers_payload(messages, servers) == [
         {
-            "id": DEEPWIKI_ID,
+            "id": "mcp_2",
             "managed_by": "provider",
-            "name": "wiki",
-            "url": "https://mcp.deepwiki.com",
+            "name": "docs",
+            "url": "https://docs.example.com/mcp",
             "transport": "unknown",
-            "tools": {"ask_question": "ask_question", "read": "read"},
+            "tools": {"read": "read"},
         }
     ]
 
@@ -1589,14 +1532,21 @@ def test_mcp_call_of_an_undeclared_server_falls_back_to_its_label():
     (assistant,) = _convert_openai_response_output(
         _Item(output=[{"type": "mcp_call", "id": "mcp_1", "server_label": "x", "name": "search"}]), servers
     )
-    assert assistant["tool_calls"][0]["mcp"] == {"server_id": _server_id("name|x")}
+    assert assistant["tool_calls"][0]["mcp"] == {"server_id": "mcp_1"}
     assert servers["x"] == {
-        "id": _server_id("name|x"),
+        "id": "mcp_1",
         "managed_by": "provider",
         "name": "x",
         "transport": "unknown",
         "tools": {"search": "search"},
     }
+
+
+def test_mcp_call_of_an_undeclared_server_gets_the_next_server_id(mcp_enabled):
+    servers = _hosted_mcp_servers(MCP_TOOLS)
+    (assistant, _) = _convert_openai_response_output(_Item(output=[_mcp_call("mcp_9", "x", "search")]), servers)
+    assert assistant["tool_calls"][0]["mcp"] == {"server_id": "mcp_3"}
+    assert [server["id"] for server in servers.values()] == [DEEPWIKI_ID, GMAIL_ID, "mcp_3"]
 
 
 def test_mcp_call_without_mcp_metadata():
@@ -1652,7 +1602,7 @@ def test_mcp_approval_input_items():
         {"role": "user", "content": "Ask deepwiki"},
         {
             "role": "assistant",
-            "tool_calls": [{**APPROVAL_TOOL_CALL, "mcp": {"server_id": _server_id("name|deepwiki")}}],
+            "tool_calls": [{**APPROVAL_TOOL_CALL, "mcp": {"server_id": "mcp_1"}}],
         },
     ]
     assert _convert_openai_response_input(None, input_) == [{"role": "user", "content": "Ask deepwiki"}]
@@ -1808,12 +1758,11 @@ def test_replayed_approval_request_without_tools_falls_back_to_the_label(mock_ex
 
     _openai_response_create_before(new_ai_guard_client(), kwargs)
 
-    name_id = _server_id("name|deepwiki")
     attributes = _evaluated_attributes(mock_execute_request)
-    assert attributes["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": name_id}
+    assert attributes["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_1"}
     assert attributes["mcp_servers"] == [
         {
-            "id": name_id,
+            "id": "mcp_1",
             "managed_by": "provider",
             "name": "deepwiki",
             "transport": "unknown",
@@ -2127,48 +2076,49 @@ _GOOGLE_OAUTH = "ya" + "29." + "a0AfB_byC7kq2ZxW9mLpT4vNbY8cHdF3sJ6aQe1uXo0iR"
 _ZAPIER_PATH_TOKEN = "NGQ3ZTk1YjItOGM0MS00ZTFhLWI2ZDMtOWYyYTdjMWU1ZDQ4OnN1cGVyc2VjcmV0"
 _PASSWORD = "Tr0ub4dor-3xample!"
 
+# The path is sent as configured, so a token in a path is reported; userinfo, query and fragment never are.
 LEAKY_MCP_URLS = [
     pytest.param(
         f"https://mcp.zapier.com/api/mcp/s/{_ZAPIER_PATH_TOKEN}/mcp",
-        "https://mcp.zapier.com",
-        (_ZAPIER_PATH_TOKEN, "/api/mcp/s/"),
-        id="token_in_path",
+        f"https://mcp.zapier.com/api/mcp/s/{_ZAPIER_PATH_TOKEN}/mcp",
+        (),
+        id="path_is_kept",
     ),
     pytest.param(
         f"https://svc-mcp:{_PASSWORD}@mcp.corp.example.com/mcp",
-        "https://mcp.corp.example.com",
+        "https://mcp.corp.example.com/mcp",
         (_PASSWORD, "svc-mcp"),
         id="basic_auth_userinfo",
     ),
     pytest.param(
         f"https://{_GITHUB_PAT}@mcp.github.example.com/mcp",
-        "https://mcp.github.example.com",
+        "https://mcp.github.example.com/mcp",
         (_GITHUB_PAT,),
         id="token_as_username",
     ),
     pytest.param(
         f"https://mcp.example.com/sse?api_key={_OPENAI_KEY}&session_id=f3a9c1",
-        "https://mcp.example.com",
+        "https://mcp.example.com/sse",
         (_OPENAI_KEY, "api_key", "f3a9c1"),
         id="api_key_in_query",
     ),
     pytest.param(
         f"https://mcp.example.com/mcp#access_token={_GOOGLE_OAUTH}",
-        "https://mcp.example.com",
+        "https://mcp.example.com/mcp",
         (_GOOGLE_OAUTH, "access_token"),
         id="token_in_fragment",
     ),
     pytest.param(
         "https://ops%40corp.example:Tr0ub4dor%2D3xample%21@mcp.example.com:8443/mcp",
-        "https://mcp.example.com:8443",
+        "https://mcp.example.com:8443/mcp",
         ("ops%40corp", "Tr0ub4dor", "ops@corp"),
         id="percent_encoded_userinfo",
     ),
     pytest.param(
         f"HTTPS://svc:{_PASSWORD}@MCP.Example.COM:443/api/mcp/s/{_ZAPIER_PATH_TOKEN}/mcp"
         f"?key={_OPENAI_KEY}#sig={_GOOGLE_OAUTH}",
-        "https://mcp.example.com",
-        (_PASSWORD, _ZAPIER_PATH_TOKEN, _OPENAI_KEY, _GOOGLE_OAUTH),
+        f"https://mcp.example.com/api/mcp/s/{_ZAPIER_PATH_TOKEN}/mcp",
+        (_PASSWORD, _OPENAI_KEY, _GOOGLE_OAUTH),
         id="everything_at_once",
     ),
 ]
@@ -2206,19 +2156,19 @@ def _reported_text(mock_execute_request, test_spans, caplog):
     return "\n".join(reported)
 
 
-@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
-def test_mcp_server_url_secrets_are_reduced_to_the_origin(server_url, origin, secrets, mcp_enabled):
+@pytest.mark.parametrize("server_url,sent_url,secrets", LEAKY_MCP_URLS)
+def test_mcp_server_url_drops_its_secrets(server_url, sent_url, secrets, mcp_enabled):
     servers = _hosted_mcp_servers(_leaky_mcp_tools(server_url))
 
-    assert servers["deepwiki"]["url"] == origin
-    assert servers["deepwiki"]["id"] == _server_id(f"url|{origin}")
+    assert servers["deepwiki"]["url"] == sent_url
+    assert servers["deepwiki"]["id"] == "mcp_1"
     assert "url" not in servers["gmail"]
     serialized = json.dumps(servers)
     for secret in secrets + _TOOL_CREDENTIALS:
         assert secret not in serialized
 
 
-@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
+@pytest.mark.parametrize("server_url,sent_url,secrets", LEAKY_MCP_URLS)
 @patch(EXECUTE_REQUEST)
 def test_mcp_secrets_never_reported_on_an_allowed_approval(
     mock_execute_request,
@@ -2227,10 +2177,10 @@ def test_mcp_secrets_never_reported_on_an_allowed_approval(
     test_spans,
     caplog,
     server_url,
-    origin,
+    sent_url,
     secrets,
 ):
-    """Through the real SDK call: the payloads, AI Guard spans and debug logs carry only the origin."""
+    """Through the real SDK call: the payloads, AI Guard spans and debug logs carry the URL without its secrets."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     with caplog.at_level("DEBUG", logger="ddtrace"):
@@ -2239,16 +2189,16 @@ def test_mcp_secrets_never_reported_on_an_allowed_approval(
         )
 
     assert resp.output[-1].type == "mcp_approval_request"
-    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == origin
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == sent_url
     # A non-empty capture, so the negative assertions below cannot pass on an empty log.
     assert "AI Guard" in caplog.text
     reported = _reported_text(mock_execute_request, test_spans, caplog)
-    assert origin in reported
+    assert sent_url in reported
     for secret in secrets + _TOOL_CREDENTIALS:
         assert secret not in reported
 
 
-@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
+@pytest.mark.parametrize("server_url,sent_url,secrets", LEAKY_MCP_URLS)
 @patch(EXECUTE_REQUEST)
 def test_mcp_secrets_never_reported_on_a_blocked_approval(
     mock_execute_request,
@@ -2257,7 +2207,7 @@ def test_mcp_secrets_never_reported_on_a_blocked_approval(
     test_spans,
     caplog,
     server_url,
-    origin,
+    sent_url,
     secrets,
 ):
     """A block reports the verdict, not the server credentials, in the error and its traceback."""
@@ -2274,7 +2224,7 @@ def test_mcp_secrets_never_reported_on_a_blocked_approval(
         assert secret not in reported
 
 
-@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
+@pytest.mark.parametrize("server_url,sent_url,secrets", LEAKY_MCP_URLS)
 @patch(EXECUTE_REQUEST)
 def test_mcp_secrets_never_reported_from_a_buffered_stream(
     mock_execute_request,
@@ -2282,7 +2232,7 @@ def test_mcp_secrets_never_reported_from_a_buffered_stream(
     test_spans,
     caplog,
     server_url,
-    origin,
+    sent_url,
     secrets,
 ):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -2293,7 +2243,7 @@ def test_mcp_secrets_never_reported_from_a_buffered_stream(
         )
         assert list(stream)
 
-    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == origin
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == sent_url
     reported = _reported_text(mock_execute_request, test_spans, caplog)
     for secret in secrets + _TOOL_CREDENTIALS:
         assert secret not in reported
@@ -2303,7 +2253,7 @@ def test_mcp_secrets_never_reported_from_a_buffered_stream(
 def test_mcp_secrets_never_reported_from_a_replayed_approval(mock_execute_request, mcp_enabled, test_spans, caplog):
     """A stateless continuation replays the approval request and resends tools with credentials."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-    server_url, origin, secrets = LEAKY_MCP_URLS[-1].values
+    server_url, sent_url, secrets = LEAKY_MCP_URLS[-1].values
     kwargs = {
         "model": RESPONSES_MODEL,
         "tools": _leaky_mcp_tools(server_url),
@@ -2319,7 +2269,7 @@ def test_mcp_secrets_never_reported_from_a_replayed_approval(mock_execute_reques
 
     # The approval is evaluated first; the user message, still last once approvals are set aside, next.
     assert mock_execute_request.call_count == 2
-    assert _evaluated_attributes(mock_execute_request, 0)["mcp_servers"][0]["url"] == origin
+    assert _evaluated_attributes(mock_execute_request, 0)["mcp_servers"][0]["url"] == sent_url
     reported = _reported_text(mock_execute_request, test_spans, caplog)
     for secret in secrets + _TOOL_CREDENTIALS:
         assert secret not in reported
@@ -2373,7 +2323,7 @@ def test_streamed_mcp_approval_request_with_iterable_tools_is_blocked(
 
     assert seen == []
     assert mock_execute_request.call_count == 2
-    # The tools were read before the SDK consumed them, so the server keeps its URL origin.
+    # The tools were read before the SDK consumed them, so the server keeps its URL.
     assert _evaluated_attributes(mock_execute_request)["mcp_servers"] == [DEEPWIKI_SERVER]
 
 
@@ -2410,7 +2360,7 @@ def test_streamed_reusable_prompt_is_buffered_and_blocked(
     assert mock_execute_request.call_count == 2
     # Without tools, only the label identifies the server.
     (server,) = _evaluated_attributes(mock_execute_request)["mcp_servers"]
-    assert server["id"] == _server_id("name|deepwiki")
+    assert server["id"] == "mcp_1"
     assert "url" not in server
 
 

@@ -23,6 +23,11 @@ class PathTraversal(VulnerabilityBase):
 
 IS_REPORTED_INTRUMENTED_SINK_METRIC = False
 
+# Keyword names of the primary path parameter in DEFAULT_PATH_TRAVERSAL_FUNCTIONS: "file" for open and
+# zipfile.ZipFile, "path" for most os functions and shutil.rmtree, "src" for os.rename and shutil.copy/copytree/move,
+# "pathname" for glob.glob and "name" for tarfile.open.
+_PATH_KEYWORD_ARGUMENTS = ("file", "path", "src", "pathname", "name")
+
 
 def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
     global IS_REPORTED_INTRUMENTED_SINK_METRIC
@@ -32,7 +37,11 @@ def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
 
     try:
         if is_iast_request_enabled():
-            filename_arg = args[0] if len(args) > 0 else kwargs.get("file", None)
+            filename_arg = (
+                args[0]
+                if len(args) > 0
+                else next((kwargs[name] for name in _PATH_KEYWORD_ARGUMENTS if name in kwargs), None)
+            )
             if (
                 isinstance(filename_arg, IAST.TEXT_TYPES)
                 and PathTraversal.has_quota()

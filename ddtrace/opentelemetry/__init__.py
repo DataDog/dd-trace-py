@@ -105,6 +105,27 @@ Usage example::
     counter = meter.create_counter("requests_total")
     counter.add(1, {"method": "GET"})
 
+Runtime metrics
+^^^^^^^^^^^^^^^
+
+When runtime metrics are also enabled with ``DD_RUNTIME_METRICS_ENABLED=true``, they are exported over OTLP instead of
+DogStatsD, under their OpenTelemetry semantic convention names:
+
+- ``cpython.gc.collections``, ``cpython.gc.collected_objects`` and ``cpython.gc.uncollectable_objects``
+- ``process.runtime.cpython.gc_count``
+- ``process.cpu.time`` and ``process.cpu.utilization``
+- ``process.context_switches``
+- ``process.memory.usage`` and ``process.thread.count``
+
+Every runtime metric has the ``datadog.runtime_id`` attribute, so that each process, including forked ones, has its own
+series. The ``runtime.python.gc.pause.*`` metrics have no OpenTelemetry equivalent and are not exported over OTLP.
+
+Like the meter provider, the runtime metrics are set up once the application imports ``opentelemetry``: a process
+that never imports it does not report runtime metrics. They are still sent to DogStatsD, with a warning, when:
+
+- ``ddtrace-run`` or ``ddtrace.auto`` is not used, as nothing then sets up the meter provider;
+- ``opentelemetry-api`` or ``opentelemetry-sdk`` older than 1.16.0, or an OTLP exporter older than 1.15.0, is installed.
+
 
 Logs
 ----
@@ -162,6 +183,11 @@ The following environment variables are supported:
   otherwise ``none`` disables the signal. Unsupported entries are ignored with a warning. An empty
   value, or a list without ``otlp`` or ``none``, behaves like an unset one.
 
+- ``OTEL_SDK_DISABLED``
+  Set this to ``true`` to disable tracing, including OTLP trace export, and OpenTelemetry metrics and logs support
+  (default: ``false``). ``DD_TRACE_ENABLED`` takes precedence over this setting for tracing, while this setting
+  takes precedence over ``DD_METRICS_OTEL_ENABLED`` and ``DD_LOGS_OTEL_ENABLED``.
+
 - ``OTEL_METRIC_EXPORT_INTERVAL``
   Interval (in milliseconds) between metric exports.
 
@@ -194,8 +220,22 @@ The following environment variables are supported:
   configuration takes precedence over the global ``OTEL_EXPORTER_OTLP_PROTOCOL`` setting. Set
   ``OTEL_EXPORTER_OTLP_PROTOCOL=grpc`` to use a gRPC collector. gRPC
   trace export currently requires an ``http://`` endpoint; ``https://`` is not supported.
+  Protocol values are case-insensitive. Invalid or unsupported values for metrics and logs
+  produce a warning and fall back to ``http/protobuf``.
+
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_COMPRESSION``
+  Compression used for OTLP metrics and logs. Signal-specific configuration takes precedence
+  over the global ``OTEL_EXPORTER_OTLP_COMPRESSION`` setting. Supported values include ``none``
+  (default) and ``gzip``; HTTP exporters also support ``deflate``. Invalid or unsupported values
+  produce a warning and disable compression for the corresponding signal. Each setting
+  uses fleet configuration first, then environment variables, then local configuration.
 
 OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
+
+To check the settings in effect, read the ``DATADOG TRACER CONFIGURATION`` startup log, which
+``DD_TRACE_STARTUP_LOGS`` enables by default: it reports the value the SDK resolved for each setting above,
+keyed by its environment variable. ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_TIMEOUT`` are the exceptions, as the
+OpenTelemetry SDK exporters read them directly.
 
 
 Trace Mapping

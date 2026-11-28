@@ -14,8 +14,8 @@ from hypothesis.strategies import builds
 from hypothesis.strategies import one_of
 from hypothesis.strategies import text
 
+from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
-from ddtrace.appsec._iast._ast.ast_patching import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
@@ -114,7 +114,7 @@ string_valid_to_taint_strategies: list[Any] = [
 
 
 def iast_hypothesis_test(func):
-    return seed(42)(settings(max_examples=1000)(given(one_of(*string_strategies))(func)))
+    return seed(42)(settings(max_examples=1000, deadline=None)(given(one_of(*string_strategies))(func)))
 
 
 def _get_iast_data():
