@@ -253,6 +253,11 @@ Stage and commit both ``supported-configurations.json`` and
 ``ddtrace/internal/settings/_supported_configurations.py``. The pre-commit hook will catch any mismatch
 before commit, and the CI ``check`` job will enforce it on every PR.
 
+For settings resolved during tracer startup, ``internalPropertyName`` binds
+the value to its Python configuration field. Use ``configurationNames`` for
+the programmatic names of the same setting. Registry generation checks that
+each startup read has a binding.
+
 **2. Central Configuration Registry** (FPD)
 
 The key must also be added to the `Datadog Configuration Registry <https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations>`_

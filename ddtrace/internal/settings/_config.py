@@ -15,16 +15,9 @@ from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
-from ddtrace.internal.constants import DEFAULT_BUFFER_SIZE
-from ddtrace.internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
-from ddtrace.internal.constants import DEFAULT_PROCESSING_INTERVAL
-from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
-from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
-from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
@@ -35,6 +28,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
+from ddtrace.internal.telemetry import StartupConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
@@ -494,8 +488,9 @@ class Config:
         # Union of `_default_service*` string values from integrations registered via `_add`.
         self._integration_default_services: frozenset[str] = frozenset()
 
-        self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
-        self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", True, asbool)
+        startup = StartupConfig()
+        self._debug_mode = startup.read("_debug_mode", otel_env="OTEL_LOG_LEVEL")
+        self._startup_logs_enabled = startup.read("_startup_logs_enabled")
 
         agentless = AgentlessConfig()
         self._dd_api_key = agentless.api_key
@@ -504,9 +499,9 @@ class Config:
         for _name, _value, _origin in agentless.reported_configuration():
             telemetry_writer.add_configuration(_name, _value, _origin)
 
-        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
+        self._dd_app_key = startup.read("_dd_app_key", report_telemetry=False)
 
-        self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
+        self._trace_rate_limit: int = startup.read("_trace_rate_limit")
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
@@ -514,7 +509,7 @@ class Config:
                 "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
                 self._trace_rate_limit,
             )
-        self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
+        self._partial_flush_enabled = startup.read("_partial_flush_enabled")
         partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
         if partial_flush_min_spans < 1:
             log.warning("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS must be >= 1, defaulting to 1")
@@ -523,42 +518,36 @@ class Config:
             self._partial_flush_min_spans = partial_flush_min_spans
 
         self._http = HttpConfig(header_tags=self._trace_http_header_tags)
-        self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
-        self._remote_config_poll_interval = _get_config("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", 5.0, float)
-        self._trace_api = _get_config("DD_TRACE_API_VERSION")
+        self._remote_config_enabled = startup.read("_remote_config_enabled")
+        self._remote_config_poll_interval = startup.read("_remote_config_poll_interval")
+        self._trace_api = startup.read("_trace_api", None)
         if self._trace_api == "v0.3":
             log.error(
                 "Setting DD_TRACE_API_VERSION to ``v0.3`` is not supported. The default ``v0.5`` format will be used.",
             )
-        self._trace_writer_buffer_size = _get_config("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE, int)
-        self._trace_writer_payload_size = _get_config(
-            "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE, int
-        )
-        self._trace_writer_interval_seconds = _get_config(
-            "DD_TRACE_WRITER_INTERVAL_SECONDS", DEFAULT_PROCESSING_INTERVAL, float
-        )
-        self._trace_writer_connection_reuse = _get_config(
-            "DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS, asbool
-        )
-        self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
+        self._trace_writer_buffer_size = startup.read("_trace_writer_buffer_size")
+        self._trace_writer_payload_size = startup.read("_trace_writer_payload_size")
+        self._trace_writer_interval_seconds = startup.read("_trace_writer_interval_seconds")
+        self._trace_writer_connection_reuse = startup.read("_trace_writer_connection_reuse")
+        self._trace_writer_log_err_payload = startup.read("_trace_writer_log_err_payload")
         # Opt in to NativeTraceBuffer, which hands buffering and flush scheduling to libdatadog
         # instead of running them from a Python periodic thread. Internal while it is under test.
-        self._trace_native_buffer_enabled = _get_config("_DD_TRACE_NATIVE_BUFFER_ENABLED", False, asbool)
+        self._trace_native_buffer_enabled = startup.read("_trace_native_buffer_enabled")
 
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
-        self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
-        self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
+        self._trace_agent_url = startup.read("_trace_agent_url")
+        self._agent_timeout_seconds = startup.read("_agent_timeout_seconds")
 
-        self._span_traceback_max_size: int = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
+        self._span_traceback_max_size: int = startup.read("_span_traceback_max_size")
 
-        self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
-        self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
+        self._client_ip_header = startup.read("_client_ip_header")
+        self._retrieve_client_ip = startup.read("_retrieve_client_ip")
 
-        self._propagation_http_baggage_enabled = _get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
+        self._propagation_http_baggage_enabled = startup.read("_propagation_http_baggage_enabled")
 
-        self.env = _get_config("DD_ENV", self.tags.get("env"))
-        self.service: Optional[str] = _get_config(
-            "DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME"
+        self.env = startup.read("env", self.tags.get("env"))
+        self.service: Optional[str] = startup.read(
+            "service", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME"
         )
 
         self._inferred_base_service = detect_service(sys.argv)
@@ -590,10 +579,10 @@ class Config:
         if self.service is None and in_azure_function():
             self.service = _get_config("WEBSITE_SITE_NAME", default_span_service_name)
         if self.service is None and default_span_service_name:
-            self.service = _get_config("DD_SERVICE", default_span_service_name)
+            self.service = startup.read("service", default_span_service_name)
 
         self._extra_services: set[str] = set()
-        self.version = _get_config("DD_VERSION", self.tags.get("version"))
+        self.version = startup.read("version", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
         self._http_client = self._HTTPClientConfig()
 
@@ -617,13 +606,13 @@ class Config:
         if self.version and "version" in self.tags:
             del self.tags["version"]
 
-        self._report_hostname = _get_config("DD_TRACE_REPORT_HOSTNAME", False, asbool)
+        self._report_hostname = startup.read("_report_hostname")
 
-        self._health_metrics_enabled = _get_config("DD_TRACE_HEALTH_METRICS_ENABLED", False, asbool)
+        self._health_metrics_enabled = startup.read("_health_metrics_enabled")
 
-        self._telemetry_enabled = _get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool)
-        self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
-        self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
+        self._telemetry_enabled = startup.read("_telemetry_enabled")
+        self._telemetry_heartbeat_interval = startup.read("_telemetry_heartbeat_interval", 60)
+        self._telemetry_dependency_collection = startup.read("_telemetry_dependency_collection")
 
         # Validate OTEL_METRICS_EXPORTER at most once, so its warnings and telemetry are not duplicated.
         runtime_metrics_enabled = _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
@@ -633,9 +622,7 @@ class Config:
         ) and validate_and_report_otel_metrics_exporter_enabled()
         # An explicit OTEL_METRICS_EXPORTER=none also disables runtime metrics.
         self._runtime_metrics_enabled = runtime_metrics_enabled and otel_metrics_exporter_enabled
-        self._runtime_metrics_runtime_id_enabled = _get_config(
-            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
-        )
+        self._runtime_metrics_runtime_id_enabled = startup.read("_runtime_metrics_runtime_id_enabled")
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
         )
@@ -652,9 +639,9 @@ class Config:
             _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
         )
 
-        self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
-        self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
-        self._sampling_rules_file = _get_config("DD_SPAN_SAMPLING_RULES_FILE")
+        self._128_bit_trace_id_logging_enabled = startup.read("_128_bit_trace_id_logging_enabled")
+        self._sampling_rules = startup.read("_sampling_rules")
+        self._sampling_rules_file = startup.read("_sampling_rules_file")
 
         # Propagation styles
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
@@ -686,7 +673,7 @@ class Config:
             )
         )
 
-        self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+        self._propagation_extract_first = startup.read("_propagation_extract_first")
 
         self._propagation_as_span_links = _get_config(
             "DD_TRACE_PROPAGATION_AS_SPAN_LINKS",
@@ -709,8 +696,8 @@ class Config:
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool)
-        self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
+        self._trace_compute_stats = startup.read("_trace_compute_stats")
+        self._otel_stats_computation_enabled = startup.read("_otel_stats_computation_enabled")
         self._trace_stats_additional_tags = _get_config(
             "DD_TRACE_STATS_ADDITIONAL_TAGS",
             [],
@@ -731,10 +718,8 @@ class Config:
                 limit = limit_default
             self._trace_stats_cardinality_limits[field] = limit
 
-        self._client_side_stats_obfuscation = _get_config(
-            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
-        )
-        self._data_streams_enabled: bool = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
+        self._client_side_stats_obfuscation = startup.read("_client_side_stats_obfuscation")
+        self._data_streams_enabled: bool = startup.read("_data_streams_enabled")
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
@@ -755,14 +740,16 @@ class Config:
             self._http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
         self._ci_visibility_agentless_enabled = agentless.ci_visibility
-        self._ci_visibility_agentless_url = _get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
-        self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", True, asbool)
-        self._ci_visibility_log_level = _get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
-        self._test_session_name = _get_config("DD_TEST_SESSION_NAME")
-        self._test_visibility_early_flake_detection_enabled = _get_config(
-            "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
+        self._ci_visibility_agentless_url = startup.read("_ci_visibility_agentless_url", "")
+        self._ci_visibility_intelligent_testrunner_enabled = startup.read(
+            "_ci_visibility_intelligent_testrunner_enabled"
         )
-        self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._ci_visibility_log_level = startup.read("_ci_visibility_log_level")
+        self._test_session_name = startup.read("_test_session_name")
+        self._test_visibility_early_flake_detection_enabled = startup.read(
+            "_test_visibility_early_flake_detection_enabled"
+        )
+        self._otel_trace_enabled = startup.read("_otel_trace_enabled", otel_env="OTEL_SDK_DISABLED")
         if self._otel_trace_semantics_enabled:
             _peer_service_defaults_enabled = _get_config(
                 "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, asbool, report_telemetry=False
@@ -791,11 +778,8 @@ class Config:
                     (("config_datadog", "dd_trace_span_attribute_schema"),),
                 )
         self._otel_metrics_enabled = otel_metrics_enabled and otel_metrics_exporter_enabled
-        self._otel_logs_enabled = _get_config(
-            "DD_LOGS_OTEL_ENABLED",
-            False,
-            asbool,
-            ["OTEL_LOGS_EXPORTER", "OTEL_SDK_DISABLED"],
+        self._otel_logs_enabled = startup.read(
+            "_otel_logs_enabled", otel_env=["OTEL_LOGS_EXPORTER", "OTEL_SDK_DISABLED"]
         )
         # Use the same parsing as the OTEL_SDK_DISABLED remapping, so a value is either applied to every
         # signal or rejected as invalid for every signal.
@@ -819,19 +803,17 @@ class Config:
             env["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
 
-        self._trace_methods = _get_config("DD_TRACE_METHODS")
+        self._trace_methods = startup.read("_trace_methods")
 
         self._llmobs_agentless_enabled = agentless.llmobs
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
-        self._model_lab_enabled: bool = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+        self._model_lab_enabled: bool = startup.read("_model_lab_enabled")
 
-        self._llmobs_payload_size_limit = _get_config(
-            "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
-        )
-        self._llmobs_event_size_limit = _get_config("DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int)
+        self._llmobs_payload_size_limit = startup.read("_llmobs_payload_size_limit")
+        self._llmobs_event_size_limit = startup.read("_llmobs_event_size_limit")
         if "DD_LLMOBS_ML_APP" in env:
             deprecate(
                 "DD_LLMOBS_ML_APP is deprecated",
@@ -839,9 +821,9 @@ class Config:
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
+        self._inject_force = startup.read("_inject_force", None)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
-        self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
+        self._lib_was_injected = startup.read("_lib_was_injected", report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         if "DD_TRACE_INFERRED_SPANS_ENABLED" in env:
             deprecate(
@@ -850,32 +832,24 @@ class Config:
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
-        self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
-        self._otel_thread_context_enabled = _get_config("DD_TRACE_OTEL_CTX_ENABLED", True, asbool)
+        self._inferred_proxy_services_enabled = startup.read("_inferred_proxy_services_enabled")
+        self._trace_safe_instrumentation_enabled = startup.read("_trace_safe_instrumentation_enabled")
+        self._otel_thread_context_enabled = startup.read("_otel_thread_context_enabled")
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
         # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
-        self._trace_wrap_span_name_include_class = _get_config(
-            "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", default=False, modifier=asbool
-        )
+        self._trace_wrap_span_name_include_class = startup.read("_trace_wrap_span_name_include_class")
 
         # Resource renaming
-        self._trace_resource_renaming_enabled = _get_config(
-            "DD_TRACE_RESOURCE_RENAMING_ENABLED", default=False, modifier=asbool
-        )
-        self._trace_resource_renaming_always_simplified_endpoint = _get_config(
-            "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", default=False, modifier=asbool
+        self._trace_resource_renaming_enabled = startup.read("_trace_resource_renaming_enabled")
+        self._trace_resource_renaming_always_simplified_endpoint = startup.read(
+            "_trace_resource_renaming_always_simplified_endpoint"
         )
 
         # Long-running span interval configurations
         # Only supported for Ray spans for now
-        self._long_running_flush_interval = _get_config(
-            "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", default=120.0, modifier=float
-        )
-        self._long_running_initial_flush_interval = _get_config(
-            "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
-        )
+        self._long_running_flush_interval = startup.read("_long_running_flush_interval")
+        self._long_running_initial_flush_interval = startup.read("_long_running_initial_flush_interval")
         # When True, traces are sent via the JSON span intake (agentless EvP), e.g. browser-intake-*.
         self._trace_agentless_enabled = agentless.apm_tracing
         if self._trace_agentless_enabled:

@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.internal import telemetry
 from ddtrace.internal.native._native import PyCoreConfigResolver
+from ddtrace.internal.settings._config import Config
 
 
 def test_core_config_resolver_reads_manifest_and_applies_programmatic_values(tmp_path):
@@ -44,41 +45,108 @@ def test_core_config_resolver_reads_manifest_and_applies_programmatic_values(tmp
     }
 
 
-@pytest.mark.parametrize(("name", "otel_env"), [("DD_ENV", None), ("DD_SERVICE", "OTEL_SERVICE_NAME")])
-def test_core_config_preserves_startup_string_origins(monkeypatch, name, otel_env):
-    resolver = PyCoreConfigResolver()
-    resolve = Mock(wraps=resolver.request)
-    native_resolver = Mock(request=resolve)
-    report = Mock()
-    monkeypatch.setattr(telemetry._native, "PyCoreConfigResolver", lambda: native_resolver)
-    monkeypatch.setattr(telemetry.telemetry_writer, "add_configuration", report)
-    monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {name: "local"})
-    monkeypatch.setattr(telemetry, "FLEET_CONFIG", {name: "fleet"})
-    monkeypatch.setattr(telemetry, "FLEET_CONFIG_IDS", {name: "fleet-id"})
-    monkeypatch.setenv(name, "process")
-    if otel_env:
-        monkeypatch.delenv(otel_env, raising=False)
+@pytest.mark.parametrize(("dd_service", "expected"), [(None, "otel-service"), ("dd-service", "dd-service")])
+def test_core_config_uses_the_otel_service_mapping_when_set(monkeypatch, dd_service, expected):
+    monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {})
+    monkeypatch.setattr(telemetry, "FLEET_CONFIG", {})
+    if dd_service is None:
+        monkeypatch.delenv("DD_SERVICE", raising=False)
+    else:
+        monkeypatch.setenv("DD_SERVICE", dd_service)
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "otel-service")
 
-    assert telemetry.get_config(name, "fallback", otel_env=otel_env) == "fleet"
+    assert Config().service == expected
+
+
+@pytest.mark.parametrize("buffer_size", ["1_024", str(1 << 80)])
+def test_core_config_loads_one_tracer_startup_snapshot(monkeypatch, buffer_size):
+    resolve = Mock(wraps=PyCoreConfigResolver().request)
+    report = Mock()
+    monkeypatch.setattr(telemetry._native, "PyCoreConfigResolver", lambda: Mock(request=resolve))
+    monkeypatch.setattr(telemetry.telemetry_writer, "add_configuration", report)
+    monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {"DD_ENV": "local", "DD_TRACE_STARTUP_LOGS": "true"})
+    monkeypatch.setattr(telemetry, "FLEET_CONFIG", {"DD_ENV": "fleet", "DD_REMOTECONFIG_POLL_SECONDS": "7.5"})
+    monkeypatch.setattr(
+        telemetry, "FLEET_CONFIG_IDS", {"DD_ENV": "fleet-id", "DD_REMOTECONFIG_POLL_SECONDS": "poll-id"}
+    )
+    monkeypatch.setenv("DD_APP_KEY", "startup-test-key")
+    monkeypatch.setenv("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "6")
+    monkeypatch.setenv("DD_ENV", "process")
+    monkeypatch.setenv("DD_SERVICE", "service")
+    monkeypatch.setenv("DD_VERSION", "version")
+    monkeypatch.setenv("DD_TRACE_STARTUP_LOGS", " TRUE")
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", buffer_size)
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+
+    config = Config()
+
     resolve.assert_called_once()
-    assert report.call_args_list == [
-        call(name, "fallback", "default"),
-        call(name, "local", "local_stable_config"),
-        call(name, "process", "env_var"),
-        call(name, "fleet", "fleet_stable_config", "fleet-id"),
+    assert config.env == "fleet"
+    assert config.service == "service"
+    assert config.version == "version"
+    assert config._startup_logs_enabled is False
+    assert config._trace_writer_buffer_size == int(buffer_size)
+    assert config._remote_config_poll_interval == 7.5
+    assert config._dd_app_key == "startup-test-key"
+    assert all(entry.args[0] != "DD_APP_KEY" for entry in report.call_args_list)
+    assert [entry for entry in report.call_args_list if entry.args[0] == "DD_ENV"] == [
+        call("DD_ENV", None, "default"),
+        call("DD_ENV", "local", "local_stable_config"),
+        call("DD_ENV", "process", "env_var"),
+        call("DD_ENV", "fleet", "fleet_stable_config", "fleet-id"),
+    ]
+    assert [entry for entry in report.call_args_list if entry.args[0] == "DD_TRACE_STARTUP_LOGS"] == [
+        call("DD_TRACE_STARTUP_LOGS", True, "default"),
+        call("DD_TRACE_STARTUP_LOGS", True, "local_stable_config"),
+        call("DD_TRACE_STARTUP_LOGS", False, "env_var"),
+    ]
+    assert [entry for entry in report.call_args_list if entry.args[0] == "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] == [
+        call("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", 5.0, "default"),
+        call("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", 6.0, "env_var"),
+        call("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", 7.5, "fleet_stable_config", "poll-id"),
     ]
 
 
-def test_core_config_uses_the_otel_service_mapping_when_set(monkeypatch):
-    resolver = Mock()
-    monkeypatch.setattr(telemetry._native, "PyCoreConfigResolver", resolver)
+def test_core_config_keeps_numeric_conversion_errors_in_source_order(monkeypatch):
+    monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {"DD_TRACE_WRITER_BUFFER_SIZE_BYTES": "invalid"})
+    monkeypatch.setattr(telemetry, "FLEET_CONFIG", {"DD_TRACE_WRITER_BUFFER_SIZE_BYTES": "1024"})
+
+    with pytest.raises(ValueError, match="invalid literal for int"):
+        Config()
+
+
+def test_core_config_accepts_environment_strings_with_surrogate_escapes(monkeypatch):
+    monkeypatch.setenv("DD_ENV", "stage-\udcff")
+
+    assert Config().env == "stage-\udcff"
+
+
+def test_core_config_uses_the_compiled_manifest_default(monkeypatch):
+    manifest = json.loads(telemetry.STARTUP_CONFIG_MANIFEST)
+    manifest["supportedConfigurations"]["DD_TRACE_STARTUP_LOGS"][0]["default"] = "false"
+    monkeypatch.setattr(telemetry, "STARTUP_CONFIG_MANIFEST", json.dumps(manifest))
     monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {})
     monkeypatch.setattr(telemetry, "FLEET_CONFIG", {})
-    monkeypatch.delenv("DD_SERVICE", raising=False)
-    monkeypatch.setenv("OTEL_SERVICE_NAME", "otel-service")
+    monkeypatch.delenv("DD_TRACE_STARTUP_LOGS", raising=False)
 
-    assert telemetry.get_config("DD_SERVICE", otel_env="OTEL_SERVICE_NAME", report_telemetry=False) == "otel-service"
-    resolver.assert_not_called()
+    assert Config()._startup_logs_enabled is False
+
+
+@pytest.mark.parametrize("resolver_available", [False, True])
+def test_core_config_uses_host_values_when_the_native_schema_is_unavailable(monkeypatch, resolver_available):
+    if resolver_available:
+        monkeypatch.setattr(telemetry, "STARTUP_CONFIG_MANIFEST", "invalid")
+    else:
+        monkeypatch.delattr(telemetry._native, "PyCoreConfigResolver")
+    monkeypatch.setattr(telemetry, "LOCAL_CONFIG", {})
+    monkeypatch.setattr(telemetry, "FLEET_CONFIG", {})
+    monkeypatch.delenv("DD_TRACE_STARTUP_LOGS", raising=False)
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "1_024")
+
+    config = Config()
+
+    assert config._startup_logs_enabled is True
+    assert config._trace_writer_buffer_size == 1024
 
 
 def test_is_panic_exception():
