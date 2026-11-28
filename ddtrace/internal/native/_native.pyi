@@ -28,6 +28,10 @@ class DDSketch:
     @property
     def count(self) -> float: ...
 
+class PyCoreConfigResolver:
+    def __init__(self) -> None: ...
+    def request(self, request: bytes) -> bytes: ...
+
 class PyConfigurator:
     """
     PyConfigurator is a class responsible for configuring the Python environment

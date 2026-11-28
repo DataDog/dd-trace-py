@@ -44,6 +44,7 @@ libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "v51.0.
 libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v51.0.1" }
 libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v51.0.1", optional = true }
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v51.0.1", optional = true }
+libdd-config-core = { git = "https://github.com/DataDog/libdatadog.git", rev = "b3287f9b9836f960264e03c28345578d5e0c7bc9" }
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v51.0.1" }
 libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v51.0.1" }
 libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v51.0.1" }

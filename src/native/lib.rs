@@ -47,6 +47,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     }
 
     m.add_class::<library_config::PyConfigurator>()?;
+    m.add_class::<library_config::PyCoreConfigResolver>()?;
 
     #[cfg(feature = "crashtracker")]
     {

@@ -437,6 +437,7 @@ dependencies = [
  "libc",
  "libdd-capabilities-impl",
  "libdd-common",
+ "libdd-config-core",
  "libdd-crashtracker",
  "libdd-data-pipeline",
  "libdd-ddsketch",
@@ -1202,6 +1203,8 @@ checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
  "hashbrown",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -1455,6 +1458,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "libdd-config-core"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/libdatadog.git?rev=b3287f9b9836f960264e03c28345578d5e0c7bc9#b3287f9b9836f960264e03c28345578d5e0c7bc9"
+dependencies = [
+ "indexmap",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog.git?rev=b3287f9b9836f960264e03c28345578d5e0c7bc9)",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "libdd-crashtracker"
 version = "3.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v51.0.1#9fc5398f1b25810e114fb9ab97d80d31183ef9f0"
@@ -1520,7 +1535,7 @@ dependencies = [
  "libdd-dogstatsd-client",
  "libdd-host-identity",
  "libdd-networking",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-shared-runtime",
  "libdd-telemetry",
  "libdd-tinybytes",
@@ -1552,7 +1567,7 @@ dependencies = [
  "libdd-capabilities",
  "libdd-common",
  "libdd-host-identity",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-trace-obfuscation",
  "libdd-trace-stats",
  "libdd-trace-utils",
@@ -1570,7 +1585,7 @@ dependencies = [
  "libdd-common",
  "libdd-common-ffi",
  "libdd-data-pipeline",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-shared-runtime",
  "libdd-tinybytes",
  "libdd-trace-obfuscation",
@@ -1622,7 +1637,7 @@ dependencies = [
  "faststr",
  "libdd-common",
  "libdd-networking",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-remote-config",
  "log",
  "md5",
@@ -1648,7 +1663,7 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v51.0.1#9fc5398f1b25810e
 dependencies = [
  "libc",
  "libdd-env",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "windows-sys 0.52.0",
 ]
 
@@ -1736,7 +1751,7 @@ dependencies = [
  "function_name",
  "libdd-common-ffi",
  "libdd-library-config",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
 ]
 
 [[package]]
@@ -1765,7 +1780,7 @@ dependencies = [
  "libdd-common",
  "libdd-data-pipeline",
  "libdd-networking",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-remote-config",
  "percent-encoding",
  "serde",
@@ -1897,7 +1912,7 @@ dependencies = [
  "libdd-networking",
  "libdd-otel-thread-ctx-ffi",
  "libdd-profiling",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-shared-runtime-ffi",
  "serde_json",
  "thiserror 2.0.18",
@@ -1910,6 +1925,14 @@ version = "2.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v51.0.1#9fc5398f1b25810e114fb9ab97d80d31183ef9f0"
 dependencies = [
  "prost",
+]
+
+[[package]]
+name = "libdd-regex"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/libdatadog.git?rev=b3287f9b9836f960264e03c28345578d5e0c7bc9#b3287f9b9836f960264e03c28345578d5e0c7bc9"
+dependencies = [
+ "regex",
 ]
 
 [[package]]
@@ -1940,7 +1963,7 @@ dependencies = [
  "libdd-common",
  "libdd-host-identity",
  "libdd-networking",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-trace-protobuf",
  "libdd-tuf",
  "manual_future",
@@ -1969,7 +1992,7 @@ dependencies = [
  "libdd-capabilities",
  "libdd-capabilities-impl",
  "libdd-common",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "tokio",
  "tracing",
  "wasm-bindgen-futures",
@@ -1981,7 +2004,7 @@ version = "51.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v51.0.1#9fc5398f1b25810e114fb9ab97d80d31183ef9f0"
 dependencies = [
  "build_common",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-shared-runtime",
  "tracing",
 ]
@@ -2053,7 +2076,7 @@ dependencies = [
  "anyhow",
  "fluent-uri",
  "libdd-env",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-trace-model",
  "libdd-trace-protobuf",
  "libdd-trace-utils",
@@ -2128,7 +2151,7 @@ dependencies = [
  "libdd-common",
  "libdd-host-identity",
  "libdd-networking",
- "libdd-regex",
+ "libdd-regex 0.1.0 (git+https://github.com/DataDog/libdatadog?rev=v51.0.1)",
  "libdd-tinybytes",
  "libdd-trace-model",
  "libdd-trace-normalization",

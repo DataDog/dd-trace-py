@@ -4,9 +4,12 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 ``DD_INSTRUMENTATION_TELEMETRY_ENABLED`` variable to ``False``.
 """
 
+import json
+import math
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import _native
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import FLEET_CONFIG
@@ -23,6 +26,8 @@ from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._otel_remapper import select_exporter
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
 from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+from ddtrace.internal.settings._supported_configurations import STARTUP_CONFIG_MANIFEST
+from ddtrace.internal.settings._supported_configurations import STARTUP_CONFIGURATIONS
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -39,6 +44,119 @@ def _is_otel_env_set(otel_env: str) -> bool:
     if otel_env not in env:
         return False
     return not (otel_env in OTEL_EXPORTER_ENV_VARS and is_unset_exporter_list(env[otel_env]))
+
+
+_STARTUP_MODIFIERS: dict[str, t.Callable[[str], t.Any]] = {"boolean": asbool, "int": int, "decimal": float}
+_USE_MANIFEST_DEFAULT = object()
+
+
+class StartupConfig:
+    """Snapshot of the scalar values used to initialize the tracer singleton."""
+
+    def __init__(self) -> None:
+        self._settings: dict[str, t.Any] = {}
+        self._sources: dict[str, list[dict[str, t.Any]]] = {}
+        resolver_type = getattr(_native, "PyCoreConfigResolver", None)
+        if resolver_type is None:
+            return
+
+        layers = []
+        fallback = set()
+        for origin, source in (
+            ("local_stable_config", LOCAL_CONFIG),
+            ("env_var", env),
+            ("fleet_stable_config", FLEET_CONFIG),
+        ):
+            entries = []
+            for canonical, kind, _ in STARTUP_CONFIGURATIONS.values():
+                names = (canonical, *CONFIGURATION_ALIASES.get(canonical, ()))
+                for name in names:
+                    if name in source:
+                        raw = source[name]
+                        break
+                else:
+                    continue
+
+                if kind == "string":
+                    value: t.Any = raw
+                elif kind == "boolean":
+                    value = {"kind": "boolean", "value": asbool(raw)}
+                else:
+                    try:
+                        number = int(raw) if kind == "int" else float(raw)
+                    except (ValueError, OverflowError):
+                        fallback.add(canonical)
+                        continue
+                    # The host read preserves Python's exception timing and numbers outside the native value range.
+                    if (kind == "int" and not -(1 << 63) <= number < (1 << 63)) or (
+                        kind == "decimal" and not math.isfinite(number)
+                    ):
+                        fallback.add(canonical)
+                        continue
+                    value = {"kind": "number", "value": number}
+                entry = {"name": name, "value": value}
+                if origin == "fleet_stable_config" and (config_id := FLEET_CONFIG_IDS.get(name)) is not None:
+                    entry["config_id"] = config_id
+                entries.append(entry)
+            if entries:
+                layers.append({"origin": origin, "entries": entries})
+
+        request = {
+            "version": 1,
+            "operation": "initialize",
+            "manifest": {"kind": "json", "value": STARTUP_CONFIG_MANIFEST},
+            "inputs": {"layers": layers, "report_sources": telemetry_enabled},
+        }
+        try:
+            encoded = json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode()
+        except UnicodeEncodeError:
+            # os.environ can contain surrogate escapes for bytes that are invalid in UTF-8.
+            log.debug("Unable to encode startup configuration for libdatadog")
+            return
+        reply = json.loads(resolver_type().request(encoded))
+        if reply["status"] != "complete":
+            log.debug("Unable to resolve startup configuration with libdatadog: %s", reply.get("message"))
+            return
+        self._settings = {
+            setting["property"]: setting["resolved"] for setting in reply["settings"] if setting["name"] not in fallback
+        }
+        for event in reply["sources"]:
+            if event["value"] is not None:
+                self._sources.setdefault(event["name"], []).append(event)
+
+    def read(
+        self,
+        property_name: str,
+        default: t.Any = _USE_MANIFEST_DEFAULT,
+        otel_env: t.Optional[t.Union[str, list[str]]] = None,
+        report_telemetry: bool = True,
+    ) -> t.Any:
+        canonical, kind, manifest_default = STARTUP_CONFIGURATIONS[property_name]
+        use_manifest_default = default is _USE_MANIFEST_DEFAULT
+        if use_manifest_default:
+            default = manifest_default
+        otel_envs = [otel_env] if isinstance(otel_env, str) else otel_env or []
+        if property_name not in self._settings or any(_is_otel_env_set(name) for name in otel_envs):
+            return get_config(canonical, default, _STARTUP_MODIFIERS.get(kind), otel_env, report_telemetry)
+
+        resolved = self._settings[property_name]
+        if report_telemetry and telemetry_enabled and canonical not in SENSITIVE_CONFIGURATIONS:
+            sources = self._sources.get(canonical)
+            if use_manifest_default and sources and sources[0]["origin"] == "default":
+                default = sources[0]["value"]["value"]
+            telemetry_writer.add_configuration(canonical, default, "default")
+            for event in sources or ():
+                origin = event["origin"]
+                if origin == "default":
+                    continue
+                value = event["value"]["value"]
+                if origin == "fleet_stable_config":
+                    telemetry_writer.add_configuration(canonical, value, origin, resolved.get("config_id"))
+                else:
+                    telemetry_writer.add_configuration(canonical, value, origin)
+        if resolved is None or (resolved["origin"] == "default" and not use_manifest_default):
+            return default
+        return resolved["value"]["value"]
 
 
 def get_config(

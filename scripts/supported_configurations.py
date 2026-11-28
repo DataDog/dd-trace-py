@@ -7,6 +7,8 @@ Reads the JSON registry and produces a Python module with:
 - DEPRECATED_CONFIGURATIONS: frozenset of deprecated env var names
 - SENSITIVE_CONFIGURATIONS: frozenset of env var names whose value is excluded
   from configuration telemetry (marked ``"sensitive": true`` in the registry)
+- STARTUP_CONFIG_MANIFEST and STARTUP_CONFIGURATIONS: schema and field bindings
+  for the tracer singleton
 
 Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered.
 
@@ -47,7 +49,7 @@ HEADER = """\
 """
 
 
-def generate_module(data: dict) -> str:
+def generate_module(data: dict, required_startup_properties: set[str]) -> str:
     configs = data["supportedConfigurations"]
     all_names = sorted(configs.keys())
 
@@ -56,6 +58,44 @@ def generate_module(data: dict) -> str:
     aliases = {name: e["aliases"] for name, e in entries.items() if e.get("aliases")}
     deprecated = sorted(name for name, e in entries.items() if e.get("deprecated"))
     sensitive = sorted(name for name, e in entries.items() if e.get("sensitive"))
+    startup = {name: entry for name, entry in entries.items() if "internalPropertyName" in entry}
+    startup_manifest = json.dumps(
+        {"version": data["version"], "supportedConfigurations": {name: [entry] for name, entry in startup.items()}},
+        separators=(",", ":"),
+    )
+    # Keep the embedded JSON within Ruff's line length and quoting rules.
+    startup_manifest_parts = []
+    for start in range(0, len(startup_manifest), 100):
+        chunk = startup_manifest[start : start + 100]
+        literal = repr(chunk) if '"' in chunk else json.dumps(chunk)
+        startup_manifest_parts.append(f"    {literal}")
+    startup_manifest_lines = "\n".join(startup_manifest_parts)
+    startup_bindings = []
+    properties = set()
+    converters: dict[str, Callable[[str], object]] = {
+        "boolean": lambda value: value.lower() in ("true", "1"),
+        "int": int,
+        "decimal": float,
+        "string": str,
+    }
+    for name, entry in startup.items():
+        property_name = entry["internalPropertyName"]
+        kind = entry["type"]
+        if property_name in properties:
+            raise ValueError(f"Startup configuration property {property_name} is bound more than once")
+        properties.add(property_name)
+        if kind not in converters:
+            raise ValueError(f"Unsupported startup configuration type {kind} for {name}")
+        raw_default = entry["default"]
+        default = None if raw_default is None else converters[kind](raw_default)
+        fallback = json.dumps(default) if isinstance(default, str) else repr(default)
+        binding = f'    "{property_name}": ("{name}", "{kind}", {fallback}),'
+        if len(binding) > 120:
+            binding = f'    "{property_name}": (\n        "{name}",\n        "{kind}",\n        {fallback},\n    ),'
+        startup_bindings.append(binding)
+    if missing := required_startup_properties - properties:
+        raise ValueError(f"Missing startup configuration bindings: {', '.join(sorted(missing))}")
+    startup_bindings_block = "\n".join(startup_bindings)
 
     supported = "\n".join(f'        "{n}",' for n in all_names)
 
@@ -84,7 +124,6 @@ def generate_module(data: dict) -> str:
         if sensitive
         else "SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset()"
     )
-
     return f"""\
 {HEADER}
 SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
@@ -99,6 +138,14 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
 {deprecated_block}
 
 {sensitive_block}
+
+STARTUP_CONFIG_MANIFEST = (
+{startup_manifest_lines}
+)
+
+STARTUP_CONFIGURATIONS: dict[str, tuple[str, str, object]] = {{
+{startup_bindings_block}
+}}
 """
 
 
@@ -118,6 +165,49 @@ _STRING_CONSTANTS_CACHE: dict[Path, dict[str, str]] = {}
 
 def _literal_str(node: ast.AST | None) -> str | None:
     return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def _required_startup_properties() -> set[str]:
+    source = REPO_ROOT / "ddtrace" / "internal" / "settings" / "_config.py"
+    module = ast.parse(source.read_text(encoding="utf-8"))
+    constructors = {
+        name
+        for name, imported in _find_imported_names(module).items()
+        if imported == ("ddtrace.internal.telemetry", "StartupConfig")
+    }
+    nodes = list(ast.walk(module))
+    readers = {
+        target.id
+        for node in nodes
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id in constructors
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    properties = set()
+    for node in nodes:
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "read"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in readers
+        ):
+            continue
+        argument = (
+            node.args[0]
+            if node.args
+            else next((keyword.value for keyword in node.keywords if keyword.arg == "property_name"), None)
+        )
+        property_name = _literal_str(argument)
+        if property_name is None:
+            raise ValueError(
+                f"Startup configuration read requires a string literal at {source.relative_to(REPO_ROOT)}:{node.lineno}"
+            )
+        properties.add(property_name)
+    return properties
 
 
 def _collect_string_constants(module: ast.Module) -> dict[str, str]:
@@ -515,7 +605,11 @@ def main() -> int:
     with open(INPUT_FILE) as f:
         data = json.load(f)
 
-    content = generate_module(data)
+    try:
+        content = generate_module(data, _required_startup_properties())
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
 
     if check_mode:
         if not OUTPUT_FILE.exists():

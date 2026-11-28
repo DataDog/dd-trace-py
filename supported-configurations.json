@@ -464,6 +464,7 @@
       {
         "implementation": "A",
         "type": "string",
+        "internalPropertyName": "_dd_app_key",
         "default": null,
         "sensitive": true
       }
@@ -851,6 +852,7 @@
       {
         "implementation": "A",
         "type": "string",
+        "internalPropertyName": "_ci_visibility_agentless_url",
         "default": null
       }
     ],
@@ -886,6 +888,7 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "internalPropertyName": "_test_visibility_early_flake_detection_enabled",
         "default": "true"
       }
     ],
@@ -928,6 +931,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_ci_visibility_intelligent_testrunner_enabled",
         "default": "true"
       }
     ],
@@ -935,6 +939,7 @@
       {
         "implementation": "A",
         "type": "string",
+        "internalPropertyName": "_ci_visibility_log_level",
         "default": "info"
       }
     ],
@@ -1186,6 +1191,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_data_streams_enabled",
         "default": "false"
       }
     ],
@@ -1655,6 +1661,10 @@
       {
         "implementation": "A",
         "type": "string",
+        "configurationNames": [
+          "env"
+        ],
+        "internalPropertyName": "env",
         "default": ""
       }
     ],
@@ -2301,6 +2311,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_inject_force",
         "default": "false"
       }
     ],
@@ -2336,6 +2347,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_telemetry_enabled",
         "default": "true"
       }
     ],
@@ -2490,6 +2502,7 @@
       {
         "implementation": "A",
         "type": "int",
+        "internalPropertyName": "_llmobs_event_size_limit",
         "default": "5000000"
       }
     ],
@@ -2518,6 +2531,7 @@
       {
         "implementation": "A",
         "type": "int",
+        "internalPropertyName": "_llmobs_payload_size_limit",
         "default": "5242880"
       }
     ],
@@ -2601,6 +2615,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_otel_logs_enabled",
         "default": "false"
       }
     ],
@@ -2724,6 +2739,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_model_lab_enabled",
         "default": "false"
       }
     ],
@@ -3433,6 +3449,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_remote_config_enabled",
         "default": "true"
       }
     ],
@@ -3440,6 +3457,7 @@
       {
         "implementation": "C",
         "type": "decimal",
+        "internalPropertyName": "_remote_config_poll_interval",
         "default": "5.0",
         "aliases": [
           "DD_REMOTECONFIG_POLL_SECONDS"
@@ -3549,6 +3567,10 @@
       {
         "implementation": "D",
         "type": "string",
+        "configurationNames": [
+          "service"
+        ],
+        "internalPropertyName": "service",
         "default": null
       }
     ],
@@ -3608,6 +3630,7 @@
       {
         "implementation": "B",
         "type": "string",
+        "internalPropertyName": "_sampling_rules",
         "default": null
       }
     ],
@@ -3615,6 +3638,7 @@
       {
         "implementation": "A",
         "type": "string",
+        "internalPropertyName": "_sampling_rules_file",
         "default": null
       }
     ],
@@ -3724,6 +3748,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_telemetry_dependency_collection",
         "default": "true"
       }
     ],
@@ -3738,6 +3763,7 @@
       {
         "implementation": "B",
         "type": "decimal",
+        "internalPropertyName": "_telemetry_heartbeat_interval",
         "default": "60.0"
       }
     ],
@@ -3836,6 +3862,7 @@
       {
         "implementation": "A",
         "type": "string",
+        "internalPropertyName": "_test_session_name",
         "default": null
       }
     ],
@@ -3891,6 +3918,7 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "internalPropertyName": "_128_bit_trace_id_logging_enabled",
         "default": "false"
       }
     ],
@@ -3926,6 +3954,7 @@
       {
         "implementation": "B",
         "type": "decimal",
+        "internalPropertyName": "_agent_timeout_seconds",
         "default": "2.0"
       }
     ],
@@ -3933,6 +3962,7 @@
       {
         "implementation": "B",
         "type": "string",
+        "internalPropertyName": "_trace_agent_url",
         "default": null
       }
     ],
@@ -4010,6 +4040,7 @@
       {
         "implementation": "A",
         "type": "string",
+        "internalPropertyName": "_trace_api",
         "default": ""
       }
     ],
@@ -4269,6 +4300,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_retrieve_client_ip",
         "default": "false"
       }
     ],
@@ -4276,6 +4308,7 @@
       {
         "implementation": "B",
         "type": "string",
+        "internalPropertyName": "_client_ip_header",
         "default": null
       }
     ],
@@ -4346,6 +4379,7 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "internalPropertyName": "_debug_mode",
         "default": "false"
       }
     ],
@@ -4402,6 +4436,7 @@
       {
         "implementation": "B",
         "type": "decimal",
+        "internalPropertyName": "_long_running_flush_interval",
         "default": "120.0"
       }
     ],
@@ -4409,6 +4444,7 @@
       {
         "implementation": "B",
         "type": "decimal",
+        "internalPropertyName": "_long_running_initial_flush_interval",
         "default": "10.0"
       }
     ],
@@ -4416,6 +4452,7 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "internalPropertyName": "_runtime_metrics_runtime_id_enabled",
         "default": "false",
         "aliases": [
           "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"
@@ -4566,6 +4603,7 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "internalPropertyName": "_health_metrics_enabled",
         "default": "false"
       }
     ],
@@ -4615,6 +4653,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_inferred_proxy_services_enabled",
         "default": "false",
         "aliases": [
           "DD_TRACE_INFERRED_SPANS_ENABLED"
@@ -4772,6 +4811,7 @@
       {
         "implementation": "A",
         "type": "string",
+        "internalPropertyName": "_trace_methods",
         "default": null
       }
     ],
@@ -4863,6 +4903,7 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "internalPropertyName": "_otel_thread_context_enabled",
         "default": "true",
         "experimental": true
       }
@@ -4871,6 +4912,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_otel_trace_enabled",
         "default": "false"
       }
     ],
@@ -4885,6 +4927,7 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "internalPropertyName": "_partial_flush_enabled",
         "default": "true"
       }
     ],
@@ -4927,6 +4970,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_propagation_extract_first",
         "default": "false"
       }
     ],
@@ -4934,6 +4978,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_propagation_http_baggage_enabled",
         "default": "false"
       }
     ],
@@ -5045,6 +5090,7 @@
       {
         "implementation": "A",
         "type": "int",
+        "internalPropertyName": "_trace_rate_limit",
         "default": "100"
       }
     ],
@@ -5129,6 +5175,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_report_hostname",
         "default": "false"
       }
     ],
@@ -5143,6 +5190,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_trace_resource_renaming_always_simplified_endpoint",
         "default": "false"
       }
     ],
@@ -5150,6 +5198,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_trace_resource_renaming_enabled",
         "default": "false"
       }
     ],
@@ -5171,6 +5220,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_trace_safe_instrumentation_enabled",
         "default": "false"
       }
     ],
@@ -5220,6 +5270,7 @@
       {
         "implementation": "A",
         "type": "int",
+        "internalPropertyName": "_span_traceback_max_size",
         "default": "30"
       }
     ],
@@ -5255,6 +5306,7 @@
       {
         "implementation": "C",
         "type": "boolean",
+        "internalPropertyName": "_startup_logs_enabled",
         "default": "true"
       }
     ],
@@ -5284,6 +5336,7 @@
       {
         "implementation": "C",
         "type": "boolean",
+        "internalPropertyName": "_trace_compute_stats",
         "default": "true",
         "aliases": [
           "DD_TRACE_COMPUTE_STATS"
@@ -5420,6 +5473,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_trace_wrap_span_name_include_class",
         "default": "false"
       }
     ],
@@ -5427,6 +5481,7 @@
       {
         "implementation": "A",
         "type": "int",
+        "internalPropertyName": "_trace_writer_buffer_size",
         "default": "20971520"
       }
     ],
@@ -5434,6 +5489,7 @@
       {
         "implementation": "A",
         "type": "decimal",
+        "internalPropertyName": "_trace_writer_interval_seconds",
         "default": "1.0"
       }
     ],
@@ -5441,6 +5497,7 @@
       {
         "implementation": "A",
         "type": "int",
+        "internalPropertyName": "_trace_writer_payload_size",
         "default": "20971520"
       }
     ],
@@ -5448,6 +5505,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_trace_writer_connection_reuse",
         "default": "false"
       }
     ],
@@ -5586,6 +5644,10 @@
       {
         "implementation": "A",
         "type": "string",
+        "configurationNames": [
+          "version"
+        ],
+        "internalPropertyName": "version",
         "default": ""
       }
     ],
@@ -6004,6 +6066,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_otel_stats_computation_enabled",
         "default": null
       }
     ],
@@ -6531,6 +6594,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_trace_native_buffer_enabled",
         "default": "false",
         "internal": true
       }
@@ -6555,6 +6619,7 @@
       {
         "implementation": "A",
         "type": "boolean",
+        "internalPropertyName": "_trace_writer_log_err_payload",
         "default": "false",
         "internal": true
       }
@@ -6571,6 +6636,7 @@
       {
         "version": "C",
         "type": "boolean",
+        "internalPropertyName": "_client_side_stats_obfuscation",
         "default": "true",
         "propertyKeys": [
           "trace_stats_computation_experimental_client_obfuscation_enabled"

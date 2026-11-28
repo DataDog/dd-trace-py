@@ -1,3 +1,4 @@
+use libdd_config_core::WireResolver;
 #[cfg(target_os = "linux")]
 use libdd_library_config::tracer_metadata::ThreadLocalMetadata;
 use libdd_library_config::{
@@ -6,8 +7,30 @@ use libdd_library_config::{
 };
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyBytes, PyDict};
 use pyo3::types::PyList;
+
+#[pyclass(module = "ddtrace.internal.native._native")]
+#[derive(Default)]
+pub struct PyCoreConfigResolver {
+    resolver: WireResolver,
+}
+
+#[pymethods]
+impl PyCoreConfigResolver {
+    #[new]
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn request<'py>(&mut self, py: Python<'py>, request: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
+        let reply = self
+            .resolver
+            .request(request)
+            .map_err(|error| PyException::new_err(error.to_string()))?;
+        Ok(PyBytes::new(py, &reply))
+    }
+}
 
 #[pyclass(name = "PyConfigurator", module = "ddtrace.internal.native._native")]
 pub struct PyConfigurator {

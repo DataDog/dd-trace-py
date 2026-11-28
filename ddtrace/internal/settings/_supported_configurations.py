@@ -1038,3 +1038,168 @@ SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset(
         "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
     }
 )
+
+STARTUP_CONFIG_MANIFEST = (
+    '{"version":"2","supportedConfigurations":{"DD_APP_KEY":[{"implementation":"A","type":"string","inter'
+    'nalPropertyName":"_dd_app_key","default":null,"sensitive":true}],"DD_CIVISIBILITY_AGENTLESS_URL":[{"'
+    'implementation":"A","type":"string","internalPropertyName":"_ci_visibility_agentless_url","default":'
+    'null}],"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED":[{"implementation":"B","type":"boolean","inte'
+    'rnalPropertyName":"_test_visibility_early_flake_detection_enabled","default":"true"}],"DD_CIVISIBILI'
+    'TY_ITR_ENABLED":[{"implementation":"A","type":"boolean","internalPropertyName":"_ci_visibility_intel'
+    'ligent_testrunner_enabled","default":"true"}],"DD_CIVISIBILITY_LOG_LEVEL":[{"implementation":"A","ty'
+    'pe":"string","internalPropertyName":"_ci_visibility_log_level","default":"info"}],"DD_DATA_STREAMS_E'
+    'NABLED":[{"implementation":"A","type":"boolean","internalPropertyName":"_data_streams_enabled","defa'
+    'ult":"false"}],"DD_ENV":[{"implementation":"A","type":"string","configurationNames":["env"],"interna'
+    'lPropertyName":"env","default":""}],"DD_INJECT_FORCE":[{"implementation":"A","type":"boolean","inter'
+    'nalPropertyName":"_inject_force","default":"false"}],"DD_INSTRUMENTATION_TELEMETRY_ENABLED":[{"imple'
+    'mentation":"A","type":"boolean","internalPropertyName":"_telemetry_enabled","default":"true"}],"DD_L'
+    'LMOBS_EVENT_SIZE_BYTES":[{"implementation":"A","type":"int","internalPropertyName":"_llmobs_event_si'
+    'ze_limit","default":"5000000"}],"DD_LLMOBS_PAYLOAD_SIZE_BYTES":[{"implementation":"A","type":"int","'
+    'internalPropertyName":"_llmobs_payload_size_limit","default":"5242880"}],"DD_LOGS_OTEL_ENABLED":[{"i'
+    'mplementation":"A","type":"boolean","internalPropertyName":"_otel_logs_enabled","default":"false"}],'
+    '"DD_MODEL_LAB_ENABLED":[{"implementation":"A","type":"boolean","internalPropertyName":"_model_lab_en'
+    'abled","default":"false"}],"DD_REMOTE_CONFIGURATION_ENABLED":[{"implementation":"A","type":"boolean"'
+    ',"internalPropertyName":"_remote_config_enabled","default":"true"}],"DD_REMOTE_CONFIG_POLL_INTERVAL_'
+    'SECONDS":[{"implementation":"C","type":"decimal","internalPropertyName":"_remote_config_poll_interva'
+    'l","default":"5.0","aliases":["DD_REMOTECONFIG_POLL_SECONDS"]}],"DD_SERVICE":[{"implementation":"D",'
+    '"type":"string","configurationNames":["service"],"internalPropertyName":"service","default":null}],"'
+    'DD_SPAN_SAMPLING_RULES":[{"implementation":"B","type":"string","internalPropertyName":"_sampling_rul'
+    'es","default":null}],"DD_SPAN_SAMPLING_RULES_FILE":[{"implementation":"A","type":"string","internalP'
+    'ropertyName":"_sampling_rules_file","default":null}],"DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED":[{'
+    '"implementation":"A","type":"boolean","internalPropertyName":"_telemetry_dependency_collection","def'
+    'ault":"true"}],"DD_TELEMETRY_HEARTBEAT_INTERVAL":[{"implementation":"B","type":"decimal","internalPr'
+    'opertyName":"_telemetry_heartbeat_interval","default":"60.0"}],"DD_TEST_SESSION_NAME":[{"implementat'
+    'ion":"A","type":"string","internalPropertyName":"_test_session_name","default":null}],"DD_TRACE_128_'
+    'BIT_TRACEID_LOGGING_ENABLED":[{"implementation":"B","type":"boolean","internalPropertyName":"_128_bi'
+    't_trace_id_logging_enabled","default":"false"}],"DD_TRACE_AGENT_TIMEOUT_SECONDS":[{"implementation":'
+    '"B","type":"decimal","internalPropertyName":"_agent_timeout_seconds","default":"2.0"}],"DD_TRACE_AGE'
+    'NT_URL":[{"implementation":"B","type":"string","internalPropertyName":"_trace_agent_url","default":n'
+    'ull}],"DD_TRACE_API_VERSION":[{"implementation":"A","type":"string","internalPropertyName":"_trace_a'
+    'pi","default":""}],"DD_TRACE_CLIENT_IP_ENABLED":[{"implementation":"A","type":"boolean","internalPro'
+    'pertyName":"_retrieve_client_ip","default":"false"}],"DD_TRACE_CLIENT_IP_HEADER":[{"implementation":'
+    '"B","type":"string","internalPropertyName":"_client_ip_header","default":null}],"DD_TRACE_DEBUG":[{"'
+    'implementation":"B","type":"boolean","internalPropertyName":"_debug_mode","default":"false"}],"DD_TR'
+    'ACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL":[{"implementation":"B","type":"decimal","internalPrope'
+    'rtyName":"_long_running_flush_interval","default":"120.0"}],"DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INIT'
+    'IAL_FLUSH_INTERVAL":[{"implementation":"B","type":"decimal","internalPropertyName":"_long_running_in'
+    'itial_flush_interval","default":"10.0"}],"DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED":[{"implementatio'
+    'n":"B","type":"boolean","internalPropertyName":"_runtime_metrics_runtime_id_enabled","default":"fals'
+    'e","aliases":["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"]}],"DD_TRACE_HEALTH_METRICS_ENABLED":[{"implem'
+    'entation":"B","type":"boolean","internalPropertyName":"_health_metrics_enabled","default":"false"}],'
+    '"DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED":[{"implementation":"A","type":"boolean","internalProperty'
+    'Name":"_inferred_proxy_services_enabled","default":"false","aliases":["DD_TRACE_INFERRED_SPANS_ENABL'
+    'ED"]}],"DD_TRACE_METHODS":[{"implementation":"A","type":"string","internalPropertyName":"_trace_meth'
+    'ods","default":null}],"DD_TRACE_OTEL_CTX_ENABLED":[{"implementation":"B","type":"boolean","internalP'
+    'ropertyName":"_otel_thread_context_enabled","default":"true","experimental":true}],"DD_TRACE_OTEL_EN'
+    'ABLED":[{"implementation":"A","type":"boolean","internalPropertyName":"_otel_trace_enabled","default'
+    '":"false"}],"DD_TRACE_PARTIAL_FLUSH_ENABLED":[{"implementation":"B","type":"boolean","internalProper'
+    'tyName":"_partial_flush_enabled","default":"true"}],"DD_TRACE_PROPAGATION_EXTRACT_FIRST":[{"implemen'
+    'tation":"A","type":"boolean","internalPropertyName":"_propagation_extract_first","default":"false"}]'
+    ',"DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED":[{"implementation":"A","type":"boolean","internalProper'
+    'tyName":"_propagation_http_baggage_enabled","default":"false"}],"DD_TRACE_RATE_LIMIT":[{"implementat'
+    'ion":"A","type":"int","internalPropertyName":"_trace_rate_limit","default":"100"}],"DD_TRACE_REPORT_'
+    'HOSTNAME":[{"implementation":"A","type":"boolean","internalPropertyName":"_report_hostname","default'
+    '":"false"}],"DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT":[{"implementation":"A","type":"b'
+    'oolean","internalPropertyName":"_trace_resource_renaming_always_simplified_endpoint","default":"fals'
+    'e"}],"DD_TRACE_RESOURCE_RENAMING_ENABLED":[{"implementation":"A","type":"boolean","internalPropertyN'
+    'ame":"_trace_resource_renaming_enabled","default":"false"}],"DD_TRACE_SAFE_INSTRUMENTATION_ENABLED":'
+    '[{"implementation":"A","type":"boolean","internalPropertyName":"_trace_safe_instrumentation_enabled"'
+    ',"default":"false"}],"DD_TRACE_SPAN_TRACEBACK_MAX_SIZE":[{"implementation":"A","type":"int","interna'
+    'lPropertyName":"_span_traceback_max_size","default":"30"}],"DD_TRACE_STARTUP_LOGS":[{"implementation'
+    '":"C","type":"boolean","internalPropertyName":"_startup_logs_enabled","default":"true"}],"DD_TRACE_S'
+    'TATS_COMPUTATION_ENABLED":[{"implementation":"C","type":"boolean","internalPropertyName":"_trace_com'
+    'pute_stats","default":"true","aliases":["DD_TRACE_COMPUTE_STATS"]}],"DD_TRACE_WRAP_SPAN_NAME_INCLUDE'
+    '_CLASS":[{"implementation":"A","type":"boolean","internalPropertyName":"_trace_wrap_span_name_includ'
+    'e_class","default":"false"}],"DD_TRACE_WRITER_BUFFER_SIZE_BYTES":[{"implementation":"A","type":"int"'
+    ',"internalPropertyName":"_trace_writer_buffer_size","default":"20971520"}],"DD_TRACE_WRITER_INTERVAL'
+    '_SECONDS":[{"implementation":"A","type":"decimal","internalPropertyName":"_trace_writer_interval_sec'
+    'onds","default":"1.0"}],"DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES":[{"implementation":"A","type":"int"'
+    ',"internalPropertyName":"_trace_writer_payload_size","default":"20971520"}],"DD_TRACE_WRITER_REUSE_C'
+    'ONNECTIONS":[{"implementation":"A","type":"boolean","internalPropertyName":"_trace_writer_connection'
+    '_reuse","default":"false"}],"DD_VERSION":[{"implementation":"A","type":"string","configurationNames"'
+    ':["version"],"internalPropertyName":"version","default":""}],"OTEL_TRACES_SPAN_METRICS_ENABLED":[{"i'
+    'mplementation":"A","type":"boolean","internalPropertyName":"_otel_stats_computation_enabled","defaul'
+    't":null}],"_DD_TRACE_NATIVE_BUFFER_ENABLED":[{"implementation":"A","type":"boolean","internalPropert'
+    'yName":"_trace_native_buffer_enabled","default":"false","internal":true}],"_DD_TRACE_STATS_COMPUTATI'
+    'ON_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED":[{"version":"C","type":"boolean","internalPropertyName":'
+    '"_client_side_stats_obfuscation","default":"true","propertyKeys":["trace_stats_computation_experimen'
+    'tal_client_obfuscation_enabled"]}],"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS":[{"implementation":"A","typ'
+    'e":"boolean","internalPropertyName":"_trace_writer_log_err_payload","default":"false","internal":tru'
+    "e}]}}"
+)
+
+STARTUP_CONFIGURATIONS: dict[str, tuple[str, str, object]] = {
+    "_dd_app_key": ("DD_APP_KEY", "string", None),
+    "_ci_visibility_agentless_url": ("DD_CIVISIBILITY_AGENTLESS_URL", "string", None),
+    "_test_visibility_early_flake_detection_enabled": (
+        "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED",
+        "boolean",
+        True,
+    ),
+    "_ci_visibility_intelligent_testrunner_enabled": ("DD_CIVISIBILITY_ITR_ENABLED", "boolean", True),
+    "_ci_visibility_log_level": ("DD_CIVISIBILITY_LOG_LEVEL", "string", "info"),
+    "_data_streams_enabled": ("DD_DATA_STREAMS_ENABLED", "boolean", False),
+    "env": ("DD_ENV", "string", ""),
+    "_inject_force": ("DD_INJECT_FORCE", "boolean", False),
+    "_telemetry_enabled": ("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "boolean", True),
+    "_llmobs_event_size_limit": ("DD_LLMOBS_EVENT_SIZE_BYTES", "int", 5000000),
+    "_llmobs_payload_size_limit": ("DD_LLMOBS_PAYLOAD_SIZE_BYTES", "int", 5242880),
+    "_otel_logs_enabled": ("DD_LOGS_OTEL_ENABLED", "boolean", False),
+    "_model_lab_enabled": ("DD_MODEL_LAB_ENABLED", "boolean", False),
+    "_remote_config_enabled": ("DD_REMOTE_CONFIGURATION_ENABLED", "boolean", True),
+    "_remote_config_poll_interval": ("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "decimal", 5.0),
+    "service": ("DD_SERVICE", "string", None),
+    "_sampling_rules": ("DD_SPAN_SAMPLING_RULES", "string", None),
+    "_sampling_rules_file": ("DD_SPAN_SAMPLING_RULES_FILE", "string", None),
+    "_telemetry_dependency_collection": ("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "boolean", True),
+    "_telemetry_heartbeat_interval": ("DD_TELEMETRY_HEARTBEAT_INTERVAL", "decimal", 60.0),
+    "_test_session_name": ("DD_TEST_SESSION_NAME", "string", None),
+    "_128_bit_trace_id_logging_enabled": ("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "boolean", False),
+    "_agent_timeout_seconds": ("DD_TRACE_AGENT_TIMEOUT_SECONDS", "decimal", 2.0),
+    "_trace_agent_url": ("DD_TRACE_AGENT_URL", "string", None),
+    "_trace_api": ("DD_TRACE_API_VERSION", "string", ""),
+    "_retrieve_client_ip": ("DD_TRACE_CLIENT_IP_ENABLED", "boolean", False),
+    "_client_ip_header": ("DD_TRACE_CLIENT_IP_HEADER", "string", None),
+    "_debug_mode": ("DD_TRACE_DEBUG", "boolean", False),
+    "_long_running_flush_interval": ("DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", "decimal", 120.0),
+    "_long_running_initial_flush_interval": (
+        "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL",
+        "decimal",
+        10.0,
+    ),
+    "_runtime_metrics_runtime_id_enabled": ("DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "boolean", False),
+    "_health_metrics_enabled": ("DD_TRACE_HEALTH_METRICS_ENABLED", "boolean", False),
+    "_inferred_proxy_services_enabled": ("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "boolean", False),
+    "_trace_methods": ("DD_TRACE_METHODS", "string", None),
+    "_otel_thread_context_enabled": ("DD_TRACE_OTEL_CTX_ENABLED", "boolean", True),
+    "_otel_trace_enabled": ("DD_TRACE_OTEL_ENABLED", "boolean", False),
+    "_partial_flush_enabled": ("DD_TRACE_PARTIAL_FLUSH_ENABLED", "boolean", True),
+    "_propagation_extract_first": ("DD_TRACE_PROPAGATION_EXTRACT_FIRST", "boolean", False),
+    "_propagation_http_baggage_enabled": ("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "boolean", False),
+    "_trace_rate_limit": ("DD_TRACE_RATE_LIMIT", "int", 100),
+    "_report_hostname": ("DD_TRACE_REPORT_HOSTNAME", "boolean", False),
+    "_trace_resource_renaming_always_simplified_endpoint": (
+        "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT",
+        "boolean",
+        False,
+    ),
+    "_trace_resource_renaming_enabled": ("DD_TRACE_RESOURCE_RENAMING_ENABLED", "boolean", False),
+    "_trace_safe_instrumentation_enabled": ("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "boolean", False),
+    "_span_traceback_max_size": ("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "int", 30),
+    "_startup_logs_enabled": ("DD_TRACE_STARTUP_LOGS", "boolean", True),
+    "_trace_compute_stats": ("DD_TRACE_STATS_COMPUTATION_ENABLED", "boolean", True),
+    "_trace_wrap_span_name_include_class": ("DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", "boolean", False),
+    "_trace_writer_buffer_size": ("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "int", 20971520),
+    "_trace_writer_interval_seconds": ("DD_TRACE_WRITER_INTERVAL_SECONDS", "decimal", 1.0),
+    "_trace_writer_payload_size": ("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "int", 20971520),
+    "_trace_writer_connection_reuse": ("DD_TRACE_WRITER_REUSE_CONNECTIONS", "boolean", False),
+    "version": ("DD_VERSION", "string", ""),
+    "_otel_stats_computation_enabled": ("OTEL_TRACES_SPAN_METRICS_ENABLED", "boolean", None),
+    "_trace_native_buffer_enabled": ("_DD_TRACE_NATIVE_BUFFER_ENABLED", "boolean", False),
+    "_client_side_stats_obfuscation": (
+        "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
+        "boolean",
+        True,
+    ),
+    "_trace_writer_log_err_payload": ("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "boolean", False),
+}
